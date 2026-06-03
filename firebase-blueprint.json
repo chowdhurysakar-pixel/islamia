@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "Room": {
+      "title": "Room",
+      "description": "A hotel room definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "string" },
+        "type": { "type": "string", "enum": ["single", "double", "suite", "deluxe"] },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["available", "occupied", "maintenance", "cleaning"] },
+        "capacity": { "type": "number" },
+        "amenities": { "type": "array" },
+        "image": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "number", "type", "price", "status", "capacity"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "A room booking record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "guestName": { "type": "string" },
+        "guestEmail": { "type": "string" },
+        "guestPhone": { "type": "string" },
+        "checkIn": { "type": "string" },
+        "checkOut": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "checked-in", "checked-out", "cancelled"] },
+        "createdAt": { "type": "string" },
+        "notes": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "roomId", "guestName", "guestEmail", "checkIn", "checkOut", "totalAmount", "status", "createdAt"]
+    },
+    "ServiceRequest": {
+      "title": "ServiceRequest",
+      "description": "Hotel staff and guest service request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "roomId": { "type": "string" },
+        "type": { "type": "string", "enum": ["housekeeping", "room-service", "maintenance", "concierge"] },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "roomId", "type", "description", "status", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "A registered user profile with permissions",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "staff", "guest"] }
+      },
+      "required": ["uid", "email", "name", "role"]
+    }
+  },
+  "firestore": {
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Hotel inventory of rooms"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Room booking reservations"
+    },
+    "/serviceRequests/{requestId}": {
+      "schema": "ServiceRequest",
+      "description": "Room service or maintenance requests"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with authorization roles"
+    }
+  }
+}

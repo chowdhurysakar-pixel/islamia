@@ -1,0 +1,6 @@
+{
+  "name": "Islamia Guest House Room Booking System",
+  "description": "A secure, modern front-desk POS billing and room booking system for Islamia Guest House in Dhanmondi, Dhaka, featuring instant print bills, automated check-ins, and HR guest logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
