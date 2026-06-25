@@ -7,11 +7,12 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, ServiceRequest, RoomType, RoomStatus, BookingStatus, ServiceRequestStatus } from '../types';
 import { RoomCard } from './RoomCard';
+import { PrintableInvoice } from './PrintableInvoice';
 import { 
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
   Plus, ChevronRight, Receipt, Printer, UserCheck, MapPin, 
-  CreditCard, History, User, Check, X, ShieldCheck
+  CreditCard, History, User, Check, X, ShieldCheck, Settings
 } from 'lucide-react';
 
 export const StaffView: React.FC = () => {
@@ -58,6 +59,8 @@ export const StaffView: React.FC = () => {
   );
   const [posCustomBill, setPosCustomBill] = useState<string>(''); // Blank to autocalculate, editable to override
   const [receptionistGuests, setReceptionistGuests] = useState<{ name: string; phone: string; }[]>([]);
+  const [posReferenceName, setPosReferenceName] = useState<string>('');
+  const [receptionistKids, setReceptionistKids] = useState<{ name: string; age: string; }[]>([]);
 
   const handleAddReceptionistGuest = () => {
     if (receptionistGuests.length < 15) {
@@ -75,9 +78,26 @@ export const StaffView: React.FC = () => {
     setReceptionistGuests(receptionistGuests.filter((_, i) => i !== index));
   };
 
+  const handleAddReceptionistKid = () => {
+    if (receptionistKids.length < 10) {
+      setReceptionistKids([...receptionistKids, { name: '', age: '' }]);
+    }
+  };
+
+  const handleUpdateReceptionistKid = (index: number, key: 'name' | 'age', value: string) => {
+    const updated = [...receptionistKids];
+    updated[index][key] = value;
+    setReceptionistKids(updated);
+  };
+
+  const handleRemoveReceptionistKid = (index: number) => {
+    setReceptionistKids(receptionistKids.filter((_, i) => i !== index));
+  };
+
   // Detailed Modal Bill/Receipt state
   const [showBillModal, setShowBillModal] = useState<boolean>(false);
   const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
+  const [selectedRoomToManage, setSelectedRoomToManage] = useState<Room | null>(null);
 
   // Stats Analytics Calculations
   const stats = useMemo(() => {
@@ -141,12 +161,14 @@ export const StaffView: React.FC = () => {
   // Click room visual grid handler to bind instantly to Front Desk Booking Form
   const triggerDeskFromRoom = (room: Room) => {
     if (room.status !== 'available') {
-      alert(`Chamber ${room.number} is currently "${room.status}". Please release or clean it before checking-in new passengers.`);
+      setSelectedRoomToManage(room);
       return;
     }
     setPosSelectedRoomId(room.id);
     setPosCustomBill(''); // reset to use standard pricing
     setReceptionistGuests([]);
+    setPosReferenceName('');
+    setReceptionistKids([]);
     // Scroll smoothly to Guest Desk form
     const formElement = document.getElementById('pos-guest-desk');
     if (formElement) {
@@ -173,6 +195,7 @@ export const StaffView: React.FC = () => {
 
     try {
       const gList = receptionistGuests.filter(g => g.name.trim() !== '');
+      const kList = receptionistKids.filter(k => k.name.trim() !== '');
       const generatedRef = await createBooking({
         roomId: posSelectedRoomId,
         roomNumber: targetRoom.number,
@@ -188,7 +211,9 @@ export const StaffView: React.FC = () => {
         totalAmount: finalBill,
         status: 'checked-in', // Front-desk checkins go directly as checked-in!
         notes: `Checked in directly via front-desk guest registration desk at Dhanmondi, Dhaka.`,
-        additionalGuests: gList
+        additionalGuests: gList,
+        referenceName: posReferenceName.trim() || undefined,
+        kids: kList
       });
 
       // Fetch the created booking object to launch the BILL INVOICE immediately!
@@ -209,6 +234,8 @@ export const StaffView: React.FC = () => {
         status: 'checked-in',
         notes: 'Checked in directly via front-desk guest registration desk.',
         additionalGuests: gList,
+        referenceName: posReferenceName.trim() || undefined,
+        kids: kList,
         createdAt: new Date().toISOString()
       };
 
@@ -224,6 +251,8 @@ export const StaffView: React.FC = () => {
       setPosSelectedRoomId('');
       setPosCustomBill('');
       setReceptionistGuests([]);
+      setPosReferenceName('');
+      setReceptionistKids([]);
     } catch (err) {
       console.error(err);
       alert("An error occurred creating the booking in Google Firestore.");
@@ -278,6 +307,38 @@ export const StaffView: React.FC = () => {
       return matchStatus;
     });
   }, [serviceRequests, serviceStatusFilter]);
+
+  // Memoized repeat guest lookup map by contact info (phone/email/name) to count of bookings
+  const guestBookingCounts = useMemo(() => {
+    const countsByPhone: Record<string, number> = {};
+    const countsByEmail: Record<string, number> = {};
+    const countsByName: Record<string, number> = {};
+
+    bookings.forEach(b => {
+      const phone = b.guestPhone?.trim();
+      const email = b.guestEmail?.trim().toLowerCase();
+      const name = b.guestName?.trim().toLowerCase();
+
+      if (phone) countsByPhone[phone] = (countsByPhone[phone] || 0) + 1;
+      if (email) countsByEmail[email] = (countsByEmail[email] || 0) + 1;
+      if (name) countsByName[name] = (countsByName[name] || 0) + 1;
+    });
+
+    return { countsByPhone, countsByEmail, countsByName };
+  }, [bookings]);
+
+  const isRepeatGuest = (booking: Booking) => {
+    const phone = booking.guestPhone?.trim();
+    const email = booking.guestEmail?.trim().toLowerCase();
+    const name = booking.guestName?.trim().toLowerCase();
+
+    const phoneCount = phone ? (guestBookingCounts.countsByPhone[phone] || 0) : 0;
+    const emailCount = email ? (guestBookingCounts.countsByEmail[email] || 0) : 0;
+    const nameCount = name ? (guestBookingCounts.countsByName[name] || 0) : 0;
+
+    // A repeat guest has at least 2 distinct bookings in the system under their phone, email, or name
+    return phoneCount > 1 || emailCount > 1 || (nameCount > 1 && !phone && !email);
+  };
 
   // Compute Total Bill breakups for Dhaka Taxes
   const getDhakaBillBreakup = (total: number) => {
@@ -461,7 +522,7 @@ export const StaffView: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Night Price ($)</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Night Price (৳)</label>
                 <input
                   type="number"
                   min="30"
@@ -536,11 +597,25 @@ export const StaffView: React.FC = () => {
                   <span className="font-serif text-base font-bold text-slate-800">
                     Room {room.number}
                   </span>
-                  <span className={`w-2 h-2 rounded-full ${
-                    room.status === 'available' ? 'bg-emerald-500 animate-pulse' :
-                    room.status === 'occupied' ? 'bg-rose-500' :
-                    room.status === 'cleaning' ? 'bg-amber-400' : 'bg-slate-400'
-                  }`} />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      id={`room-manage-trigger-${room.id}`}
+                      type="button"
+                      title="Manage room status/chamber duty"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRoomToManage(room);
+                      }}
+                      className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-all active:scale-90"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                    </button>
+                    <span className={`w-2 h-2 rounded-full ${
+                      room.status === 'available' ? 'bg-emerald-500 animate-pulse' :
+                      room.status === 'occupied' ? 'bg-rose-500' :
+                      room.status === 'cleaning' ? 'bg-amber-400' : 'bg-slate-400'
+                    }`} />
+                  </div>
                 </div>
 
                 <div className="mt-4">
@@ -627,6 +702,18 @@ export const StaffView: React.FC = () => {
                 required
                 value={posCustomerPhone}
                 onChange={(e) => setPosCustomerPhone(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Reference Name (Optional)</label>
+              <input
+                id="pos-reference-name-input"
+                type="text"
+                placeholder="Who referred / contact person"
+                value={posReferenceName}
+                onChange={(e) => setPosReferenceName(e.target.value)}
                 className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white"
               />
             </div>
@@ -725,6 +812,71 @@ export const StaffView: React.FC = () => {
                           onChange={(e) => handleUpdateReceptionistGuest(idx, 'phone', e.target.value)}
                           className="w-full text-[11px] p-1.5 border border-slate-200 rounded bg-slate-50"
                         />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Kids Option with Age Box */}
+            <div className="space-y-2 pt-2 border-t border-slate-200">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Kids / Children (Under 12)</label>
+                <button
+                  id="receptionist-add-kid-btn"
+                  type="button"
+                  onClick={handleAddReceptionistKid}
+                  className="text-[9px] font-bold text-sky-600 hover:text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200/40"
+                >
+                  + Add Kid
+                </button>
+              </div>
+
+              {receptionistKids.length === 0 ? (
+                <p className="text-[10px] text-slate-400 italic">No kids registered. Click "+ Add Kid" to register child passengers.</p>
+              ) : (
+                <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                  {receptionistKids.map((kid, idx) => (
+                    <div key={idx} className="bg-white p-2.5 rounded-xl border border-slate-200 relative space-y-1.5 shadow-xs animate-fadeIn">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[8px] font-bold text-slate-400 font-mono uppercase">
+                          Kid #{idx + 1}
+                        </span>
+                        <button
+                          id={`remove-receptionist-kid-${idx}`}
+                          type="button"
+                          onClick={() => handleRemoveReceptionistKid(idx)}
+                          className="text-[9px] font-bold text-rose-500 hover:text-rose-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div className="col-span-2">
+                          <input
+                            id={`receptionist-kid-name-${idx}`}
+                            type="text"
+                            required
+                            placeholder="Kid's Name"
+                            value={kid.name}
+                            onChange={(e) => handleUpdateReceptionistKid(idx, 'name', e.target.value)}
+                            className="w-full text-[11px] p-1.5 border border-slate-200 rounded bg-slate-50"
+                          />
+                        </div>
+                        <div>
+                          <input
+                            id={`receptionist-kid-age-${idx}`}
+                            type="number"
+                            required
+                            min="0"
+                            max="17"
+                            placeholder="Age"
+                            value={kid.age}
+                            onChange={(e) => handleUpdateReceptionistKid(idx, 'age', e.target.value)}
+                            className="w-full text-[11px] p-1.5 border border-slate-200 rounded bg-slate-50 font-mono"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -879,17 +1031,38 @@ export const StaffView: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3.5 px-2 space-y-1">
-                          <div className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                          <div className="font-bold text-slate-800 text-xs flex items-center flex-wrap gap-1.5">
                             <User className="w-3.5 h-3.5 text-slate-400" />
-                            {booking.guestName}
+                            <span>{booking.guestName}</span>
+                            {isRepeatGuest(booking) && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[8px] font-extrabold uppercase tracking-wide shrink-0 font-sans">
+                                <Sparkles className="w-2.5 h-2.5 text-amber-500 fill-amber-400" />
+                                Repeat Guest
+                              </span>
+                            )}
                           </div>
                           <div className="text-[10px] text-slate-500 font-mono flex flex-col gap-0.5 pl-5">
                             <span>Phone: {booking.guestPhone}</span>
                             {booking.nidNumber && <span>NID: {booking.nidNumber}</span>}
+                            {booking.referenceName && (
+                              <span className="text-teal-600 font-semibold text-[9px]">
+                                Ref: {booking.referenceName}
+                              </span>
+                            )}
                             {(booking.upazila || booking.zila) && (
                               <span className="text-slate-400 text-[9px] font-mono flex items-center gap-0.5">
                                 <MapPin className="w-2.5 h-2.5 inline" />
                                 {booking.upazila}, {booking.zila}
+                              </span>
+                            )}
+                            {booking.additionalGuests && booking.additionalGuests.length > 0 && (
+                              <span className="text-[9px] text-slate-400 font-sans mt-0.5 block">
+                                Extras: {booking.additionalGuests.map(g => g.name).join(', ')}
+                              </span>
+                            )}
+                            {booking.kids && booking.kids.length > 0 && (
+                              <span className="text-[9px] text-sky-600 font-sans mt-0.5 block">
+                                Kids: {booking.kids.map(k => `${k.name} (${k.age}y)`).join(', ')}
                               </span>
                             )}
                           </div>
@@ -1061,151 +1234,116 @@ export const StaffView: React.FC = () => {
 
       </div>
 
-      {/* 5. GORGEOUS FRONT DESK BILL & TAX INVOICE RECEIPT MODAL (Show Bill logic) */}
+      {/* 5. DEDICATED PRINTABLE INVOICE COMPONENT (Thermal & Standard Layouts) */}
       {showBillModal && invoiceBooking && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden my-8">
+        <PrintableInvoice 
+          booking={invoiceBooking}
+          rooms={rooms}
+          onClose={() => setShowBillModal(false)}
+        />
+      )}
+
+      {/* 6. ROOM STATUS & CHAMBER DUTY MANAGER MODAL */}
+      {selectedRoomToManage && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
             
-            {/* Receipt Frame Printable layout */}
-            <div id="print-tax-bill" className="p-8 space-y-6">
-              
-              {/* Receipt Header */}
-              <div className="border-b border-dashed border-slate-200 pb-5 text-center">
-                <h3 className="font-serif text-xl font-bold tracking-tight text-slate-900">
-                  ISLAMIA GUEST HOUSE
-                </h3>
-                <p className="text-[10px] uppercase font-mono tracking-widest text-teal-600 font-bold mt-1">
-                  Dhaka Road Front Desk • Dhanmondi
-                </p>
-                <div className="text-[9px] text-slate-400 font-mono space-y-0.5 mt-2">
-                  <p>Location: House 12, Road 27, Dhanmondi, Dhaka-1209</p>
-                  <p>Email: frontdesk@islamiaguesthouse.com • Tel: +880-1712-445588</p>
-                  <p>VAT Registration TIN: 1993478512-TIN</p>
+            {/* Header */}
+            <div className="p-6 pb-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-teal-600" />
+                <div>
+                  <h3 className="font-serif text-base font-bold text-slate-800">
+                    Chamber Status Manager
+                  </h3>
+                  <p className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-bold">
+                    Room {selectedRoomToManage.number} • {selectedRoomToManage.type}
+                  </p>
                 </div>
               </div>
+              <button
+                id="close-status-manager-btn"
+                onClick={() => setSelectedRoomToManage(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 bg-white border border-slate-200 rounded-lg shadow-sm"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-              {/* Booking reference section */}
-              <div className="grid grid-cols-2 gap-4 text-xs">
+            {/* Body */}
+            <div className="p-6 space-y-5">
+              
+              {/* Current Status Banner */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 flex items-center justify-between">
                 <div>
-                  <span className="text-[9px] text-slate-400 uppercase tracking-wider font-mono block">Invoice Reference</span>
-                  <span className="font-mono font-bold text-slate-800">{invoiceBooking.id} (Front Desk Bill)</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[9px] text-slate-400 uppercase tracking-wider font-mono block">Registered Stamp</span>
-                  <span className="bg-teal-50 text-teal-700 border border-teal-100 font-mono font-bold text-[9px] uppercase px-2 py-0.5 rounded">
-                    {invoiceBooking.status}
+                  <span className="text-[9px] uppercase font-mono tracking-wider text-slate-400 block font-bold">Current Status</span>
+                  <span className="text-sm font-serif font-bold text-slate-800 capitalize">
+                    {selectedRoomToManage.status === 'cleaning' ? 'Cleaning (Chamber Duty)' : selectedRoomToManage.status}
                   </span>
                 </div>
+                <span className={`w-3.5 h-3.5 rounded-full ring-4 ${
+                  selectedRoomToManage.status === 'available' ? 'bg-emerald-500 ring-emerald-100 animate-pulse' :
+                  selectedRoomToManage.status === 'occupied' ? 'bg-rose-500 ring-rose-100' :
+                  selectedRoomToManage.status === 'cleaning' ? 'bg-amber-400 ring-amber-100 animate-pulse' :
+                  'bg-slate-400 ring-slate-100'
+                }`} />
               </div>
 
-              {/* Guest full profile & local variables (NID, Upazila, Zila) */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3 text-xs">
-                <span className="text-[9px] text-slate-400 uppercase tracking-widest font-mono font-bold block">
-                  Guest Registry & Verification Details
-                </span>
-                
-                <div className="grid grid-cols-2 gap-y-2.5 gap-x-4 border-t border-slate-200/40 pt-2.5">
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">Passenger Name</span>
-                    <span className="font-bold text-slate-800">{invoiceBooking.guestName}</span>
-                  </div>
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">Phone registry</span>
-                    <span className="font-semibold text-slate-800 font-mono">{invoiceBooking.guestPhone}</span>
-                  </div>
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">National ID (NID)</span>
-                    <span className="font-mono font-semibold text-slate-800">{invoiceBooking.nidNumber || '199321456182'}</span>
-                  </div>
-                  <div>
-                    <span className="text-[8px] text-slate-400 uppercase block">Origin Address</span>
-                    <span className="font-medium text-slate-800 font-mono">
-                      {invoiceBooking.upazila || 'Dhanmondi'}, {invoiceBooking.zila || 'Dhaka'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Rent & calculation breakouts */}
-              <div className="space-y-3.5 text-xs">
-                <span className="text-[9px] text-slate-400 uppercase tracking-widest font-mono font-bold block">
-                  Accommodation Breakdown
-                </span>
-                
-                <div className="space-y-2 border-t border-slate-100 pt-2">
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>
-                      Chamber Room {invoiceBooking.roomNumber || invoiceBooking.roomId} ({invoiceBooking.roomType || 'Standard'})
-                    </span>
-                    <span className="font-mono">
-                      {calcNights(invoiceBooking.checkIn, invoiceBooking.checkOut)} Nights
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-slate-400 text-[10px]">
-                    <span>Standard night rate</span>
-                    <span className="font-mono">৳{(invoiceBooking.totalAmount * 10 / calcNights(invoiceBooking.checkIn, invoiceBooking.checkOut)).toFixed(0)} / Night</span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 border-t border-dashed border-slate-200 pt-3">
-                  {/* Calculate subtotal minus VAT */}
-                  {(() => {
-                    const breakup = getDhakaBillBreakup(invoiceBooking.totalAmount * 10);
+              {/* Status Selector Grid */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-mono">
+                  Select New Chamber Status
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { id: 'available', name: 'Available (Ready)', color: 'border-emerald-200 hover:bg-emerald-50 text-emerald-800 bg-emerald-50/20', dotColor: 'bg-emerald-500', desc: 'Ready for passenger check-in' },
+                    { id: 'occupied', name: 'Occupied', color: 'border-rose-200 hover:bg-rose-50 text-rose-800 bg-rose-50/20', dotColor: 'bg-rose-500', desc: 'Currently checked-in guests inside' },
+                    { id: 'cleaning', name: 'Cleaning (Duty)', color: 'border-amber-200 hover:bg-amber-50 text-amber-800 bg-amber-50/20', dotColor: 'bg-amber-400', desc: 'Chamber duty / vacuum & stock' },
+                    { id: 'maintenance', name: 'Maintenance', color: 'border-slate-200 hover:bg-slate-50 text-slate-850 bg-slate-50/20', dotColor: 'bg-slate-400', desc: 'Engineering repairs / offline' }
+                  ].map((opt) => {
+                    const isSelected = selectedRoomToManage.status === opt.id;
                     return (
-                      <>
-                        <div className="flex justify-between text-slate-500">
-                          <span>Room Charge Net Subtotal</span>
-                          <span className="font-mono">৳{breakup.subtotal}</span>
+                      <button
+                        key={opt.id}
+                        id={`status-selector-btn-${opt.id}`}
+                        onClick={async () => {
+                          await updateRoomStatus(selectedRoomToManage.id, opt.id as RoomStatus);
+                          setSelectedRoomToManage(null);
+                        }}
+                        className={`text-left p-3 rounded-xl border transition-all text-xs flex flex-col justify-between h-[75px] ${
+                          isSelected 
+                            ? 'ring-2 ring-teal-600 bg-teal-50/30 border-teal-600 scale-[0.98]' 
+                            : `${opt.color}`
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-bold">
+                          <span className={`w-2 h-2 rounded-full ${opt.dotColor}`} />
+                          <span>{opt.name}</span>
                         </div>
-                        <div className="flex justify-between text-slate-400 text-[11px]">
-                          <span>Dhanmondi Tourism VAT (15%)</span>
-                          <span className="font-mono">+ ৳{breakup.vat}</span>
-                        </div>
-                        <div className="flex justify-between text-slate-400 text-[11px]">
-                          <span>Front Desk Service Charge (5%)</span>
-                          <span className="font-mono">+ ৳{breakup.serviceFee}</span>
-                        </div>
-                        <div className="border-t border-slate-200/60 pt-2.5 flex justify-between font-bold text-slate-900 text-sm">
-                          <span className="font-serif">Total Bill (Incl. Taxes)</span>
-                          <span className="font-mono text-teal-700">৳{breakup.grandTotal} BDT</span>
-                        </div>
-                      </>
+                        <p className="text-[9px] text-slate-400 font-normal leading-tight mt-1">{opt.desc}</p>
+                      </button>
                     );
-                  })()}
+                  })}
                 </div>
               </div>
 
-              {/* Footer signature */}
-              <div className="border-t border-dashed border-slate-200 pt-5 text-center space-y-4">
-                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-                  <span>Invoiced by: Frontdesk Staff</span>
-                  <span>Date: {new Date().toLocaleDateString()}</span>
-                </div>
-                <div className="text-[9px] text-slate-400 leading-normal italic bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  "Thank you for booking with Islamia Guest House. Have a safe and pleasant stay on your journey in Dhanmondi, Dhaka."
-                </div>
+              {/* Informative text */}
+              <div className="text-[10px] text-slate-400 leading-normal bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <p className="font-semibold text-slate-500 mb-0.5">💡 Chamber Duty Note</p>
+                When passengers check out, their suites are automatically placed into <span className="text-amber-600 font-bold font-mono">Cleaning (Chamber Duty)</span> status. Once housekeeping has fully disinfected the room and laid out fresh linens, select <span className="text-emerald-600 font-bold font-mono">Available (Ready)</span> above to open the chamber back up for new front-desk reservations.
               </div>
 
             </div>
 
-            {/* Action buttons drawer */}
-            <div className="bg-slate-50 px-8 py-4 border-t border-slate-200 flex justify-between gap-3">
+            {/* Footer */}
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 text-right">
               <button
-                id="close-invoice-modal-btn"
-                onClick={() => setShowBillModal(false)}
-                className="flex-1 px-4 py-2 bg-white border border-slate-250 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-100 transition text-center"
+                id="cancel-status-manager-btn"
+                type="button"
+                onClick={() => setSelectedRoomToManage(null)}
+                className="px-4 py-2 border border-slate-250 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition"
               >
-                Close Receipt
-              </button>
-              <button
-                id="print-invoice-btn"
-                onClick={() => {
-                  window.print();
-                }}
-                className="flex-1 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm shadow-teal-600/20"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Invoice</span>
+                Close Manager
               </button>
             </div>
 

@@ -35,6 +35,8 @@ export interface Booking {
   upazila?: string;
   zila?: string;
   additionalGuests?: { name: string; phone: string; }[];
+  referenceName?: string;
+  kids?: { name: string; age: string; }[];
   checkIn: string; // YYYY-MM-DD
   checkOut: string; // YYYY-MM-DD
   totalAmount: number;

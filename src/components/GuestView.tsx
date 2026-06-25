@@ -7,7 +7,8 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake } from 'lucide-react';
+import { PrintableInvoice } from './PrintableInvoice';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt } from 'lucide-react';
 
 export const GuestView: React.FC = () => {
   const { 
@@ -43,7 +44,11 @@ export const GuestView: React.FC = () => {
   const [bookCheckOut, setBookCheckOut] = useState<string>(tomorrowStr);
   const [bookNotes, setBookNotes] = useState<string>('');
   const [justCompletedBookingId, setJustCompletedBookingId] = useState<string | null>(null);
+  const [showBillModal, setShowBillModal] = useState<boolean>(false);
+  const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
   const [additionalGuests, setAdditionalGuests] = useState<{ name: string; phone: string; }[]>([]);
+  const [bookReferenceName, setBookReferenceName] = useState<string>('');
+  const [kids, setKids] = useState<{ name: string; age: string; }[]>([]);
 
   const handleAddGuestField = () => {
     if (additionalGuests.length < 15) {
@@ -59,6 +64,22 @@ export const GuestView: React.FC = () => {
 
   const handleRemoveGuestField = (index: number) => {
     setAdditionalGuests(additionalGuests.filter((_, i) => i !== index));
+  };
+
+  const handleAddKidField = () => {
+    if (kids.length < 10) {
+      setKids([...kids, { name: '', age: '' }]);
+    }
+  };
+
+  const handleUpdateKidField = (index: number, key: 'name' | 'age', value: string) => {
+    const updated = [...kids];
+    updated[index][key] = value;
+    setKids(updated);
+  };
+
+  const handleRemoveKidField = (index: number) => {
+    setKids(kids.filter((_, i) => i !== index));
   };
 
   // Service request state
@@ -78,6 +99,8 @@ export const GuestView: React.FC = () => {
     setBookNotes('');
     setJustCompletedBookingId(null);
     setAdditionalGuests([]);
+    setBookReferenceName('');
+    setKids([]);
   };
 
   // Memoized lists filtering
@@ -95,6 +118,38 @@ export const GuestView: React.FC = () => {
     if (!currentUser) return [];
     return bookings.filter(b => b.userId === currentUser.uid || b.guestEmail.toLowerCase() === currentUser.email.toLowerCase());
   }, [bookings, currentUser]);
+
+  // Memoized repeat guest lookup map by contact info (phone/email/name) to count of bookings
+  const guestBookingCounts = useMemo(() => {
+    const countsByPhone: Record<string, number> = {};
+    const countsByEmail: Record<string, number> = {};
+    const countsByName: Record<string, number> = {};
+
+    bookings.forEach(b => {
+      const phone = b.guestPhone?.trim();
+      const email = b.guestEmail?.trim().toLowerCase();
+      const name = b.guestName?.trim().toLowerCase();
+
+      if (phone) countsByPhone[phone] = (countsByPhone[phone] || 0) + 1;
+      if (email) countsByEmail[email] = (countsByEmail[email] || 0) + 1;
+      if (name) countsByName[name] = (countsByName[name] || 0) + 1;
+    });
+
+    return { countsByPhone, countsByEmail, countsByName };
+  }, [bookings]);
+
+  const isRepeatGuest = (booking: Booking) => {
+    const phone = booking.guestPhone?.trim();
+    const email = booking.guestEmail?.trim().toLowerCase();
+    const name = booking.guestName?.trim().toLowerCase();
+
+    const phoneCount = phone ? (guestBookingCounts.countsByPhone[phone] || 0) : 0;
+    const emailCount = email ? (guestBookingCounts.countsByEmail[email] || 0) : 0;
+    const nameCount = name ? (guestBookingCounts.countsByName[name] || 0) : 0;
+
+    // A repeat guest has at least 2 distinct bookings in the system under their phone, email, or name
+    return phoneCount > 1 || emailCount > 1 || (nameCount > 1 && !phone && !email);
+  };
 
   // Compute calculated values for dynamic billing
   const computedNights = useMemo(() => {
@@ -126,7 +181,9 @@ export const GuestView: React.FC = () => {
       totalAmount: computedTotal,
       status: 'confirmed',
       notes: bookNotes,
-      additionalGuests: additionalGuests.filter(g => g.name.trim() !== '')
+      additionalGuests: additionalGuests.filter(g => g.name.trim() !== ''),
+      referenceName: bookReferenceName.trim() || undefined,
+      kids: kids.filter(k => k.name.trim() !== '')
     });
 
     setJustCompletedBookingId(bId);
@@ -362,13 +419,26 @@ export const GuestView: React.FC = () => {
                       <p className="text-xs text-slate-500 font-mono">
                         {booking.checkIn} — {booking.checkOut}
                       </p>
-                      <p className="text-xs text-slate-400">
-                        Reserved for: <span className="font-medium text-slate-600">{booking.guestName}</span>
-                      </p>
+                      <div className="text-xs text-slate-400 flex items-center flex-wrap gap-1.5">
+                        <span>Reserved for: <span className="font-medium text-slate-600">{booking.guestName}</span></span>
+                        {isRepeatGuest(booking) && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-250 rounded-full text-[8px] font-extrabold uppercase tracking-wide shrink-0 font-sans">
+                            <Sparkles className="w-2.5 h-2.5 text-amber-500 fill-amber-400" />
+                            Repeat Guest
+                          </span>
+                        )}
+                      </div>
                       {booking.notes && (
                         <p className="text-[10px] text-amber-600 bg-amber-50/50 px-2 py-1 rounded inline-block border border-amber-100/50 mt-1">
                           Notes: "{booking.notes}"
                         </p>
+                      )}
+                      {booking.referenceName && (
+                        <div className="mt-1">
+                          <span className="text-[10px] text-teal-600 bg-teal-50/50 px-2 py-1 rounded inline-block border border-teal-100/50">
+                            Reference: <span className="font-semibold">{booking.referenceName}</span>
+                          </span>
+                        </div>
                       )}
                       {booking.additionalGuests && booking.additionalGuests.length > 0 && (
                         <div className="mt-1.5 pt-1.5 border-t border-slate-100/60">
@@ -377,6 +447,18 @@ export const GuestView: React.FC = () => {
                             {booking.additionalGuests.map((g, gi) => (
                               <span key={gi} className="inline-flex text-[9px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded border border-slate-150 font-mono">
                                 {g.name} ({g.phone})
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {booking.kids && booking.kids.length > 0 && (
+                        <div className="mt-1.5 pt-1.5 border-t border-slate-100/60">
+                          <p className="text-[10px] font-semibold text-slate-500">Kids / Children ({booking.kids.length}):</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {booking.kids.map((k, ki) => (
+                              <span key={ki} className="inline-flex text-[9px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded border border-sky-150 font-mono">
+                                {k.name} ({k.age} yrs)
                               </span>
                             ))}
                           </div>
@@ -402,7 +484,22 @@ export const GuestView: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="flex gap-2">
+                     <div className="flex gap-2">
+                      {/* Print Ticket / Invoice Option */}
+                      {(booking.status === 'confirmed' || booking.status === 'checked-in' || booking.status === 'checked-out') && (
+                        <button
+                          id={`guest-view-receipt-${booking.id}`}
+                          onClick={() => {
+                            setInvoiceBooking(booking);
+                            setShowBillModal(true);
+                          }}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-650 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold transition"
+                        >
+                          <Receipt className="w-3.5 h-3.5" />
+                          <span>Invoice / Ticket</span>
+                        </button>
+                      )}
+
                       {/* Only allowing service requests if currently checked-in */}
                       {booking.status === 'checked-in' && (
                         <button
@@ -528,6 +625,18 @@ export const GuestView: React.FC = () => {
                     />
                   </div>
 
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">Reference Name (Optional)</label>
+                    <input
+                      id="modal-reference-name"
+                      type="text"
+                      placeholder="Who referred you or contact person"
+                      value={bookReferenceName}
+                      onChange={(e) => setBookReferenceName(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2.5"
+                    />
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-slate-600 block">Email Address</label>
@@ -611,6 +720,73 @@ export const GuestView: React.FC = () => {
                                   value={guest.phone}
                                   onChange={(e) => handleUpdateGuestField(idx, 'phone', e.target.value)}
                                   className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-white"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Kids Option with Age Box */}
+                  <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        Kids / Children (Under 12 years)
+                      </label>
+                      <button
+                        id="add-kid-field-btn"
+                        type="button"
+                        onClick={handleAddKidField}
+                        className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg border border-sky-200/40"
+                      >
+                        + Add Kid
+                      </button>
+                    </div>
+
+                    {kids.length === 0 ? (
+                      <p className="text-[11px] text-slate-400 italic">No kids registered for this booking. Click "+ Add Kid" to include children.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {kids.map((kid, idx) => (
+                          <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-150 relative space-y-2 animate-fadeIn">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[9px] font-bold text-slate-500 uppercase font-mono">
+                                Kid #{idx + 1}
+                              </span>
+                              <button
+                                id={`remove-kid-field-${idx}`}
+                                type="button"
+                                onClick={() => handleRemoveKidField(idx)}
+                                className="text-[10px] font-bold text-rose-500 hover:text-rose-700"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="col-span-2">
+                                <input
+                                  id={`kid-name-${idx}`}
+                                  type="text"
+                                  required
+                                  placeholder="Kid's Name"
+                                  value={kid.name}
+                                  onChange={(e) => handleUpdateKidField(idx, 'name', e.target.value)}
+                                  className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-white"
+                                />
+                              </div>
+                              <div>
+                                <input
+                                  id={`kid-age-${idx}`}
+                                  type="number"
+                                  required
+                                  min="0"
+                                  max="17"
+                                  placeholder="Age"
+                                  value={kid.age}
+                                  onChange={(e) => handleUpdateKidField(idx, 'age', e.target.value)}
+                                  className="w-full text-xs p-2 border border-slate-200 rounded-lg bg-white font-mono"
                                 />
                               </div>
                             </div>
@@ -743,6 +919,15 @@ export const GuestView: React.FC = () => {
 
           </div>
         </div>
+      )}
+
+      {/* Dedicated Guest Invoice / Ticket modal */}
+      {showBillModal && invoiceBooking && (
+        <PrintableInvoice
+          booking={invoiceBooking}
+          rooms={rooms}
+          onClose={() => setShowBillModal(false)}
+        />
       )}
 
     </div>
