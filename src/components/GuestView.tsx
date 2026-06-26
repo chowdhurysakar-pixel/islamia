@@ -8,17 +8,42 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff } from 'lucide-react';
+
+// Custom contact icon/badge components
+const BkashLogo: React.FC<{ className?: string }> = ({ className = "w-3.5 h-3.5" }) => (
+  <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <rect width="40" height="40" rx="8" fill="#E2136E" />
+    <path d="M10 16 L20 10 L30 16 L20 23 Z" fill="white" />
+    <path d="M20 23 L28 30 L30 16 Z" fill="#F1F1F1" />
+    <path d="M20 23 L12 30 L10 16 Z" fill="#E1E1E1" />
+  </svg>
+);
+
+const CallLogo: React.FC<{ className?: string }> = ({ className = "w-2.5 h-2.5" }) => (
+  <span className="inline-flex items-center justify-center bg-slate-900 text-white rounded-full p-0.5 w-4 h-4 shrink-0" style={{ verticalAlign: 'middle' }}>
+    <Phone className={className} strokeWidth={3} />
+  </span>
+);
+
+const WhatsappLogo: React.FC<{ className?: string }> = ({ className = "w-3.5 h-3.5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+    <path d="M12.012 2C6.485 2 2.002 6.482 2 12.01c-.002 1.73.44 3.42 1.29 4.91L2 22l5.24-1.37c1.44.78 3.07 1.2 4.76 1.21h.005c5.527 0 10.01-4.483 10.012-10.01a10.01 10.01 0 00-10.005-10.01v.01z" fill="#25D366" />
+    <path d="M16.94 14.5c-.27-.14-1.59-.78-1.84-.87-.25-.09-.43-.14-.61.14-.18.27-.69.87-.85 1.05-.16.18-.32.2-.59.06-.27-.14-1.14-.42-2.17-1.34-.8-.71-1.34-1.59-1.5-1.86-.16-.27-.02-.42.12-.55.12-.12.27-.32.41-.48.14-.16.18-.27.27-.45.09-.18.05-.34-.02-.48-.07-.14-.61-1.47-.84-2.02-.22-.53-.44-.46-.61-.46h-.52c-.18 0-.47.07-.72.34-.25.27-.95.93-.95 2.27s.98 2.62 1.11 2.8c.14.18 1.92 2.93 4.66 4.12.65.28 1.16.45 1.56.58.66.21 1.26.18 1.73.11.53-.08 1.59-.65 1.81-1.27.22-.62.22-1.15.16-1.27-.07-.11-.25-.18-.53-.32z" fill="white" />
+  </svg>
+);
 
 export const GuestView: React.FC = () => {
   const { 
     rooms, 
     bookings, 
     serviceRequests,
+    feedbacks,
     currentUser, 
     createBooking, 
     updateBookingStatus, 
-    createServiceRequest 
+    createServiceRequest,
+    submitFeedback
   } = useApp();
 
   // Guest Search state
@@ -46,9 +71,96 @@ export const GuestView: React.FC = () => {
   const [justCompletedBookingId, setJustCompletedBookingId] = useState<string | null>(null);
   const [showBillModal, setShowBillModal] = useState<boolean>(false);
   const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
+  const [autoPrintInvoice, setAutoPrintInvoice] = useState<boolean>(false);
   const [additionalGuests, setAdditionalGuests] = useState<{ name: string; phone: string; }[]>([]);
   const [bookReferenceName, setBookReferenceName] = useState<string>('');
   const [kids, setKids] = useState<{ name: string; age: string; }[]>([]);
+
+  // Rating & Review Feedback Form State
+  const [userRating, setUserRating] = useState<number>(5);
+  const [userComment, setUserComment] = useState<string>('');
+  const [submittingFeedback, setSubmittingFeedback] = useState<boolean>(false);
+
+  // Voice-to-text input state for Special Room Requests
+  const [isListening, setIsListening] = useState<boolean>(false);
+  const [speechLanguage, setSpeechLanguage] = useState<'en-US' | 'bn-BD'>('en-US');
+  const [speechError, setSpeechError] = useState<string | null>(null);
+  const recognitionRef = React.useRef<any>(null);
+
+  const startVoiceInput = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setSpeechError("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    setSpeechError(null);
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = speechLanguage;
+
+      rec.onstart = () => {
+        setIsListening(true);
+      };
+
+      rec.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error === 'not-allowed') {
+          setSpeechError("Microphone permission denied. Check browser settings.");
+        } else {
+          setSpeechError(`Voice input error: ${event.error}`);
+        }
+        setIsListening(false);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      rec.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript) {
+          setBookNotes(prev => prev ? `${prev} ${transcript}` : transcript);
+        }
+      };
+
+      recognitionRef.current = rec;
+      rec.start();
+    } catch (err: any) {
+      console.error(err);
+      setSpeechError(err?.message || "Failed to initialize microphone.");
+      setIsListening(false);
+    }
+  };
+
+  const stopVoiceInput = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    setIsListening(false);
+  };
+
+  const toggleVoiceInput = () => {
+    if (isListening) {
+      stopVoiceInput();
+    } else {
+      startVoiceInput();
+    }
+  };
+
+  React.useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleAddGuestField = () => {
     if (additionalGuests.length < 15) {
@@ -209,6 +321,26 @@ export const GuestView: React.FC = () => {
     }, 3000);
   };
 
+  // Submit Guest Rating and Written Review
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    if (!userComment.trim()) {
+      alert("Please enter a short review or comment.");
+      return;
+    }
+    setSubmittingFeedback(true);
+    try {
+      await submitFeedback(userRating, userComment);
+      setUserComment('');
+      setUserRating(5);
+    } catch (err) {
+      console.error("Feedback submit error: ", err);
+    } finally {
+      setSubmittingFeedback(false);
+    }
+  };
+
   return (
     <div className="space-y-12">
       
@@ -232,6 +364,26 @@ export const GuestView: React.FC = () => {
           <p className="text-slate-300 text-sm md:text-base max-w-lg leading-relaxed">
             Welcome to <span className="text-white font-semibold">Islamia Guest House</span>. Experience high-quality hospitality, family-friendly security, and peaceful tranquility in the heart of Dhanmondi, Dhaka.
           </p>
+          <div className="flex flex-wrap items-center gap-3 pt-2">
+            <a 
+              id="whats-app-support-btn"
+              href="https://wa.me/8801799148408?text=Hello%20Islamia%20Guest%20House,%20I%20would%20like%20to%20inquire%20about%20room%20availability%20and%20booking%20details."
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-emerald-500/10 active:scale-95 cursor-pointer"
+            >
+              <WhatsappLogo className="w-4 h-4 shrink-0" />
+              <span>Message Support (WhatsApp)</span>
+            </a>
+            <a 
+              id="hotline-call-btn"
+              href="tel:01909806960"
+              className="inline-flex items-center gap-2 bg-slate-800/80 hover:bg-slate-800 text-white border border-slate-700/60 font-semibold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 active:scale-95 cursor-pointer"
+            >
+              <Phone className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+              <span>Call Hotline</span>
+            </a>
+          </div>
         </div>
       </div>
 
@@ -487,17 +639,33 @@ export const GuestView: React.FC = () => {
                      <div className="flex gap-2">
                       {/* Print Ticket / Invoice Option */}
                       {(booking.status === 'confirmed' || booking.status === 'checked-in' || booking.status === 'checked-out') && (
-                        <button
-                          id={`guest-view-receipt-${booking.id}`}
-                          onClick={() => {
-                            setInvoiceBooking(booking);
-                            setShowBillModal(true);
-                          }}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-650 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold transition"
-                        >
-                          <Receipt className="w-3.5 h-3.5" />
-                          <span>Invoice / Ticket</span>
-                        </button>
+                        <>
+                          <button
+                            id={`guest-view-receipt-${booking.id}`}
+                            onClick={() => {
+                              setAutoPrintInvoice(false);
+                              setInvoiceBooking(booking);
+                              setShowBillModal(true);
+                            }}
+                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-650 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold transition"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>Invoice / Ticket</span>
+                          </button>
+                          <button
+                            id={`guest-direct-print-${booking.id}`}
+                            onClick={() => {
+                              setAutoPrintInvoice(true);
+                              setInvoiceBooking(booking);
+                              setShowBillModal(true);
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition border border-amber-150"
+                            title="Directly trigger browser printing"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Direct Print</span>
+                          </button>
+                        </>
                       )}
 
                       {/* Only allowing service requests if currently checked-in */}
@@ -509,6 +677,23 @@ export const GuestView: React.FC = () => {
                         >
                           <BellDot className="w-3.5 h-3.5 text-teal-600" />
                           <span>Request In-Room Service</span>
+                        </button>
+                      )}
+
+                      {/* Star rating option after stay or during stay */}
+                      {(booking.status === 'checked-out' || booking.status === 'checked-in') && (
+                        <button
+                          id={`leave-feedback-btn-${booking.id}`}
+                          onClick={() => {
+                            const section = document.getElementById('guest-reviews-section');
+                            if (section) {
+                              section.scrollIntoView({ behavior: 'smooth' });
+                            }
+                          }}
+                          className="flex items-center gap-1 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition border border-amber-100"
+                        >
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                          <span>Rate Stay Experience</span>
                         </button>
                       )}
 
@@ -796,16 +981,101 @@ export const GuestView: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-600 block">Special Room Requests (Optional)</label>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-600 block">Special Room Requests (Optional)</label>
+                      
+                      {/* Hands-Free Speech to Text Controls */}
+                      <div className="flex items-center gap-2">
+                        {/* Language Selector */}
+                        <div className="inline-flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200 text-[10px]">
+                          <button
+                            id="lang-en-btn"
+                            type="button"
+                            onClick={() => setSpeechLanguage('en-US')}
+                            className={`px-1.5 py-0.5 rounded-md font-mono font-bold transition-colors ${
+                              speechLanguage === 'en-US'
+                                ? 'bg-white text-teal-600 shadow-sm'
+                                : 'text-slate-400 hover:text-slate-600'
+                            }`}
+                          >
+                            ENG
+                          </button>
+                          <button
+                            id="lang-bn-btn"
+                            type="button"
+                            onClick={() => setSpeechLanguage('bn-BD')}
+                            className={`px-1.5 py-0.5 rounded-md font-bold transition-colors ${
+                              speechLanguage === 'bn-BD'
+                                ? 'bg-white text-teal-600 shadow-sm'
+                                : 'text-slate-400 hover:text-slate-600'
+                            }`}
+                          >
+                            বাংলা
+                          </button>
+                        </div>
+
+                        {/* Mic Trigger */}
+                        <button
+                          id="voice-mic-trigger-btn"
+                          type="button"
+                          onClick={toggleVoiceInput}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all duration-200 cursor-pointer ${
+                            isListening
+                              ? 'bg-red-500 text-white animate-pulse shadow-md shadow-red-500/20'
+                              : 'bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-100'
+                          }`}
+                        >
+                          {isListening ? (
+                            <>
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping shrink-0" />
+                              <MicOff className="w-3.5 h-3.5" />
+                              <span>Listening...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mic className="w-3.5 h-3.5" />
+                              <span>Describe hands-free</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
                     <textarea
                       id="modal-special-notes"
                       rows={2}
-                      placeholder="e.g. Feather pillows, extra towels, morning tea..."
+                      placeholder={
+                        isListening 
+                          ? (speechLanguage === 'en-US' ? "Speak now! e.g. 'I need three extra towels and morning tea'..." : "এখন বলুন! যেমন: 'আমার ৩টি অতিরিক্ত তোয়ালে ও সকালের চা লাগবে'...")
+                          : "e.g. Feather pillows, extra towels, morning tea..."
+                      }
                       value={bookNotes}
                       onChange={(e) => setBookNotes(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-xl p-2.5 resize-none"
+                      className={`w-full text-xs border rounded-xl p-2.5 resize-none transition-all duration-200 leading-relaxed ${
+                        isListening
+                          ? 'border-red-400 ring-1 ring-red-400/20 bg-red-50/10'
+                          : 'border-slate-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20'
+                      }`}
                     />
+
+                    {/* Speech Errors */}
+                    {speechError && (
+                      <div className="text-[10px] text-red-500 font-medium bg-red-50/50 border border-red-100/50 p-1.5 rounded-lg flex items-center gap-1 animate-pulse">
+                        <span className="w-1 h-1 rounded-full bg-red-500 shrink-0" />
+                        <span>{speechError}</span>
+                      </div>
+                    )}
+                    {isListening && (
+                      <div className="text-[10px] text-teal-600 font-medium bg-teal-50/30 border border-teal-100/40 p-1.5 rounded-lg flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0 animate-ping" />
+                        <span>
+                          {speechLanguage === 'en-US' 
+                            ? "Voice input active: speak clearly into your mic. Your transcript will append below." 
+                            : "ভয়েস ইনপুট সক্রিয়: মাইক্রোফোনে স্পষ্ট করে বলুন। আপনার বক্তব্য নিচে যোগ হবে।"}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -921,12 +1191,306 @@ export const GuestView: React.FC = () => {
         </div>
       )}
 
+      {/* 4.5. Guest Reviews & Star Ratings Section */}
+      <div id="guest-reviews-section" className="bg-slate-50 border border-slate-200/60 rounded-3xl p-6 md:p-8 space-y-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-slate-800">Guest Ratings & Feedback</h2>
+              <p className="text-xs text-slate-500">Real experiences shared by authenticated visitors of Islamia Guest House</p>
+            </div>
+          </div>
+          
+          {/* Quick Stats */}
+          {feedbacks && feedbacks.length > 0 && (
+            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm self-start sm:self-center">
+              <span className="text-2xl font-black text-slate-800 font-mono">
+                {(feedbacks.reduce((acc, f) => acc + f.rating, 0) / feedbacks.length).toFixed(1)}
+              </span>
+              <div className="flex flex-col leading-none">
+                <div className="flex items-center gap-0.5">
+                  {[1, 2, 3, 4, 5].map((s) => {
+                    const avg = feedbacks.reduce((acc, f) => acc + f.rating, 0) / feedbacks.length;
+                    return (
+                      <Star
+                        key={s}
+                        className={`w-3.5 h-3.5 ${
+                          s <= Math.round(avg) ? 'text-amber-400 fill-amber-400' : 'text-slate-200'
+                        }`}
+                      />
+                    );
+                  })}
+                </div>
+                <span className="text-[10px] text-slate-400 font-medium mt-1">{feedbacks.length} Verified Reviews</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          {/* Submit Review Card */}
+          <div className="lg:col-span-5 bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
+            <h3 className="font-serif text-lg font-bold text-slate-800 font-sans">Write a Review</h3>
+            {currentUser ? (
+              <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+                <p className="text-xs text-slate-500">
+                  You are reviewing as <span className="font-semibold text-slate-700">{currentUser.name}</span> ({currentUser.role})
+                </p>
+                
+                {/* Star Rating Input */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Your Star Rating</label>
+                  <div className="flex items-center gap-1.5 pt-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        id={`star-btn-${star}`}
+                        type="button"
+                        onClick={() => setUserRating(star)}
+                        className="p-1 hover:scale-110 active:scale-95 transition cursor-pointer"
+                      >
+                        <Star
+                          className={`w-8 h-8 transition-colors duration-150 ${
+                            star <= userRating
+                              ? 'text-amber-400 fill-amber-400 filter drop-shadow-[0_1px_2px_rgba(251,191,36,0.2)]'
+                              : 'text-slate-200 hover:text-amber-200'
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    <span className="text-xs font-semibold text-amber-600 font-mono ml-2">
+                      {userRating === 5 ? 'Excellent 🌟' : userRating === 4 ? 'Very Good 👍' : userRating === 3 ? 'Good Ok 🙂' : userRating === 2 ? 'Fair 😐' : 'Poor 😞'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Comment Textarea */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-600 block">Feedback Details</label>
+                  <textarea
+                    id="user-feedback-comment"
+                    required
+                    rows={4}
+                    maxLength={2000}
+                    placeholder="Share details of your room comfort, staff services, and neighborhood accessibility (e.g., proximity to Ibn Sina or Meena Bazar)..."
+                    value={userComment}
+                    onChange={(e) => setUserComment(e.target.value)}
+                    className="w-full text-xs border border-slate-200 rounded-xl p-3 resize-none focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 leading-relaxed"
+                  />
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
+                    <span>Constructive comments are appreciated.</span>
+                    <span>{userComment.length}/2000</span>
+                  </div>
+                </div>
+
+                <button
+                  id="submit-feedback-btn"
+                  type="submit"
+                  disabled={submittingFeedback}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                >
+                  {submittingFeedback ? (
+                    <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <MessageSquarePlus className="w-4 h-4" />
+                  )}
+                  <span>Post Verified Review</span>
+                </button>
+              </form>
+            ) : (
+              <div className="bg-amber-50/60 border border-amber-100 rounded-2xl p-5 text-center space-y-3">
+                <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+                  <Info className="w-5 h-5" />
+                </div>
+                <h4 className="text-sm font-semibold text-amber-800">Authentication Required</h4>
+                <p className="text-xs text-amber-700/80 leading-relaxed">
+                  Only signed-in guests can publish star ratings and stay testimonials. 
+                </p>
+                <div className="text-[11px] text-slate-500 bg-white/80 p-2.5 rounded-xl border border-slate-100/50">
+                  Please use the **Google Login** or the **Role Switcher / Simulator** at the top bar to authenticate as a Guest.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Feedback Feed Column */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif text-lg font-bold text-slate-800 font-sans">Recent Stay Testimonials</h3>
+              <span className="text-xs text-slate-400 font-mono">{feedbacks ? feedbacks.length : 0} items</span>
+            </div>
+            
+            {(!feedbacks || feedbacks.length === 0) ? (
+              <div className="bg-white border border-slate-100 rounded-2xl p-10 text-center text-slate-400 space-y-2">
+                <MessageSquare className="w-8 h-8 mx-auto text-slate-200" />
+                <p className="text-sm font-medium">No Reviews Yet</p>
+                <p className="text-xs">Be the very first authenticated guest to post your stay experience!</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
+                {feedbacks.map((f) => {
+                  const firstChar = f.userName ? f.userName.charAt(0).toUpperCase() : 'G';
+                  const dateStr = new Date(f.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  });
+                  
+                  return (
+                    <div 
+                      key={f.id} 
+                      className="bg-white border border-slate-100 hover:border-slate-200 transition-colors duration-150 p-4 rounded-2xl space-y-2.5 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-2.5">
+                          {/* Avatar */}
+                          <div className="w-9 h-9 rounded-full bg-teal-50 border border-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">
+                            {firstChar}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h4 className="text-xs font-bold text-slate-800 leading-none">{f.userName}</h4>
+                              <span className="text-[9px] font-bold font-mono uppercase bg-teal-100/60 text-teal-800 px-1.5 py-0.5 rounded-md">Verified Guest</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono block mt-1">{dateStr}</span>
+                          </div>
+                        </div>
+                        
+                        {/* Rating Stars */}
+                        <div className="flex items-center gap-0.5 bg-amber-50 px-2 py-1 rounded-xl border border-amber-100/50">
+                          <span className="text-xs font-bold text-amber-700 font-mono mr-1 leading-none">{f.rating}</span>
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 shrink-0" />
+                        </div>
+                      </div>
+                      
+                      <p className="text-xs text-slate-600 leading-relaxed pl-1.5 border-l-2 border-slate-100 italic">
+                        "{f.comment}"
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+
+      {/* 5. Contact & Location Info Footer Banner */}
+      <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-lg border border-slate-800 relative overflow-hidden">
+        {/* Subtle background decoration */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
+        
+        <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          
+          {/* Left Column: Heading, Address & Landmark */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="inline-flex items-center gap-1.5 bg-teal-500/10 border border-teal-400/20 px-3 py-1 text-teal-300 rounded-full text-xs font-mono tracking-wider">
+              <MapPin className="w-3.5 h-3.5 text-teal-300" />
+              <span>FIND US IN DHANMONDI</span>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold text-white tracking-tight font-sans">
+                ইসলামিয়া গেস্ট হাউস (Islamia Guest House)
+              </h3>
+              <p className="text-sm text-slate-200 font-medium leading-relaxed">
+                বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি, ঢাকা - ১২০৯ <br />
+                <span className="text-slate-400 text-xs font-normal">
+                  (House No: 55/C/1, Road No: 9/A, Dhanmondi, Dhaka - 1209)
+                </span>
+              </p>
+            </div>
+
+            <div className="flex gap-2.5 items-start bg-slate-800/50 border border-slate-700/50 p-4 rounded-2xl">
+              <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
+                  Landmarks / ল্যান্ডমার্ক
+                </p>
+                <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                  ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Contact Details with logos */}
+          <div className="lg:col-span-5 space-y-4 bg-slate-800/40 p-6 rounded-2xl border border-slate-700/30">
+            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+              Hotline & Payment Support / যোগাযোগ
+            </h4>
+            
+            <div className="space-y-3.5">
+              {/* bKash */}
+              <div className="flex items-center justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800 hover:border-pink-500/30 transition group">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-pink-500/10 rounded-lg group-hover:scale-105 transition">
+                    <BkashLogo className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
+                      bKash (Merchant / Personal)
+                    </p>
+                    <p className="text-sm font-mono font-bold text-slate-100">01832-841818</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold font-mono text-pink-400 bg-pink-400/10 px-2 py-0.5 rounded-full">
+                  bKash
+                </span>
+              </div>
+
+              {/* Call */}
+              <div className="flex items-center justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800 hover:border-teal-500/30 transition group">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-slate-700/50 rounded-lg group-hover:scale-105 transition">
+                    <CallLogo className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
+                      Direct Call Support
+                    </p>
+                    <p className="text-sm font-mono font-bold text-slate-100">01909-806960</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold font-mono text-teal-400 bg-teal-400/10 px-2 py-0.5 rounded-full">
+                  Call
+                </span>
+              </div>
+
+              {/* WhatsApp */}
+              <div className="flex items-center justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800 hover:border-emerald-500/30 transition group">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-emerald-500/10 rounded-lg group-hover:scale-105 transition">
+                    <WhatsappLogo className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
+                      WhatsApp Message
+                    </p>
+                    <p className="text-sm font-mono font-bold text-slate-100">01799-148408</p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
+                  WhatsApp
+                </span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       {/* Dedicated Guest Invoice / Ticket modal */}
       {showBillModal && invoiceBooking && (
         <PrintableInvoice
           booking={invoiceBooking}
           rooms={rooms}
           onClose={() => setShowBillModal(false)}
+          autoPrint={autoPrintInvoice}
         />
       )}
 

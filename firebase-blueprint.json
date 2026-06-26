@@ -33,7 +33,8 @@
         "status": { "type": "string", "enum": ["pending", "confirmed", "checked-in", "checked-out", "cancelled"] },
         "createdAt": { "type": "string" },
         "notes": { "type": "string" },
-        "userId": { "type": "string" }
+        "userId": { "type": "string" },
+        "expectedPersonCount": { "type": "number" }
       },
       "required": ["id", "roomId", "guestName", "guestEmail", "checkIn", "checkOut", "totalAmount", "status", "createdAt"]
     },
@@ -62,6 +63,21 @@
         "role": { "type": "string", "enum": ["admin", "staff", "guest"] }
       },
       "required": ["uid", "email", "name", "role"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "Star rating and text feedback submitted by guests",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "userName", "userEmail", "rating", "comment", "createdAt"]
     }
   },
   "firestore": {
@@ -80,6 +96,10 @@
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "User profile with authorization roles"
+    },
+    "/feedbacks/{feedbackId}": {
+      "schema": "Feedback",
+      "description": "Star ratings and written reviews submitted by guests"
     }
   }
 }

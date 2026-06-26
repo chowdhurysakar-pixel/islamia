@@ -22,6 +22,7 @@ export const StaffView: React.FC = () => {
     serviceRequests, 
     addRoom, 
     updateRoomStatus, 
+    editRoomDetails,
     createBooking,
     updateBookingStatus, 
     updateServiceRequestStatus 
@@ -97,7 +98,25 @@ export const StaffView: React.FC = () => {
   // Detailed Modal Bill/Receipt state
   const [showBillModal, setShowBillModal] = useState<boolean>(false);
   const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
+  const [autoPrintInvoice, setAutoPrintInvoice] = useState<boolean>(false);
   const [selectedRoomToManage, setSelectedRoomToManage] = useState<Room | null>(null);
+
+  // Room tracking edit states (money pricing, numbers, capacities, and statuses)
+  const [editRoomNumber, setEditRoomNumber] = useState<string>('');
+  const [editRoomType, setEditRoomType] = useState<RoomType>('single');
+  const [editRoomPrice, setEditRoomPrice] = useState<number>(0);
+  const [editRoomCapacity, setEditRoomCapacity] = useState<number>(1);
+  const [editRoomStatus, setEditRoomStatus] = useState<RoomStatus>('available');
+
+  React.useEffect(() => {
+    if (selectedRoomToManage) {
+      setEditRoomNumber(selectedRoomToManage.number);
+      setEditRoomType(selectedRoomToManage.type);
+      setEditRoomPrice(selectedRoomToManage.price * 10);
+      setEditRoomCapacity(selectedRoomToManage.capacity);
+      setEditRoomStatus(selectedRoomToManage.status);
+    }
+  }, [selectedRoomToManage]);
 
   // Stats Analytics Calculations
   const stats = useMemo(() => {
@@ -260,7 +279,8 @@ export const StaffView: React.FC = () => {
   };
 
   // Launch Invoice Modal for any given row/booking
-  const openInvoiceForBooking = (bookingItem: Booking) => {
+  const openInvoiceForBooking = (bookingItem: Booking, autoPrint: boolean = false) => {
+    setAutoPrintInvoice(autoPrint);
     // If room details exist, let's grab room metadata
     const rMatch = rooms.find(r => r.id === bookingItem.roomId);
     const hydratedBooking = {
@@ -579,11 +599,11 @@ export const StaffView: React.FC = () => {
           {/* Visual Interactive Map List */}
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
             {rooms.map(room => (
-              <button
+              <div
                 key={room.id}
                 id={`room-btn-${room.id}`}
                 onClick={() => triggerDeskFromRoom(room)}
-                className={`text-left p-3.5 rounded-2xl border transition-all duration-200 relative overflow-hidden flex flex-col justify-between min-h-[100px] active:scale-95 group ${
+                className={`text-left p-3.5 rounded-2xl border transition-all duration-200 relative overflow-hidden flex flex-col justify-between min-h-[100px] active:scale-95 group cursor-pointer ${
                   posSelectedRoomId === room.id
                     ? 'ring-2 ring-teal-600 bg-teal-50/40 border-teal-600'
                     : room.status === 'available'
@@ -640,7 +660,7 @@ export const StaffView: React.FC = () => {
                     </span>
                   </div>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -1114,11 +1134,20 @@ export const StaffView: React.FC = () => {
                           )}
                           <button
                             id={`show-bill-row-btn-${booking.id}`}
-                            onClick={() => openInvoiceForBooking(booking)}
+                            onClick={() => openInvoiceForBooking(booking, false)}
                             className="px-2 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-700 rounded-lg font-bold text-[10px] font-mono transition inline-flex items-center gap-1 border border-teal-150 ml-1"
                           >
                             <Receipt className="w-3 h-3" />
                             <span>Show Bill</span>
+                          </button>
+                          <button
+                            id={`direct-print-row-btn-${booking.id}`}
+                            onClick={() => openInvoiceForBooking(booking, true)}
+                            className="px-2 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg font-bold text-[10px] font-mono transition inline-flex items-center gap-1 border border-amber-150 ml-1"
+                            title="Trigger automated browser print immediately"
+                          >
+                            <Printer className="w-3 h-3" />
+                            <span>Direct Print</span>
                           </button>
                         </td>
                       </tr>
@@ -1240,13 +1269,14 @@ export const StaffView: React.FC = () => {
           booking={invoiceBooking}
           rooms={rooms}
           onClose={() => setShowBillModal(false)}
+          autoPrint={autoPrintInvoice}
         />
       )}
 
-      {/* 6. ROOM STATUS & CHAMBER DUTY MANAGER MODAL */}
+      {/* 6. ROOM STATUS, PRICING & CHAMBER DUTY SETTINGS MANAGER */}
       {selectedRoomToManage && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden">
             
             {/* Header */}
             <div className="p-6 pb-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -1254,7 +1284,7 @@ export const StaffView: React.FC = () => {
                 <Settings className="w-5 h-5 text-teal-600" />
                 <div>
                   <h3 className="font-serif text-base font-bold text-slate-800">
-                    Chamber Status Manager
+                    Chamber Settings & Status Tracker
                   </h3>
                   <p className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-bold">
                     Room {selectedRoomToManage.number} • {selectedRoomToManage.type}
@@ -1271,28 +1301,73 @@ export const StaffView: React.FC = () => {
             </div>
 
             {/* Body */}
-            <div className="p-6 space-y-5">
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
               
-              {/* Current Status Banner */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 flex items-center justify-between">
-                <div>
-                  <span className="text-[9px] uppercase font-mono tracking-wider text-slate-400 block font-bold">Current Status</span>
-                  <span className="text-sm font-serif font-bold text-slate-800 capitalize">
-                    {selectedRoomToManage.status === 'cleaning' ? 'Cleaning (Chamber Duty)' : selectedRoomToManage.status}
-                  </span>
+              {/* Settings Fields: Room details, capacity, and PRICE (Money edit!) */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-4">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 block font-bold">Chamber & Tracker Settings</span>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Room Number</label>
+                    <input
+                      id="edit-room-number-input"
+                      type="text"
+                      value={editRoomNumber}
+                      onChange={(e) => setEditRoomNumber(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-mono"
+                    />
+                  </div>
+
+                  {/* Money Editing Option */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Nightly Price (৳ BDT)</label>
+                    <input
+                      id="edit-room-price-input"
+                      type="number"
+                      value={editRoomPrice}
+                      onChange={(e) => setEditRoomPrice(Number(e.target.value))}
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-mono font-bold text-teal-700"
+                    />
+                  </div>
                 </div>
-                <span className={`w-3.5 h-3.5 rounded-full ring-4 ${
-                  selectedRoomToManage.status === 'available' ? 'bg-emerald-500 ring-emerald-100 animate-pulse' :
-                  selectedRoomToManage.status === 'occupied' ? 'bg-rose-500 ring-rose-100' :
-                  selectedRoomToManage.status === 'cleaning' ? 'bg-amber-400 ring-amber-100 animate-pulse' :
-                  'bg-slate-400 ring-slate-100'
-                }`} />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Room Type</label>
+                    <select
+                      id="edit-room-type-select"
+                      value={editRoomType}
+                      onChange={(e) => setEditRoomType(e.target.value as RoomType)}
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-medium"
+                    >
+                      <option value="single">Single</option>
+                      <option value="double">Double</option>
+                      <option value="deluxe">Deluxe</option>
+                      <option value="suite">Suite</option>
+                      <option value="family">Family Suite</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Capacity (Persons)</label>
+                    <input
+                      id="edit-room-capacity-input"
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={editRoomCapacity}
+                      onChange={(e) => setEditRoomCapacity(Number(e.target.value))}
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-mono"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Status Selector Grid */}
               <div className="space-y-2">
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-mono">
-                  Select New Chamber Status
+                  Select Tracker Status
                 </label>
                 <div className="grid grid-cols-2 gap-2.5">
                   {[
@@ -1301,15 +1376,13 @@ export const StaffView: React.FC = () => {
                     { id: 'cleaning', name: 'Cleaning (Duty)', color: 'border-amber-200 hover:bg-amber-50 text-amber-800 bg-amber-50/20', dotColor: 'bg-amber-400', desc: 'Chamber duty / vacuum & stock' },
                     { id: 'maintenance', name: 'Maintenance', color: 'border-slate-200 hover:bg-slate-50 text-slate-850 bg-slate-50/20', dotColor: 'bg-slate-400', desc: 'Engineering repairs / offline' }
                   ].map((opt) => {
-                    const isSelected = selectedRoomToManage.status === opt.id;
+                    const isSelected = editRoomStatus === opt.id;
                     return (
                       <button
                         key={opt.id}
                         id={`status-selector-btn-${opt.id}`}
-                        onClick={async () => {
-                          await updateRoomStatus(selectedRoomToManage.id, opt.id as RoomStatus);
-                          setSelectedRoomToManage(null);
-                        }}
+                        type="button"
+                        onClick={() => setEditRoomStatus(opt.id as RoomStatus)}
                         className={`text-left p-3 rounded-xl border transition-all text-xs flex flex-col justify-between h-[75px] ${
                           isSelected 
                             ? 'ring-2 ring-teal-600 bg-teal-50/30 border-teal-600 scale-[0.98]' 
@@ -1329,21 +1402,38 @@ export const StaffView: React.FC = () => {
 
               {/* Informative text */}
               <div className="text-[10px] text-slate-400 leading-normal bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <p className="font-semibold text-slate-500 mb-0.5">💡 Chamber Duty Note</p>
-                When passengers check out, their suites are automatically placed into <span className="text-amber-600 font-bold font-mono">Cleaning (Chamber Duty)</span> status. Once housekeeping has fully disinfected the room and laid out fresh linens, select <span className="text-emerald-600 font-bold font-mono">Available (Ready)</span> above to open the chamber back up for new front-desk reservations.
+                <p className="font-semibold text-slate-500 mb-0.5">💡 Room Customization & Tracker</p>
+                Editing the room details or status instantly updates the live operational grid. To persist the modified rate and configuration, please click <span className="font-bold text-teal-600">Apply & Save Settings</span> below.
               </div>
 
             </div>
 
             {/* Footer */}
-            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 text-right">
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-end gap-2.5">
               <button
                 id="cancel-status-manager-btn"
                 type="button"
                 onClick={() => setSelectedRoomToManage(null)}
                 className="px-4 py-2 border border-slate-250 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition"
               >
-                Close Manager
+                Cancel
+              </button>
+              <button
+                id="apply-status-manager-btn"
+                type="button"
+                onClick={async () => {
+                  await editRoomDetails(selectedRoomToManage.id, {
+                    number: editRoomNumber,
+                    price: editRoomPrice / 10,
+                    type: editRoomType,
+                    capacity: editRoomCapacity,
+                    status: editRoomStatus
+                  });
+                  setSelectedRoomToManage(null);
+                }}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition"
+              >
+                Apply & Save Settings
               </button>
             </div>
 

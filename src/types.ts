@@ -37,6 +37,7 @@ export interface Booking {
   additionalGuests?: { name: string; phone: string; }[];
   referenceName?: string;
   kids?: { name: string; age: string; }[];
+  expectedPersonCount?: number;
   checkIn: string; // YYYY-MM-DD
   checkOut: string; // YYYY-MM-DD
   totalAmount: number;
@@ -60,3 +61,26 @@ export interface UserProfile {
   name: string;
   role: UserRole;
 }
+
+export interface ToastInfo {
+  message: string;
+  type: 'success' | 'info' | 'warning' | 'email';
+  duration?: number;
+  emailAction?: {
+    recipient: string;
+    subject: string;
+    body: string;
+    mailtoUrl: string;
+  };
+}
+
+export interface Feedback {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+}
+

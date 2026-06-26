@@ -68,6 +68,7 @@ service cloud.firestore {
         incoming().checkIn is string && incoming().checkOut is string &&
         incoming().totalAmount is number && incoming().totalAmount >= 0 &&
         incoming().status in ["pending", "confirmed", "checked-in", "checked-out", "cancelled"] &&
+        (!incoming().keys().hasAny(['expectedPersonCount']) || (incoming().expectedPersonCount is number && incoming().expectedPersonCount >= 1 && incoming().expectedPersonCount <= 10)) &&
         (incoming().userId == request.auth.uid || isStaff());
 
       allow update: if isSignedIn() && isValidId(bookingId) && (
@@ -125,6 +126,29 @@ service cloud.firestore {
       );
 
       allow delete: if isSignedIn() && isStaff();
+    }
+
+    // --- Feedbacks Collection ---
+    match /feedbacks/{feedbackId} {
+      allow get, list: if true; // Feedbacks are publicly viewable
+      
+      allow create: if isSignedIn() && isValidId(feedbackId) &&
+        incoming().id == feedbackId &&
+        incoming().userId == request.auth.uid &&
+        incoming().userName is string && incoming().userName.size() <= 100 &&
+        incoming().userEmail is string && incoming().userEmail.size() <= 100 &&
+        incoming().comment is string && incoming().comment.size() <= 2000 &&
+        incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5 &&
+        incoming().createdAt is string;
+
+      allow update: if isSignedIn() && isValidId(feedbackId) &&
+        existing().userId == request.auth.uid &&
+        incoming().userId == request.auth.uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'comment']) &&
+        incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5 &&
+        incoming().comment is string && incoming().comment.size() <= 2000;
+
+      allow delete: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
     }
   }
 }

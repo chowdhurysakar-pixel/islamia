@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType } from '../types';
+import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -38,8 +38,13 @@ interface AppContextType {
   isFirebaseActive: boolean;
   isLoading: boolean;
   toggleRole: () => void;
+  // Toast notifications & Automated Email drafted actions
+  activeToast: ToastInfo | null;
+  showToast: (toast: ToastInfo) => void;
+  dismissToast: () => void;
+  triggerEmailDraft: (booking: Booking) => void;
   // Auth Functions
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: (role?: UserRole) => Promise<void>;
   localLogin: (role: UserRole, email: string, name: string) => void;
   logout: () => Promise<void>;
   // Room Actions
@@ -53,6 +58,9 @@ interface AppContextType {
   // Service Request Actions
   createServiceRequest: (request: Omit<ServiceRequest, 'id' | 'createdAt'>) => Promise<void>;
   updateServiceRequestStatus: (requestId: string, status: ServiceRequestStatus) => Promise<void>;
+  // Feedback Actions
+  feedbacks: Feedback[];
+  submitFeedback: (rating: number, comment: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -61,10 +69,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentRole, setCurrentRole] = useState<UserRole>('staff');
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
 
   // Initialize and run connection tests
   useEffect(() => {
@@ -95,18 +105,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 2. Auth state observer
       const unsubscribeAuth = onAuthStateChanged(auth, (fbUser: FirebaseUser | null) => {
         if (fbUser) {
-          // Check if this UID or email corresponds to an admin
           const emailLower = fbUser.email?.toLowerCase() || '';
-          // We can dynamically assign staff/admin based on configuration, default to admin for testing
-          const isStaff = emailLower.includes('staff') || emailLower.includes('admin') || true; 
+          
+          // Retrieve pending selected role, or guess based on email / default
+          let chosenRole: UserRole = (localStorage.getItem('pending_google_role') as UserRole) || 'guest';
+          if (!['admin', 'staff', 'guest'].includes(chosenRole)) {
+            chosenRole = (emailLower.includes('admin') || emailLower.includes('hr')) ? 'admin'
+                       : (emailLower.includes('staff') || emailLower.includes('reception')) ? 'staff'
+                       : 'guest';
+          }
+          // Clear it now that it is consumed
+          localStorage.removeItem('pending_google_role');
+
           const profile: UserProfile = {
             uid: fbUser.uid,
             email: fbUser.email || '',
-            name: fbUser.displayName || 'Guest User',
-            role: isStaff ? 'staff' : 'guest'
+            name: fbUser.displayName || (chosenRole === 'admin' ? 'HR Manager' : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User'),
+            role: chosenRole
           };
           setCurrentUser(profile);
-          setCurrentRole(profile.role);
+          setCurrentRole(chosenRole);
           
           // Sync profile to database
           const profilePath = `users/${fbUser.uid}`;
@@ -159,6 +177,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleFirestoreError(error, OperationType.GET, 'serviceRequests');
       });
 
+      const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
+        const feedbacksList: Feedback[] = [];
+        snapshot.forEach((docSnap) => {
+          feedbacksList.push({ id: docSnap.id, ...docSnap.data() } as Feedback);
+        });
+        feedbacksList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setFeedbacks(feedbacksList);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'feedbacks');
+      });
+
       const seedDatabase = async () => {
         try {
           for (const room of INITIAL_ROOMS) {
@@ -180,6 +209,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubRooms();
         unsubBookings();
         unsubRequests();
+        unsubFeedbacks();
       };
     } else {
       // Offline Local Storage Sandbox Fallback
@@ -188,6 +218,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const storedRooms = localStorage.getItem('hotel_rooms');
       const storedBookings = localStorage.getItem('hotel_bookings');
       const storedServices = localStorage.getItem('hotel_services');
+      const storedFeedbacks = localStorage.getItem('hotel_feedbacks');
       const storedRole = localStorage.getItem('hotel_current_role');
       const storedUser = localStorage.getItem('hotel_current_user');
 
@@ -210,6 +241,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         localStorage.setItem('hotel_services', JSON.stringify(INITIAL_SERVICES));
         setServiceRequests(INITIAL_SERVICES);
+      }
+
+      if (storedFeedbacks) {
+        setFeedbacks(JSON.parse(storedFeedbacks));
+      } else {
+        const initialFeedbacks: Feedback[] = [
+          {
+            id: 'F1',
+            userId: 'sample-user-1',
+            userName: 'Rahat Rahman',
+            userEmail: 'rahat@gmail.com',
+            rating: 5,
+            comment: 'Absolutely love the peace and quiet here! Ibne Sina is right across which was very convenient for us.',
+            createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
+          },
+          {
+            id: 'F2',
+            userId: 'sample-user-2',
+            userName: 'Sultana Begum',
+            userEmail: 'sultana@yahoo.com',
+            rating: 4,
+            comment: 'Clean rooms and excellent staff. Meena Bazar is very close. Recommended for families.',
+            createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
+          }
+        ];
+        localStorage.setItem('hotel_feedbacks', JSON.stringify(initialFeedbacks));
+        setFeedbacks(initialFeedbacks);
       }
 
       if (storedRole) {
@@ -255,17 +313,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [serviceRequests, isFirebaseActive]);
 
   // Auth Functions
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (role?: UserRole) => {
+    const selectedRole = role || 'guest';
     if (isFirebaseActive && auth) {
       const provider = new GoogleAuthProvider();
       try {
+        localStorage.setItem('pending_google_role', selectedRole);
         await signInWithPopup(auth, provider);
       } catch (error) {
         console.error("Google authentication error:", error);
       }
     } else {
-      // Local Google Login toggle simulation
-      localLogin('staff', 'receptionist@luxuryhotel.com', 'Simulated Receptionist');
+      // Local Google Login toggle simulation with precise roles requested by user
+      const mockEmails: Record<UserRole, string> = {
+        admin: 'hr.manager@islamiaguesthouse.com',
+        staff: 'frontdesk.receptionist@islamiaguesthouse.com',
+        guest: 'chowdhurysakar@gmail.com'
+      };
+      const mockNames: Record<UserRole, string> = {
+        admin: 'Sakar Chowdhury (HR Manager)',
+        staff: 'Dhaka Reception Desk Team',
+        guest: 'Sakar Chowdhury (Guest)'
+      };
+      localLogin(selectedRole, mockEmails[selectedRole], mockNames[selectedRole]);
     }
   };
 
@@ -373,6 +443,79 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Toast notifications & Automated Email drafted actions
+  const showToast = (toast: ToastInfo) => {
+    setActiveToast(toast);
+  };
+
+  const dismissToast = () => {
+    setActiveToast(null);
+  };
+
+  const triggerEmailDraft = (booking: Booking) => {
+    const room = rooms.find(r => r.id === booking.roomId);
+    const roomNum = booking.roomNumber || room?.number || 'N/A';
+    const roomTypeStr = booking.roomType || room?.type || 'Standard';
+    const guestEmail = booking.guestEmail || 'customer@islamiaguesthouse.com';
+    const guestName = booking.guestName;
+    const bookingId = booking.id;
+    const checkIn = booking.checkIn;
+    const checkOut = booking.checkOut;
+    const totalAmount = booking.totalAmount;
+
+    const subject = `Invoice Summary - Islamia Guest House (Booking #${bookingId})`;
+    const body = `Dear ${guestName},
+
+Thank you for checking in to Islamia Guest House! We are delighted to host you.
+
+Here is the summary of your booking invoice details:
+
+=======================================================
+Booking Reference: #${bookingId}
+Room Assigned: Room ${roomNum} (${roomTypeStr.toUpperCase()})
+Check-in Date: ${checkIn}
+Check-out Date: ${checkOut}
+-------------------------------------------------------
+Total Invoice Amount: ৳ ${totalAmount}
+=======================================================
+
+House Address:
+বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি, ঢাকা - ১২০৯
+(House No: 55/C/1, Road No: 9/A, Dhanmondi, Dhaka - 1209)
+Landmarks: ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন
+
+For any support or questions, please reach us on:
+- bKash/Hotline: 01832-841818
+- Phone Call: 01909-806960
+- WhatsApp: 01799-148408
+
+Enjoy your stay!
+
+Warm regards,
+Front Desk Management
+Islamia Guest House, Dhanmondi, Dhaka`;
+
+    const mailtoUrl = `mailto:${encodeURIComponent(guestEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    // Automatically try to open the email draft
+    try {
+      window.location.href = mailtoUrl;
+    } catch (err) {
+      console.warn("Auto-trigger of mailto blocked or failed, relying on user interaction.", err);
+    }
+
+    showToast({
+      message: `📧 Automated email draft generated for ${guestName} (${guestEmail}) with invoice summary.`,
+      type: 'email',
+      emailAction: {
+        recipient: guestEmail,
+        subject,
+        body,
+        mailtoUrl
+      }
+    });
+  };
+
   // Booking Actions
   const createBooking = async (bookingData: Omit<Booking, 'id' | 'createdAt'>): Promise<string> => {
     const bookingId = `B${Date.now().toString().slice(-4)}`;
@@ -391,6 +534,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) {
           await updateDoc(doc(db, 'rooms', bookingData.roomId), { status: 'occupied' });
         }
+        if (bookingData.status === 'checked-in') {
+          triggerEmailDraft(newBooking);
+        }
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, bookingPath);
       }
@@ -400,6 +546,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const todayStr = new Date().toISOString().split('T')[0];
       if (bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) {
         setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
+      }
+      if (bookingData.status === 'checked-in') {
+        triggerEmailDraft(newBooking);
       }
     }
     return bookingId;
@@ -417,6 +566,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           // If guest checked in, set room status to occupied
           if (status === 'checked-in') {
             await updateDoc(doc(db, 'rooms', targetBooking.roomId), { status: 'occupied' });
+            triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
           }
           // If guest checked out, set room status to cleaning
           else if (status === 'checked-out') {
@@ -439,6 +589,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (targetBooking) {
         if (status === 'checked-in') {
           setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
+          triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
         } else if (status === 'checked-out') {
           setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
         } else if (status === 'cancelled') {
@@ -495,16 +646,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const submitFeedback = async (rating: number, comment: string) => {
+    if (!currentUser) {
+      alert("Please log in to submit feedback.");
+      return;
+    }
+
+    const feedbackId = `F${Date.now().toString().slice(-4)}`;
+    const newFeedback: Feedback = {
+      id: feedbackId,
+      userId: currentUser.uid,
+      userName: currentUser.name || 'Anonymous Guest',
+      userEmail: currentUser.email || '',
+      rating,
+      comment,
+      createdAt: new Date().toISOString()
+    };
+
+    if (isFirebaseActive && db) {
+      const feedbackPath = `feedbacks/${feedbackId}`;
+      try {
+        await setDoc(doc(db, 'feedbacks', feedbackId), newFeedback);
+        showToast({
+          message: "⭐ Thank you! Your feedback has been stored in Firestore.",
+          type: 'success'
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, feedbackPath);
+      }
+    } else {
+      setFeedbacks(prev => {
+        const updated = [newFeedback, ...prev];
+        localStorage.setItem('hotel_feedbacks', JSON.stringify(updated));
+        return updated;
+      });
+      showToast({
+        message: "⭐ Thank you! Your feedback has been saved locally.",
+        type: 'success'
+      });
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       rooms,
       bookings,
       serviceRequests,
+      feedbacks,
       currentUser,
       currentRole,
       isFirebaseActive,
       isLoading,
       toggleRole,
+      activeToast,
+      showToast,
+      dismissToast,
+      triggerEmailDraft,
       loginWithGoogle,
       localLogin,
       logout,
@@ -515,7 +712,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateBookingStatus,
       addBookingNotes,
       createServiceRequest,
-      updateServiceRequestStatus
+      updateServiceRequestStatus,
+      submitFeedback
     }}>
       {children}
     </AppContext.Provider>
