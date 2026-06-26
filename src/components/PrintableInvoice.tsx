@@ -912,7 +912,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                   <div className="text-center text-[9px] text-slate-500 space-y-1 font-sans">
                     <p className="font-bold font-mono">=== THANK YOU ===</p>
                     <p className="leading-snug">Hope your voyage is serene. Keep your checkout ticket for security gate release.</p>
-                    <p className="font-mono text-[8px] text-slate-400 mt-2">Powered by Antigravity OS v4.2</p>
+                    <p className="font-mono text-[8px] text-slate-400 mt-2">Powered by Islamia</p>
                   </div>
 
                 </div>
