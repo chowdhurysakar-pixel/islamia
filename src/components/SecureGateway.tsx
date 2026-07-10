@@ -184,9 +184,15 @@ export const SecureGateway: React.FC = () => {
             
             {/* Context/Instruction Text */}
             <p className="text-xs text-slate-400 text-center leading-relaxed">
-              {activeTab === 'signup'
-                ? 'Create a unified secure profile with your name, role, and Gmail OTP verification. Everybody needs to register first to access system databases.'
-                : 'Enter your registered Gmail address to request a secure 6-digit login OTP code.'}
+              {isFirebaseActive ? (
+                activeTab === 'signup'
+                  ? 'Register with your Gmail address to receive a real email verification link from Firebase. You must verify your email before accessing system databases.'
+                  : 'Enter your registered Gmail address to log in. If unverified, a verification link will be sent to your Gmail inbox.'
+              ) : (
+                activeTab === 'signup'
+                  ? 'Create a unified secure profile with your name, role, and Gmail OTP verification. Everybody needs to register first to access system databases.'
+                  : 'Enter your registered Gmail address to request a secure 6-digit login OTP code.'
+              )}
             </p>
 
             {/* Error & Success Messages */}
@@ -205,7 +211,7 @@ export const SecureGateway: React.FC = () => {
             )}
 
             {/* OTP Verification Simulated Code Tray (In-app Helper Box) */}
-            {otpSent && lastOtpReceived && (
+            {otpSent && lastOtpReceived && !isFirebaseActive && (
               <div className="p-4 bg-slate-900 border border-teal-500/20 rounded-2xl flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-mono text-teal-400 tracking-wider uppercase font-bold flex items-center gap-1">

@@ -4,7 +4,15 @@
  */
 
 import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { 
+  getAuth, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification
+} from 'firebase/auth';
 import { getFirestore, collection, doc, query, where, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, getDocFromServer } from 'firebase/firestore';
 
 // We define a stub interface to avoid compilation errors if config is empty.
@@ -34,17 +42,33 @@ try {
 }
 
 export function initFirebase(config: FirebaseConfig) {
-  if (config && config.apiKey && config.apiKey !== 'placeholder' && !config.apiKey.includes('MY_')) {
+  // Load and check from Vite environment variables first
+  const metaEnv = (import.meta as any).env || {};
+  const envConfig: FirebaseConfig = {
+    apiKey: (metaEnv.VITE_FIREBASE_API_KEY || "").trim(),
+    authDomain: (metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "").trim(),
+    projectId: (metaEnv.VITE_FIREBASE_PROJECT_ID || "").trim(),
+    storageBucket: (metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "").trim(),
+    messagingSenderId: (metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim(),
+    appId: (metaEnv.VITE_FIREBASE_APP_ID || "").trim(),
+    firestoreDatabaseId: (metaEnv.VITE_FIREBASE_FIRESTORE_DATABASE_ID || config?.firestoreDatabaseId || "(default)").trim()
+  };
+
+  const finalConfig = (envConfig.apiKey && envConfig.apiKey !== 'placeholder' && !envConfig.apiKey.includes('MY_'))
+    ? envConfig
+    : config;
+
+  if (finalConfig && finalConfig.apiKey && finalConfig.apiKey !== 'placeholder' && !finalConfig.apiKey.includes('MY_')) {
     try {
       if (getApps().length === 0) {
-        firebaseApp = initializeApp(config);
+        firebaseApp = initializeApp(finalConfig);
       } else {
         firebaseApp = getApp();
       }
-      dbInstance = getFirestore(firebaseApp, config.firestoreDatabaseId || '(default)');
+      dbInstance = getFirestore(firebaseApp, finalConfig.firestoreDatabaseId || '(default)');
       authInstance = getAuth(firebaseApp);
       isFirebaseAvailable = true;
-      console.log("Firebase Successfully Connected!");
+      console.log("Firebase Successfully Connected using live credentials!", finalConfig.projectId);
       return true;
     } catch (err) {
       console.error("Failed to initialize Firebase with provided config:", err);

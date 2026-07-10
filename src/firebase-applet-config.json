@@ -1,9 +1,9 @@
 {
-  "apiKey": "placeholder",
-  "authDomain": "placeholder",
-  "projectId": "placeholder",
-  "storageBucket": "placeholder",
-  "messagingSenderId": "placeholder",
-  "appId": "placeholder",
-  "firestoreDatabaseId": "(default)"
+  "apiKey": "AIzaSyBDhtnThyEJOeZYs4GPnQgaK1mgAcSVLcI",
+  "authDomain": "gen-lang-client-0139585657.firebaseapp.com",
+  "projectId": "gen-lang-client-0139585657",
+  "storageBucket": "gen-lang-client-0139585657.firebasestorage.app",
+  "messagingSenderId": "24979260879",
+  "appId": "1:24979260879:web:66e8da41201bda29d3beba",
+  "firestoreDatabaseId": "ai-studio-d4de3759-a550-402d-907d-6317961785af"
 }

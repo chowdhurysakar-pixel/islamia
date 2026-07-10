@@ -26,7 +26,11 @@ import {
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  updateProfile
 } from 'firebase/auth';
 
 interface AppContextType {
@@ -109,12 +113,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       testConnection();
 
       // 2. Auth state observer
-      const unsubscribeAuth = onAuthStateChanged(auth, (fbUser: FirebaseUser | null) => {
+      const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
         if (fbUser) {
           const emailLower = fbUser.email?.toLowerCase() || '';
           
+          // Verify if they have completed email verification (only for email/password, as Google/other OAuth is verified)
+          if (!fbUser.emailVerified) {
+            setCurrentUser(null);
+            setCurrentRole('guest');
+            setIsLoading(false);
+            return;
+          }
+          
           // Retrieve pending selected role, or guess based on email / default
-          let chosenRole: UserRole = (localStorage.getItem('pending_google_role') as UserRole) || 'guest';
+          let chosenRole: UserRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || (localStorage.getItem('pending_google_role') as UserRole) || 'guest';
           if (!['admin', 'staff', 'guest'].includes(chosenRole)) {
             chosenRole = (emailLower.includes('admin') || emailLower.includes('hr')) ? 'admin'
                        : (emailLower.includes('staff') || emailLower.includes('reception')) ? 'staff'
@@ -122,18 +134,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           // Clear it now that it is consumed
           localStorage.removeItem('pending_google_role');
+          localStorage.removeItem(`pending_role_${emailLower}`);
+
+          const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || fbUser.displayName || (chosenRole === 'admin' ? 'HR Manager' : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User');
+          localStorage.removeItem(`pending_name_${emailLower}`);
 
           const profile: UserProfile = {
             uid: fbUser.uid,
             email: fbUser.email || '',
-            name: fbUser.displayName || (chosenRole === 'admin' ? 'HR Manager' : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User'),
+            name: pendingName,
             role: chosenRole
           };
           setCurrentUser(profile);
           setCurrentRole(chosenRole);
           
           // Sync profile to database
-          const profilePath = `users/${fbUser.uid}`;
           setDoc(doc(db, 'users', fbUser.uid), profile).catch(e => {
             console.error("Failed to sync user profile to Firestore:", e);
           });
@@ -151,36 +166,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
         });
         
-        // Seed if first time and empty
-        if (roomsList.length === 0) {
-          seedDatabase();
-        } else {
-          // Sort by room number numerically
-          roomsList.sort((a, b) => Number(a.number) - Number(b.number));
-          setRooms(roomsList);
-        }
+        // Sort by room number numerically
+        roomsList.sort((a, b) => Number(a.number) - Number(b.number));
+        setRooms(roomsList);
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, 'rooms');
-      });
-
-      const unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-        const bookingsList: Booking[] = [];
-        snapshot.forEach((docSnap) => {
-          bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
-        });
-        setBookings(bookingsList);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'bookings');
-      });
-
-      const unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
-        const requestsList: ServiceRequest[] = [];
-        snapshot.forEach((docSnap) => {
-          requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
-        });
-        setServiceRequests(requestsList);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'serviceRequests');
       });
 
       const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
@@ -194,27 +184,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleFirestoreError(error, OperationType.GET, 'feedbacks');
       });
 
-      const seedDatabase = async () => {
-        try {
-          for (const room of INITIAL_ROOMS) {
-            await setDoc(doc(db, 'rooms', room.id), room);
-          }
-          for (const booking of INITIAL_BOOKINGS) {
-            await setDoc(doc(db, 'bookings', booking.id), booking);
-          }
-          for (const service of INITIAL_SERVICES) {
-            await setDoc(doc(db, 'serviceRequests', service.id), service);
-          }
-        } catch (e) {
-          console.error("Firestore seeding failed:", e);
-        }
-      };
-
       return () => {
         unsubscribeAuth();
         unsubRooms();
-        unsubBookings();
-        unsubRequests();
         unsubFeedbacks();
       };
     } else {
@@ -319,6 +291,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isFirebaseActive]);
 
+  // Seeding trigger for empty live Firestore databases (requires staff/admin authentication)
+  useEffect(() => {
+    if (isFirebaseActive && rooms.length === 0 && currentUser && (currentUser.role === 'staff' || currentUser.role === 'admin')) {
+      const seedDatabase = async () => {
+        try {
+          console.log("Seeding Firestore database with initial records...");
+          for (const room of INITIAL_ROOMS) {
+            await setDoc(doc(db, 'rooms', room.id), room);
+          }
+          for (const booking of INITIAL_BOOKINGS) {
+            await setDoc(doc(db, 'bookings', booking.id), booking);
+          }
+          for (const service of INITIAL_SERVICES) {
+            await setDoc(doc(db, 'serviceRequests', service.id), service);
+          }
+          console.log("Firestore database seeded successfully!");
+        } catch (e) {
+          console.error("Firestore seeding failed:", e);
+        }
+      };
+      seedDatabase();
+    }
+  }, [rooms, currentUser, isFirebaseActive]);
+
+  // Authenticated Firestore Subscriptions
+  useEffect(() => {
+    if (!isFirebaseActive || !db || !auth) return;
+
+    let unsubBookings: (() => void) | null = null;
+    let unsubRequests: (() => void) | null = null;
+
+    if (currentUser) {
+      if (currentUser.role === 'staff' || currentUser.role === 'admin') {
+        // Staff/Admin gets all bookings
+        unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+          const bookingsList: Booking[] = [];
+          snapshot.forEach((docSnap) => {
+            bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+          });
+          setBookings(bookingsList);
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'bookings');
+        });
+
+        // Staff/Admin gets all service requests
+        unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
+          const requestsList: ServiceRequest[] = [];
+          snapshot.forEach((docSnap) => {
+            requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
+          });
+          setServiceRequests(requestsList);
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'serviceRequests');
+        });
+      } else if (currentUser.role === 'guest') {
+        // Guests only subscribe to their own bookings
+        const guestBookingsQuery = query(collection(db, 'bookings'), where('userId', '==', currentUser.uid));
+        unsubBookings = onSnapshot(guestBookingsQuery, (snapshot) => {
+          const bookingsList: Booking[] = [];
+          snapshot.forEach((docSnap) => {
+            bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+          });
+          setBookings(bookingsList);
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'bookings');
+        });
+
+        // Guests don't need service requests lists (set to empty)
+        setServiceRequests([]);
+      }
+    } else {
+      // Not logged in: clear state
+      setBookings([]);
+      setServiceRequests([]);
+    }
+
+    return () => {
+      if (unsubBookings) unsubBookings();
+      if (unsubRequests) unsubRequests();
+    };
+  }, [currentUser, isFirebaseActive]);
+
   // Sync to local storage if running in local sandbox mode
   useEffect(() => {
     if (!isFirebaseActive) {
@@ -402,6 +456,96 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { success: false, error: 'Only Gmail addresses are supported for verification.' };
     }
 
+    if (isFirebaseActive && auth) {
+      const password = 'IslamiaSecure_' + emailLower.replace(/[^a-zA-Z0-9]/g, '') + '_2026!';
+      if (isSignUp) {
+        if (!name || !role) {
+          return { success: false, error: 'Name and role are required for sign up.' };
+        }
+        try {
+          // Store pending role and name for user creation sync
+          localStorage.setItem(`pending_role_${emailLower}`, role);
+          localStorage.setItem(`pending_name_${emailLower}`, name.trim());
+
+          // Create the user on Firebase Auth
+          const userCredential = await createUserWithEmailAndPassword(auth, emailLower, password);
+          
+          if (userCredential.user) {
+            // Set displayName on Firebase User profile
+            await updateProfile(userCredential.user, { displayName: name.trim() });
+            // Send real email verification
+            await sendEmailVerification(userCredential.user);
+            
+            showToast({
+              type: 'success',
+              message: `✉️ Real Firebase verification email sent to ${emailLower}! Please check your Gmail inbox and click the verification link, then return here to complete verification.`
+            });
+            return { success: true, otpCode: 'Sent_Live_Email_Verification_Link' };
+          }
+        } catch (err: any) {
+          console.error("Firebase SignUp error:", err);
+          let errMsg = err.message || 'Failed to sign up with Firebase Auth.';
+          if (err.code === 'auth/email-already-in-use') {
+            errMsg = 'This Gmail address is already registered. Please secure sign in instead!';
+          } else if (err.code === 'auth/weak-password') {
+            errMsg = 'Security system error: weak credentials.';
+          } else if (err.code === 'auth/invalid-email') {
+            errMsg = 'The Gmail address format is invalid.';
+          }
+          return { success: false, error: errMsg };
+        }
+      } else {
+        // Sign In Flow
+        try {
+          const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
+          if (userCredential.user) {
+            if (!userCredential.user.emailVerified) {
+              // Not verified yet, let's resend the email verification link
+              await sendEmailVerification(userCredential.user);
+              showToast({
+                type: 'email',
+                message: `✉️ Your email is unverified. We sent a new Firebase verification link to ${emailLower}. Please click it, then try again!`
+              });
+              return { success: true, otpCode: 'Resent_Verification' };
+            } else {
+              // Verified! Retrieve and sync profile
+              const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
+              let profile: UserProfile;
+              if (userSnap.exists()) {
+                profile = userSnap.data() as UserProfile;
+              } else {
+                const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || 'guest';
+                const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || 'Guest User';
+                profile = {
+                  uid: userCredential.user.uid,
+                  email: emailLower,
+                  name: pendingName,
+                  role: pendingRole
+                };
+                await setDoc(doc(db, 'users', profile.uid), profile);
+              }
+              setCurrentUser(profile);
+              setCurrentRole(profile.role);
+              
+              showToast({
+                type: 'success',
+                message: `🎉 Welcome back, ${profile.name}!`
+              });
+              return { success: true, otpCode: 'Verified' };
+            }
+          }
+        } catch (err: any) {
+          console.error("Firebase SignIn error:", err);
+          let errMsg = err.message || 'Sign in failed.';
+          if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+            errMsg = 'Gmail address is not registered or credentials invalid. Please sign up first!';
+          }
+          return { success: false, error: errMsg };
+        }
+      }
+      return { success: false, error: 'Unknown authentication status.' };
+    }
+
     if (!isSignUp) {
       // Check if user is registered
       const registered = localStorage.getItem('hotel_registered_users');
@@ -460,6 +604,92 @@ Islamia Guest House Dhanmondi System`;
 
   const verifyOtp = async (email: string, enteredOtp: string, isSignUp?: boolean, name?: string, role?: UserRole): Promise<{ success: boolean; error?: string }> => {
     const emailLower = email.toLowerCase().trim();
+
+    if (isFirebaseActive && auth) {
+      try {
+        if (auth.currentUser) {
+          // Force reload user to get latest emailVerified status from Firebase
+          await auth.currentUser.reload();
+          
+          if (!auth.currentUser.emailVerified) {
+            return { success: false, error: 'Your email address is not verified yet. Please check your Gmail inbox and click the verification link from Firebase, then click verify again.' };
+          }
+
+          // Verified! Retrieve pending info and register user in Firestore
+          const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || role || 'guest';
+          const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || name || 'Guest User';
+
+          const newUser: UserProfile = {
+            uid: auth.currentUser.uid,
+            email: emailLower,
+            name: pendingName,
+            role: pendingRole
+          };
+
+          // Explicitly save user profile to Firestore
+          await setDoc(doc(db, 'users', newUser.uid), newUser);
+
+          // Sync local state
+          setCurrentUser(newUser);
+          setCurrentRole(pendingRole);
+
+          // Clean up pending localStorage keys
+          localStorage.removeItem(`pending_role_${emailLower}`);
+          localStorage.removeItem(`pending_name_${emailLower}`);
+
+          showToast({
+            type: 'success',
+            message: `🎉 Welcome ${newUser.name}! Your account has been verified and registered successfully.`
+          });
+
+          return { success: true };
+        } else {
+          // No active user in session, try authentication using deterministic password
+          const password = 'IslamiaSecure_' + emailLower.replace(/[^a-zA-Z0-9]/g, '') + '_2026!';
+          const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
+          if (userCredential.user) {
+            await userCredential.user.reload();
+            if (!userCredential.user.emailVerified) {
+              return { success: false, error: 'Your email address is not verified yet. Please check your Gmail inbox and click the verification link from Firebase, then click verify again.' };
+            }
+            
+            // Verified! Sync with Firestore profile
+            const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
+            let profile: UserProfile;
+            if (userSnap.exists()) {
+              profile = userSnap.data() as UserProfile;
+            } else {
+              const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || role || 'guest';
+              const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || name || 'Guest User';
+              profile = {
+                uid: userCredential.user.uid,
+                email: emailLower,
+                name: pendingName,
+                role: pendingRole
+              };
+              await setDoc(doc(db, 'users', profile.uid), profile);
+            }
+            setCurrentUser(profile);
+            setCurrentRole(profile.role);
+            
+            // Clean up pending localStorage keys
+            localStorage.removeItem(`pending_role_${emailLower}`);
+            localStorage.removeItem(`pending_name_${emailLower}`);
+
+            showToast({
+              type: 'success',
+              message: `🔑 Welcome back, ${profile.name}! Successfully signed in.`
+            });
+            return { success: true };
+          }
+        }
+      } catch (err: any) {
+        console.error("Firebase verifyOtp error:", err);
+        return { success: false, error: err.message || 'Failed to complete verification.' };
+      }
+      return { success: false, error: 'Session expired or not found. Please try again.' };
+    }
+
     const correctOtp = otps[emailLower];
 
     if (!correctOtp || enteredOtp !== correctOtp) {
