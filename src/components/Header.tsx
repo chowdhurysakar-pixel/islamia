@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Shield, User, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { currentRole, toggleRole, currentUser, isFirebaseActive } = useApp();
+  const { currentRole, toggleRole, currentUser, isFirebaseActive, opMode } = useApp();
   const [time, setTime] = useState<string>('');
 
   useEffect(() => {
@@ -37,7 +37,13 @@ export const Header: React.FC = () => {
               </span>
             </div>
             <span className="text-[10px] uppercase tracking-widest text-teal-600 font-mono font-bold mt-1">
-              Dhanmondi, Dhaka • Front Desk
+              Dhanmondi, Dhaka
+              {currentRole === 'guest' 
+                ? ' • Guest View' 
+                : opMode === 'hr' 
+                  ? ' • HR Manager' 
+                  : ' • Front Desk'
+              }
             </span>
           </div>
 
@@ -47,12 +53,14 @@ export const Header: React.FC = () => {
               <Clock className="w-3.5 h-3.5 text-teal-600 animate-pulse" />
               <span>{time}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-              <span className={`w-2 h-2 rounded-full ${isFirebaseActive ? 'bg-emerald-500 animate-ping' : 'bg-slate-400'}`} />
-              <span className="text-slate-500">
-                {isFirebaseActive ? 'Google Cloud Active' : 'Offline Local Sandbox'}
-              </span>
-            </div>
+            {currentRole !== 'guest' && (
+              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                <span className={`w-2 h-2 rounded-full ${isFirebaseActive ? 'bg-emerald-500 animate-ping' : 'bg-slate-400'}`} />
+                <span className="text-slate-500">
+                  {isFirebaseActive ? 'Google Cloud Active' : 'Offline Local Sandbox'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Role simulation Toggle bar */}

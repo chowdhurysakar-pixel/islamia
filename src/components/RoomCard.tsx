@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Room, RoomStatus } from '../types';
-import { Users, Wifi, Tv, Coffee, Wind, Eye, Compass, ShieldAlert, KeyRound, Hammer, Sparkles } from 'lucide-react';
+import { Users, Wifi, Tv, Coffee, Wind, Eye, Compass, ShieldAlert, KeyRound, Hammer, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface RoomCardProps {
   room: Room;
@@ -15,7 +15,9 @@ interface RoomCardProps {
 }
 
 export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusChange, isStaffMode }) => {
-  
+  const [activeImgIndex, setActiveImgIndex] = useState(0);
+  const displayImages = room.images && room.images.length > 0 ? room.images : [room.image];
+
   // Status Visual Builders
   const getStatusStyle = (status: RoomStatus) => {
     switch (status) {
@@ -49,13 +51,60 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
       className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col group h-full"
     >
       {/* Room Image Banner */}
-      <div className="relative h-48 overflow-hidden aspect-video bg-slate-100">
+      <div className="relative h-48 overflow-hidden aspect-video bg-slate-100 group/img">
         <img
-          src={room.image}
-          alt={`Room ${room.number}`}
+          src={displayImages[activeImgIndex % displayImages.length]}
+          alt={`Room ${room.number} - Image ${activeImgIndex + 1}`}
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
+
+        {displayImages.length > 1 && (
+          <>
+            {/* Left Button */}
+            <button
+              type="button"
+              id={`prev-image-btn-${room.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveImgIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+              }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1 rounded-full transition-opacity opacity-0 group-hover/img:opacity-100 z-10"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            {/* Right Button */}
+            <button
+              type="button"
+              id={`next-image-btn-${room.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveImgIndex((prev) => (prev + 1) % displayImages.length);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1 rounded-full transition-opacity opacity-0 group-hover/img:opacity-100 z-10"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {/* Pagination Dots */}
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10 bg-black/20 px-2 py-0.5 rounded-full">
+              {displayImages.map((_, dotIdx) => (
+                <button
+                  key={dotIdx}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveImgIndex(dotIdx);
+                  }}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${
+                    (activeImgIndex % displayImages.length) === dotIdx ? 'bg-white scale-125' : 'bg-white/50'
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        )}
         
         {/* Absolute Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-2">
@@ -88,13 +137,13 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
           </div>
         </div>
 
-        <p className="text-slate-500 text-xs leading-relaxed mb-4 line-clamp-2">
+        <p className="text-slate-500 text-xs leading-relaxed mb-4">
           {room.description}
         </p>
 
         {/* Room Amenities Tags */}
         <div className="flex flex-wrap gap-1.5 mb-5 mt-auto">
-          {room.amenities.slice(0, 4).map((amenity, idx) => (
+          {room.amenities.map((amenity, idx) => (
             <span 
               key={idx}
               className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-50 border border-slate-100/75 px-2 py-1 rounded-md"
@@ -103,11 +152,6 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
               <span>{amenity}</span>
             </span>
           ))}
-          {room.amenities.length > 4 && (
-            <span className="text-[9px] font-semibold text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100/50">
-              +{room.amenities.length - 4} more
-            </span>
-          )}
         </div>
 
         {/* Staff Actions vs Guest Booking Trigger */}

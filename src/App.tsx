@@ -8,6 +8,7 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { GuestView } from './components/GuestView';
 import { StaffView } from './components/StaffView';
+import { SecureGateway } from './components/SecureGateway';
 import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink } from 'lucide-react';
 import { UserRole } from './types';
 
@@ -86,6 +87,15 @@ const MainLayout: React.FC = () => {
           </p>
         </div>
       </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <>
+        <SecureGateway />
+        <ToastNotification />
+      </>
     );
   }
 

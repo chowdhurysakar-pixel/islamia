@@ -12,7 +12,7 @@ import {
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
   Plus, ChevronRight, Receipt, Printer, UserCheck, MapPin, 
-  CreditCard, History, User, Check, X, ShieldCheck, Settings
+  CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock
 } from 'lucide-react';
 
 export const StaffView: React.FC = () => {
@@ -25,18 +25,19 @@ export const StaffView: React.FC = () => {
     editRoomDetails,
     createBooking,
     updateBookingStatus, 
-    updateServiceRequestStatus 
+    updateServiceRequestStatus,
+    opMode,
+    setOpMode
   } = useApp();
-
-  // Mode Simulation Toggles are local to the operations center:
-  // - "receptionist": accesses rooms & the live checkout log (+ receipt viewing of active stays)
-  // - "hr": receptionist + full historical logs database access & archive search
-  const [opMode, setOpMode] = useState<'receptionist' | 'hr'>('receptionist');
 
   // Active logs search and states
   const [bookingSearch, setBookingSearch] = useState<string>('');
   const [bookingStatusFilter, setBookingStatusFilter] = useState<BookingStatus | 'all'>('all');
   const [serviceStatusFilter, setServiceStatusFilter] = useState<ServiceRequestStatus | 'all'>('all');
+
+  // HR Searchable Guest History States
+  const [guestHistoryPhoneSearch, setGuestHistoryPhoneSearch] = useState<string>('');
+  const [selectedHistoryGuestPhone, setSelectedHistoryGuestPhone] = useState<string>('');
 
   // Rooms creation State
   const [isAddingRoom, setIsAddingRoom] = useState<boolean>(false);
@@ -101,12 +102,22 @@ export const StaffView: React.FC = () => {
   const [autoPrintInvoice, setAutoPrintInvoice] = useState<boolean>(false);
   const [selectedRoomToManage, setSelectedRoomToManage] = useState<Room | null>(null);
 
+  // HR Manager Gate Passcode Protection States
+  const [isHrPasscodeModalOpen, setIsHrPasscodeModalOpen] = useState<boolean>(false);
+  const [hrPasscodeInput, setHrPasscodeInput] = useState<string>('');
+  const [hrPasscodeError, setHrPasscodeError] = useState<string>('');
+
   // Room tracking edit states (money pricing, numbers, capacities, and statuses)
   const [editRoomNumber, setEditRoomNumber] = useState<string>('');
   const [editRoomType, setEditRoomType] = useState<RoomType>('single');
   const [editRoomPrice, setEditRoomPrice] = useState<number>(0);
   const [editRoomCapacity, setEditRoomCapacity] = useState<number>(1);
   const [editRoomStatus, setEditRoomStatus] = useState<RoomStatus>('available');
+  const [editRoomDescription, setEditRoomDescription] = useState<string>('');
+  const [editRoomAmenities, setEditRoomAmenities] = useState<string[]>([]);
+  const [editRoomImages, setEditRoomImages] = useState<string[]>([]);
+  const [newAmenity, setNewAmenity] = useState<string>('');
+  const [newImage, setNewImage] = useState<string>('');
 
   React.useEffect(() => {
     if (selectedRoomToManage) {
@@ -115,6 +126,11 @@ export const StaffView: React.FC = () => {
       setEditRoomPrice(selectedRoomToManage.price * 10);
       setEditRoomCapacity(selectedRoomToManage.capacity);
       setEditRoomStatus(selectedRoomToManage.status);
+      setEditRoomDescription(selectedRoomToManage.description || '');
+      setEditRoomAmenities(selectedRoomToManage.amenities || []);
+      setEditRoomImages(selectedRoomToManage.images || (selectedRoomToManage.image ? [selectedRoomToManage.image] : []));
+      setNewAmenity('');
+      setNewImage('');
     }
   }, [selectedRoomToManage]);
 
@@ -321,6 +337,24 @@ export const StaffView: React.FC = () => {
     return bookings.filter(b => b.status === 'checked-out' || b.status === 'cancelled');
   }, [bookings]);
 
+  // HR Chronological Guest Stay History Lookup
+  const guestHistoryBookings = useMemo(() => {
+    if (!selectedHistoryGuestPhone) return [];
+    const searchVal = selectedHistoryGuestPhone.trim();
+    if (!searchVal) return [];
+    
+    return bookings
+      .filter(b => {
+        const phone = b.guestPhone || '';
+        const matchesMainPhone = phone.replace(/[^0-9]/g, '').includes(searchVal.replace(/[^0-9]/g, ''));
+        const matchesAdditional = b.additionalGuests?.some(g => 
+          g.phone?.replace(/[^0-9]/g, '').includes(searchVal.replace(/[^0-9]/g, ''))
+        ) || false;
+        return matchesMainPhone || matchesAdditional;
+      })
+      .sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime());
+  }, [bookings, selectedHistoryGuestPhone]);
+
   const filteredServices = useMemo(() => {
     return serviceRequests.filter(req => {
       const matchStatus = serviceStatusFilter === 'all' || req.status === serviceStatusFilter;
@@ -471,7 +505,15 @@ export const StaffView: React.FC = () => {
           </button>
           <button
             id="hr-mode-btn"
-            onClick={() => setOpMode('hr')}
+            onClick={() => {
+              if (opMode === 'hr') {
+                // Already in HR mode
+              } else {
+                setHrPasscodeInput('');
+                setHrPasscodeError('');
+                setIsHrPasscodeModalOpen(true);
+              }
+            }}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition ${
               opMode === 'hr'
                 ? 'bg-amber-600 text-white shadow-sm'
@@ -969,6 +1011,323 @@ export const StaffView: React.FC = () => {
         </div>
       </div>
 
+      {/* HR Guest View & Room Media Customizer (DEDICATED PANEL FOR MANAGING PICTURES AND AMENITIES) */}
+      {opMode === 'hr' && (
+        <div id="hr-room-media-customizer" className="bg-white rounded-3xl border border-amber-200/70 p-6 shadow-sm space-y-5 animate-fadeIn">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-amber-100 pb-4">
+            <div className="space-y-1">
+              <h3 className="font-serif text-lg font-bold text-amber-900 flex items-center gap-2">
+                <ShieldCheck className="w-5.5 h-5.5 text-amber-600 animate-pulse" />
+                HR Guest View Content & Media Customizer
+              </h3>
+              <p className="text-xs text-slate-500">
+                Directly customize the guest reservation portal. Update picture galleries, edit marketing descriptions, and manage amenity tags in real-time.
+              </p>
+            </div>
+            <div className="bg-amber-50 text-amber-800 text-[10px] font-mono font-bold px-3 py-1.5 rounded-full border border-amber-100 uppercase tracking-wider shrink-0">
+              {rooms.length} Chambers Configured
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {rooms.map((room) => {
+              const galleryCount = room.images?.length || (room.image ? 1 : 0);
+              return (
+                <div 
+                  key={room.id} 
+                  id={`hr-media-card-${room.id}`}
+                  className="bg-slate-50 border border-slate-200 hover:border-amber-400 rounded-2xl p-4.5 space-y-4 transition-all duration-300 flex flex-col justify-between group/card hover:shadow-md"
+                >
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] uppercase font-mono tracking-wider font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80">
+                          Chamber {room.number}
+                        </span>
+                        <h4 className="text-xs font-serif font-bold text-slate-800 capitalize mt-2">{room.type} Bed</h4>
+                      </div>
+                      <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-teal-800 bg-teal-50/50 border border-teal-100 px-2.5 py-1 rounded-lg">
+                        <span>৳{room.price * 10}/night</span>
+                      </div>
+                    </div>
+
+                    {/* Thumbnail preview of current pictures */}
+                    <div className="relative h-28 rounded-xl overflow-hidden bg-slate-200 border border-slate-150 shadow-inner group/img">
+                      <img
+                        src={room.images?.[0] || room.image}
+                        alt=""
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute bottom-2 right-2 bg-black/60 text-[10px] font-mono font-bold text-white px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-sm">
+                        <span>{galleryCount} Pictures</span>
+                      </div>
+                    </div>
+
+                    {/* Description preview */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block font-mono">Description (Guest View)</span>
+                      <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed italic bg-white p-2 rounded-xl border border-slate-150/50">
+                        "{room.description || 'No description written yet.'}"
+                      </p>
+                    </div>
+
+                    {/* Amenities list tags */}
+                    <div className="space-y-1">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block font-mono">Amenity Tags ({room.amenities.length})</span>
+                      <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto pt-0.5">
+                        {room.amenities.map((amenity, aIdx) => (
+                          <span key={aIdx} className="text-[9px] bg-white text-slate-600 font-sans px-1.5 py-0.5 rounded border border-slate-150 shadow-3xs hover:border-amber-300 transition-colors">
+                            {amenity}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    id={`hr-edit-media-btn-${room.id}`}
+                    onClick={() => {
+                      setSelectedRoomToManage(room);
+                    }}
+                    className="w-full mt-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-amber-600/10 active:scale-[0.98] cursor-pointer"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-amber-200" />
+                    <span>Manage Gallery & Amenities</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* HR Chronological Guest History Tracker Section (Only visible in HR Mode) */}
+      {opMode === 'hr' && (
+        <div id="hr-guest-history-tracker" className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-3xl border border-slate-800 p-6 shadow-xl space-y-6 animate-fadeIn">
+          
+          {/* Header block */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div className="space-y-1">
+              <h3 className="font-serif text-lg font-bold text-teal-400 flex items-center gap-2">
+                <History className="w-5 h-5 text-teal-400" />
+                HR Guest Chronological History Audit Tracker
+              </h3>
+              <p className="text-xs text-slate-400">
+                Search and audit the full timeline of past check-ins and check-outs for a specific guest using their contact number.
+              </p>
+            </div>
+            
+            {/* Quick Helper contacts tags for easy demonstration/testing */}
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[10px] text-slate-500 font-mono">Quick Test:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setGuestHistoryPhoneSearch('+1 (555) 321-9876');
+                  setSelectedHistoryGuestPhone('+1 (555) 321-9876');
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
+              >
+                +1 (555) 321-9876
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGuestHistoryPhoneSearch('+1 (555) 789-1234');
+                  setSelectedHistoryGuestPhone('+1 (555) 789-1234');
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
+              >
+                +1 (555) 789-1234
+              </button>
+            </div>
+          </div>
+
+          {/* Search Inputs */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 shrink-0">
+                <Search className="w-4 h-4 text-slate-500" />
+              </span>
+              <input
+                id="hr-history-phone-search-input"
+                type="text"
+                placeholder="Enter guest contact/phone number (e.g. 01712xxxxxx or +1)..."
+                value={guestHistoryPhoneSearch}
+                onChange={(e) => setGuestHistoryPhoneSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setSelectedHistoryGuestPhone(guestHistoryPhoneSearch);
+                  }
+                }}
+                className="w-full text-xs bg-slate-900 border border-slate-800 focus:border-teal-500 rounded-xl pl-10 pr-4 py-3 focus:outline-none text-white font-mono placeholder:text-slate-600"
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <button
+                id="hr-history-search-btn"
+                type="button"
+                onClick={() => setSelectedHistoryGuestPhone(guestHistoryPhoneSearch)}
+                className="px-6 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl text-xs transition uppercase tracking-wider font-mono shrink-0 cursor-pointer"
+              >
+                Trace History
+              </button>
+              
+              {selectedHistoryGuestPhone && (
+                <button
+                  id="hr-history-clear-btn"
+                  type="button"
+                  onClick={() => {
+                    setGuestHistoryPhoneSearch('');
+                    setSelectedHistoryGuestPhone('');
+                  }}
+                  className="px-4 py-3 border border-slate-850 hover:bg-slate-900 hover:text-white text-slate-400 rounded-xl text-xs font-semibold transition"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Search Results Visual Layout */}
+          {selectedHistoryGuestPhone ? (
+            <div className="space-y-4 animate-fadeIn">
+              {guestHistoryBookings.length > 0 ? (
+                <div className="space-y-5">
+                  
+                  {/* Stats summary of guest history */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-900/50 border border-slate-800 p-4 rounded-2xl">
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-mono text-slate-500 uppercase block">Verified Guest Name</span>
+                      <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <User className="w-4 h-4 text-teal-400" />
+                        {guestHistoryBookings[guestHistoryBookings.length - 1].guestName}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-mono text-slate-500 uppercase block">Total Stays Tracked</span>
+                      <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                        <History className="w-4 h-4 text-teal-400" />
+                        {guestHistoryBookings.length} Times
+                      </span>
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <span className="text-[10px] font-mono text-slate-500 uppercase block">Lifetime Billed Revenue</span>
+                      <span className="text-sm font-bold text-teal-400 font-mono">
+                        ৳{guestHistoryBookings.reduce((acc, curr) => acc + (curr.totalAmount * 10), 0).toLocaleString()} BDT
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Chronological Vertical Timeline */}
+                  <div className="relative pl-6 space-y-6 before:absolute before:inset-y-1 before:left-2.5 before:w-0.5 before:bg-slate-800">
+                    {guestHistoryBookings.map((b, idx) => {
+                      return (
+                        <div key={b.id} className="relative group animate-slideIn">
+                          
+                          {/* Timeline node icon */}
+                          <div className={`absolute left-[-21px] top-1.5 w-4 h-4 rounded-full border-4 border-slate-950 flex items-center justify-center transition-colors ${
+                            b.status === 'checked-out' ? 'bg-slate-500 ring-4 ring-slate-900' :
+                            b.status === 'checked-in' ? 'bg-emerald-500 ring-4 ring-emerald-950/40' :
+                            b.status === 'confirmed' ? 'bg-sky-500 ring-4 ring-sky-950/40' : 'bg-rose-500'
+                          }`} />
+
+                          {/* Timeline Card */}
+                          <div className="bg-slate-900 hover:bg-slate-900/80 border border-slate-800 hover:border-slate-700/80 p-5 rounded-2xl space-y-3 transition-all duration-200">
+                            
+                            {/* Card top row */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-mono font-bold text-white">#{b.id}</span>
+                                <span className="text-slate-500">•</span>
+                                <span className="text-xs font-serif font-bold text-teal-400">Suite {b.roomNumber || b.roomId}</span>
+                                <span className="text-slate-500">•</span>
+                                <span className="text-[10px] uppercase font-mono tracking-wide text-slate-400">{b.roomType}</span>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                <span className={`text-[9px] font-extrabold uppercase font-mono px-2 py-0.5 rounded ${
+                                  b.status === 'checked-out' ? 'bg-slate-800 text-slate-400' :
+                                  b.status === 'checked-in' ? 'bg-emerald-950 text-emerald-400 border border-emerald-900' :
+                                  b.status === 'confirmed' ? 'bg-indigo-950 text-indigo-400 border border-indigo-900' : 'bg-rose-950 text-rose-400'
+                                }`}>
+                                  {b.status}
+                                </span>
+                                <span className="text-xs font-mono text-slate-400 font-bold">
+                                  ৳{b.totalAmount * 10}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Stay Span dates */}
+                            <div className="grid grid-cols-2 gap-4 text-xs font-mono">
+                              <div className="space-y-0.5">
+                                <span className="text-[10px] text-slate-500 uppercase font-mono">Check In Date</span>
+                                <p className="font-semibold text-white">{b.checkIn}</p>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[10px] text-slate-500 uppercase font-mono">Check Out Date</span>
+                                <p className="font-semibold text-white">{b.checkOut}</p>
+                              </div>
+                            </div>
+
+                            {/* Notes or incident log */}
+                            {b.notes && (
+                              <p className="text-xs text-slate-400 italic bg-slate-950 p-3 rounded-xl border border-slate-900 leading-relaxed">
+                                "{b.notes}"
+                              </p>
+                            )}
+
+                            {/* Additional Guests and children registry tags inside this stay */}
+                            {((b.additionalGuests && b.additionalGuests.length > 0) || (b.kids && b.kids.length > 0)) && (
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {b.additionalGuests?.map((guest, gIdx) => (
+                                  <span key={gIdx} className="text-[9px] bg-slate-950 text-slate-400 font-sans px-2 py-0.5 rounded-lg border border-slate-900">
+                                    Extra Guest: {guest.name} ({guest.phone})
+                                  </span>
+                                ))}
+                                {b.kids?.map((kid, kIdx) => (
+                                  <span key={kIdx} className="text-[9px] bg-sky-950/20 text-sky-400 font-sans px-2 py-0.5 rounded-lg border border-sky-900/20">
+                                    Child: {kid.name} ({kid.age}y)
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                </div>
+              ) : (
+                <div className="py-8 text-center bg-slate-900/30 border border-slate-800 rounded-2xl text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-500" />
+                  <p>
+                    No past stay records found for contact number: <span className="text-white font-mono font-bold">"{selectedHistoryGuestPhone}"</span>
+                  </p>
+                  <p className="text-[10px] text-slate-500 font-normal">
+                    Check if the phone matches exactly, or trace check-ins by searching '01712' or '555'.
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-8 text-center bg-slate-900/20 border border-slate-800/50 rounded-2xl text-slate-500 text-xs flex flex-col items-center justify-center gap-2">
+              <History className="w-5 h-5 text-slate-600" />
+              <span>Enter a guest phone number above and click "Trace History" to inspect stay timelines.</span>
+            </div>
+          )}
+
+        </div>
+      )}
+
       {/* 4. Active Logs Views & HR Customers Archives */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -1400,6 +1759,198 @@ export const StaffView: React.FC = () => {
                 </div>
               </div>
 
+              {/* HR Content Manager - Description, Amenities and Pictures */}
+              <div className="bg-amber-50/40 p-4 rounded-2xl border border-amber-100/85 space-y-4">
+                <div className="flex items-center gap-1.5 border-b border-amber-100 pb-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-600" />
+                  <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider font-mono">
+                    HR Manager Content Control
+                  </span>
+                </div>
+
+                {/* 1. Description Textarea */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-slate-600 uppercase block font-mono">
+                    Room Description (Guest View)
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={editRoomDescription}
+                    onChange={(e) => setEditRoomDescription(e.target.value)}
+                    placeholder="Enter description for guest view..."
+                    className="w-full text-xs border border-slate-200 rounded-xl p-2.5 bg-white leading-relaxed focus:outline-none focus:ring-1 focus:ring-teal-500 font-sans"
+                  />
+                </div>
+
+                {/* 2. Pictures Gallery Management */}
+                <div className="space-y-2.5">
+                  <div className="flex justify-between items-baseline">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase block font-mono">
+                      Guest View Picture Gallery
+                    </label>
+                    <span className="text-[9px] text-slate-400 font-mono">
+                      ({editRoomImages.length} pictures)
+                    </span>
+                  </div>
+
+                  {/* Picture Thumbnails */}
+                  {editRoomImages.length > 0 ? (
+                    <div className="grid grid-cols-4 gap-2">
+                      {editRoomImages.map((img, idx) => (
+                        <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100">
+                          <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <button
+                            type="button"
+                            onClick={() => setEditRoomImages(editRoomImages.filter((_, i) => i !== idx))}
+                            className="absolute top-1 right-1 bg-rose-600 text-white p-1 rounded-full hover:bg-rose-700 transition shadow-sm"
+                            title="Remove Picture"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 italic text-center py-2 bg-white rounded-xl border border-dashed border-slate-200">
+                      No pictures in gallery. Add one below.
+                    </div>
+                  )}
+
+                  {/* Add Picture Input */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Paste image URL..."
+                      value={newImage}
+                      onChange={(e) => setNewImage(e.target.value)}
+                      className="flex-1 text-[11px] border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newImage.trim()) {
+                          setEditRoomImages([...editRoomImages, newImage.trim()]);
+                          setNewImage('');
+                        }
+                      }}
+                      className="px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+
+                  {/* Premium Image Presets */}
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block font-mono">Presets (Click to add):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: 'Cozy Retreater', url: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80' },
+                        { label: 'Queen Bed Suite', url: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80' },
+                        { label: 'Executive Suite', url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=800&q=80' },
+                        { label: 'Rain Shower', url: 'https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=800&q=80' }
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            if (!editRoomImages.includes(preset.url)) {
+                              setEditRoomImages([...editRoomImages, preset.url]);
+                            }
+                          }}
+                          className="text-[9px] bg-white border border-slate-200 hover:border-teal-500 hover:bg-teal-50/30 text-slate-600 hover:text-teal-700 px-2 py-0.5 rounded-md transition"
+                        >
+                          + {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Amenities List Editor */}
+                <div className="space-y-2.5">
+                  <label className="text-[10px] font-bold text-slate-600 uppercase block font-mono">
+                    Room Amenities List
+                  </label>
+
+                  {/* Tags */}
+                  {editRoomAmenities.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {editRoomAmenities.map((amenity, idx) => (
+                        <span key={idx} className="inline-flex items-center gap-1 bg-white text-slate-700 text-[10px] font-medium px-2 py-1 rounded-lg border border-slate-150 shadow-xs">
+                          <span>{amenity}</span>
+                          <button
+                            type="button"
+                            onClick={() => setEditRoomAmenities(editRoomAmenities.filter((_, i) => i !== idx))}
+                            className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 italic text-center py-2 bg-white rounded-xl border border-dashed border-slate-200">
+                      No amenities defined. Use presets or type custom ones below.
+                    </div>
+                  )}
+
+                  {/* Add Amenity Input */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. Free High-Speed Wi-Fi..."
+                      value={newAmenity}
+                      onChange={(e) => setNewAmenity(e.target.value)}
+                      className="flex-1 text-xs border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newAmenity.trim()) {
+                          setEditRoomAmenities([...editRoomAmenities, newAmenity.trim()]);
+                          setNewAmenity('');
+                        }
+                      }}
+                      className="px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add</span>
+                    </button>
+                  </div>
+
+                  {/* Amenity Presets */}
+                  <div className="space-y-1">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block font-mono">Presets (Click to add):</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'Free High-Speed Wi-Fi',
+                        'Smart TV with Streaming',
+                        'Plush Ergonomic Desk',
+                        'Premium Eco-friendly Toiletries',
+                        'Air Conditioning',
+                        'Mini Fridge',
+                        'Tea & Coffee Maker'
+                      ].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            if (!editRoomAmenities.includes(preset)) {
+                              setEditRoomAmenities([...editRoomAmenities, preset]);
+                            }
+                          }}
+                          className="text-[9px] bg-white border border-slate-200 hover:border-teal-500 hover:bg-teal-50/30 text-slate-600 hover:text-teal-700 px-2 py-0.5 rounded-md transition"
+                        >
+                          + {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
               {/* Informative text */}
               <div className="text-[10px] text-slate-400 leading-normal bg-slate-50 p-3 rounded-xl border border-slate-100">
                 <p className="font-semibold text-slate-500 mb-0.5">💡 Room Customization & Tracker</p>
@@ -1427,7 +1978,11 @@ export const StaffView: React.FC = () => {
                     price: editRoomPrice / 10,
                     type: editRoomType,
                     capacity: editRoomCapacity,
-                    status: editRoomStatus
+                    status: editRoomStatus,
+                    description: editRoomDescription,
+                    amenities: editRoomAmenities,
+                    images: editRoomImages,
+                    image: editRoomImages[0] || selectedRoomToManage.image
                   });
                   setSelectedRoomToManage(null);
                 }}
@@ -1436,6 +1991,107 @@ export const StaffView: React.FC = () => {
                 Apply & Save Settings
               </button>
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 5. HR MANAGER ACCESS PROTECTION PASSCODE MODAL */}
+      {isHrPasscodeModalOpen && (
+        <div id="hr-passcode-verification-modal" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl max-w-md w-full overflow-hidden animate-slideUp">
+            
+            {/* Header banner */}
+            <div className="bg-gradient-to-r from-amber-600 to-amber-700 p-6 text-white text-center relative">
+              <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
+                <Lock className="w-6 h-6 text-amber-100 animate-pulse" />
+              </div>
+              <h3 className="font-serif text-lg font-bold">HR Privilege Required</h3>
+              <p className="text-amber-100 text-xs mt-1">
+                Access is restricted to HR Managers and authorized administrators only.
+              </p>
+            </div>
+
+            {/* Content Form */}
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                const code = hrPasscodeInput.trim();
+                if (code === '7788' || code === '1234' || code.toLowerCase() === 'hr123' || code === '2026') {
+                  setOpMode('hr');
+                  setIsHrPasscodeModalOpen(false);
+                  setHrPasscodeInput('');
+                  setHrPasscodeError('');
+                } else {
+                  setHrPasscodeError('Access Denied. Incorrect HR security passcode.');
+                }
+              }}
+              className="p-6 space-y-4"
+            >
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-mono">
+                  Enter HR Security Passcode
+                </label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    required
+                    autoFocus
+                    placeholder="••••"
+                    value={hrPasscodeInput}
+                    onChange={(e) => {
+                      setHrPasscodeInput(e.target.value);
+                      if (hrPasscodeError) setHrPasscodeError('');
+                    }}
+                    className="w-full text-center text-xl font-mono tracking-widest border border-slate-200 focus:border-amber-500 rounded-xl px-4 py-3 bg-slate-50 focus:bg-white focus:outline-none transition-all"
+                  />
+                </div>
+                {hrPasscodeError && (
+                  <p className="text-xs text-rose-600 font-medium flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>{hrPasscodeError}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Secure Tip for testers */}
+              <div className="bg-amber-50/50 rounded-2xl border border-amber-100 p-3.5 text-[11px] text-amber-800 leading-normal">
+                <p className="font-bold flex items-center gap-1.5 text-amber-900">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Front Desk Access Control</span>
+                </p>
+                <p className="mt-1 text-slate-600">
+                  To prevent unauthorized Front Desk receptionists from editing marketing info & guest archives, a security passcode is required.
+                </p>
+                <div className="mt-2 text-[10px] bg-amber-100/60 font-mono py-1 px-2.5 rounded border border-amber-200/40 text-amber-900 inline-block">
+                  Developer Simulator Key: <span className="font-bold">7788</span> or <span className="font-bold">1234</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  id="cancel-hr-verification-btn"
+                  onClick={() => {
+                    setIsHrPasscodeModalOpen(false);
+                    setHrPasscodeInput('');
+                    setHrPasscodeError('');
+                  }}
+                  className="flex-1 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  id="submit-hr-verification-btn"
+                  className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-600/10 active:scale-[0.98]"
+                >
+                  Unlock Access
+                </button>
+              </div>
+
+            </form>
 
           </div>
         </div>

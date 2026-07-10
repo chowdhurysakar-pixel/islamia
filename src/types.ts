@@ -20,6 +20,7 @@ export interface Room {
   amenities: string[];
   image: string;
   description: string;
+  images?: string[];
 }
 
 export interface Booking {

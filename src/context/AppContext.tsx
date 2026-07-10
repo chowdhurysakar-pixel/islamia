@@ -47,6 +47,8 @@ interface AppContextType {
   loginWithGoogle: (role?: UserRole) => Promise<void>;
   localLogin: (role: UserRole, email: string, name: string) => void;
   logout: () => Promise<void>;
+  sendOtp: (email: string, name?: string, role?: UserRole, isSignUp?: boolean) => Promise<{ success: boolean; otpCode?: string; error?: string }>;
+  verifyOtp: (email: string, enteredOtp: string, isSignUp?: boolean, name?: string, role?: UserRole) => Promise<{ success: boolean; error?: string }>;
   // Room Actions
   addRoom: (room: Omit<Room, 'id'>) => Promise<void>;
   updateRoomStatus: (roomId: string, status: RoomStatus) => Promise<void>;
@@ -61,6 +63,8 @@ interface AppContextType {
   // Feedback Actions
   feedbacks: Feedback[];
   submitFeedback: (rating: number, comment: string) => Promise<void>;
+  opMode: 'receptionist' | 'hr';
+  setOpMode: (mode: 'receptionist' | 'hr') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -72,9 +76,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentRole, setCurrentRole] = useState<UserRole>('staff');
+  const [opMode, setOpMode] = useState<'receptionist' | 'hr'>('receptionist');
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
+  const [otps, setOtps] = useState<Record<string, string>>({});
 
   // Initialize and run connection tests
   useEffect(() => {
@@ -270,23 +276,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFeedbacks(initialFeedbacks);
       }
 
+      // Initialize seed registered users list for simulation testing
+      const storedRegistered = localStorage.getItem('hotel_registered_users');
+      if (!storedRegistered) {
+        const defaultRegistered: UserProfile[] = [
+          {
+            uid: 'local-admin-1',
+            email: 'hr.manager@islamiaguesthouse.com',
+            name: 'Sakar Chowdhury (HR Manager)',
+            role: 'admin'
+          },
+          {
+            uid: 'local-staff-1',
+            email: 'frontdesk.receptionist@islamiaguesthouse.com',
+            name: 'Reception Desk Team',
+            role: 'staff'
+          },
+          {
+            uid: 'local-guest-1',
+            email: 'chowdhurysakar@gmail.com',
+            name: 'Sakar Chowdhury',
+            role: 'guest'
+          }
+        ];
+        localStorage.setItem('hotel_registered_users', JSON.stringify(defaultRegistered));
+      }
+
       if (storedRole) {
         setCurrentRole(storedRole as UserRole);
       } else {
-        setCurrentRole('staff'); // Default simulation mode
+        setCurrentRole('guest'); // Default is guest until logged in
       }
 
       if (storedUser) {
         setCurrentUser(JSON.parse(storedUser));
       } else {
-        const defaultStaffUser: UserProfile = {
-          uid: 'local-staff-1',
-          email: 'reception@luxuryhotel.com',
-          name: 'Reception Desk',
-          role: 'staff'
-        };
-        setCurrentUser(defaultStaffUser);
-        localStorage.setItem('hotel_current_user', JSON.stringify(defaultStaffUser));
+        // Everybody starts logged out! No default simulated user is auto-set
+        setCurrentUser(null);
       }
 
       setIsLoading(false);
@@ -365,6 +391,150 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.removeItem('hotel_current_user');
       localStorage.setItem('hotel_current_role', 'guest');
     }
+  };
+
+  const sendOtp = async (email: string, name?: string, role?: UserRole, isSignUp?: boolean): Promise<{ success: boolean; otpCode?: string; error?: string }> => {
+    const emailLower = email.toLowerCase().trim();
+    if (!emailLower) {
+      return { success: false, error: 'Please enter a valid Gmail address.' };
+    }
+    if (!emailLower.includes('@gmail.com') && !emailLower.endsWith('@gmail.com')) {
+      return { success: false, error: 'Only Gmail addresses are supported for verification.' };
+    }
+
+    if (!isSignUp) {
+      // Check if user is registered
+      const registered = localStorage.getItem('hotel_registered_users');
+      const users: UserProfile[] = registered ? JSON.parse(registered) : [];
+      const found = users.find(u => u.email.toLowerCase() === emailLower);
+      if (!found) {
+        return { success: false, error: 'This Gmail address is not registered yet. Please sign up first!' };
+      }
+    } else {
+      // Check if user already exists
+      const registered = localStorage.getItem('hotel_registered_users');
+      const users: UserProfile[] = registered ? JSON.parse(registered) : [];
+      const found = users.find(u => u.email.toLowerCase() === emailLower);
+      if (found) {
+        return { success: false, error: 'This Gmail address is already registered. Please sign in instead.' };
+      }
+    }
+
+    // Generate 6 digit numeric code
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    setOtps(prev => ({ ...prev, [emailLower]: otpCode }));
+
+    // Show a beautiful simulation toast / email action draft
+    const subject = `Your Gmail Verification OTP - Islamia Guest House (${isSignUp ? 'Sign Up' : 'Sign In'})`;
+    const body = `Dear User,
+
+To complete your secure authentication request at Islamia Guest House, Dhanmondi, Dhaka, please enter the following 6-digit verification One-Time Password (OTP):
+
+=======================================================
+YOUR OTP VERIFICATION CODE: ${otpCode}
+=======================================================
+
+This code is private and will expire in 10 minutes. If you did not initiate this request, please disregard this secure alert.
+
+Thank you,
+Google Accounts Security Core
+Islamia Guest House Dhanmondi System`;
+
+    const mailtoUrl = `mailto:${encodeURIComponent(emailLower)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    // Update state & trigger toast
+    showToast({
+      type: 'email',
+      message: `🔐 Verification OTP [${otpCode}] sent to ${emailLower}! Click below to view the secure draft.`,
+      duration: 15000,
+      emailAction: {
+        recipient: emailLower,
+        subject,
+        body,
+        mailtoUrl
+      }
+    });
+
+    return { success: true, otpCode };
+  };
+
+  const verifyOtp = async (email: string, enteredOtp: string, isSignUp?: boolean, name?: string, role?: UserRole): Promise<{ success: boolean; error?: string }> => {
+    const emailLower = email.toLowerCase().trim();
+    const correctOtp = otps[emailLower];
+
+    if (!correctOtp || enteredOtp !== correctOtp) {
+      return { success: false, error: 'Invalid or expired OTP code. Please try again.' };
+    }
+
+    // OTP verified successfully!
+    if (isSignUp) {
+      if (!name || !role) {
+        return { success: false, error: 'Name and role are required for sign up.' };
+      }
+
+      const newUser: UserProfile = {
+        uid: `local-${role}-${Date.now().toString().slice(-4)}`,
+        email: emailLower,
+        name: name.trim(),
+        role
+      };
+
+      // Save user profile to registered list
+      const registered = localStorage.getItem('hotel_registered_users');
+      const users: UserProfile[] = registered ? JSON.parse(registered) : [];
+      users.push(newUser);
+      localStorage.setItem('hotel_registered_users', JSON.stringify(users));
+
+      // Log the user in
+      setCurrentUser(newUser);
+      setCurrentRole(role);
+      localStorage.setItem('hotel_current_user', JSON.stringify(newUser));
+      localStorage.setItem('hotel_current_role', role);
+
+      // In Firebase mode, write user to firestore
+      if (isFirebaseActive && db) {
+        try {
+          await setDoc(doc(db, 'users', newUser.uid), newUser);
+        } catch (err) {
+          console.error("Failed to sync new user to Firestore:", err);
+        }
+      }
+
+      showToast({
+        type: 'success',
+        message: `🎉 Welcome ${newUser.name}! Your account has been created successfully with Gmail OTP.`
+      });
+
+    } else {
+      // Sign In
+      const registered = localStorage.getItem('hotel_registered_users');
+      const users: UserProfile[] = registered ? JSON.parse(registered) : [];
+      const user = users.find(u => u.email.toLowerCase() === emailLower);
+
+      if (!user) {
+        return { success: false, error: 'User registration record not found. Please sign up.' };
+      }
+
+      // Log the user in
+      setCurrentUser(user);
+      setCurrentRole(user.role);
+      localStorage.setItem('hotel_current_user', JSON.stringify(user));
+      localStorage.setItem('hotel_current_role', user.role);
+
+      showToast({
+        type: 'success',
+        message: `🔑 Welcome back, ${user.name}! Successfully signed in via Gmail OTP.`
+      });
+    }
+
+    // Clean up OTP
+    setOtps(prev => {
+      const copy = { ...prev };
+      delete copy[emailLower];
+      return copy;
+    });
+
+    return { success: true };
   };
 
   const toggleRole = () => {
@@ -705,6 +875,8 @@ Islamia Guest House, Dhanmondi, Dhaka`;
       loginWithGoogle,
       localLogin,
       logout,
+      sendOtp,
+      verifyOtp,
       addRoom,
       updateRoomStatus,
       editRoomDetails,
@@ -713,7 +885,9 @@ Islamia Guest House, Dhanmondi, Dhaka`;
       addBookingNotes,
       createServiceRequest,
       updateServiceRequestStatus,
-      submitFeedback
+      submitFeedback,
+      opMode,
+      setOpMode
     }}>
       {children}
     </AppContext.Provider>
