@@ -47,7 +47,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidId(roomId) && isStaff() &&
         incoming().id == roomId &&
         incoming().number is string && incoming().number.size() <= 10 &&
-        incoming().price is number && incoming().price > 0 &&
+        incoming().price is number && incoming().price >= 0 &&
         incoming().capacity is number && incoming().capacity > 0 &&
         incoming().status in ["available", "occupied", "maintenance", "cleaning"];
 

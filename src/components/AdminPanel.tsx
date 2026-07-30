@@ -220,14 +220,16 @@ export const AdminPanel: React.FC = () => {
     e.preventDefault();
     if (!newRoomNo.trim()) return;
 
+    const roomNoVal = newRoomNo.trim();
     await addRoom({
-      number: newRoomNo.trim(),
+      number: roomNoVal,
       type: newRoomType,
-      price: newRoomPrice,
+      price: Number(newRoomPrice) || 0,
       status: 'available',
-      capacity: newRoomCapacity,
+      capacity: Number(newRoomCapacity) || 1,
       description: newRoomDesc || `${newRoomType.toUpperCase()} Chamber at Islamia Guest House Dhanmondi`,
-      imageUrl: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800'
+      image: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
+      amenities: ['Free High-Speed Wi-Fi', 'Air Conditioning', 'LED TV', 'Bathroom En-suite']
     });
 
     setIsAddRoomOpen(false);
@@ -236,7 +238,7 @@ export const AdminPanel: React.FC = () => {
     setNewRoomImg('');
     showToast({
       type: 'success',
-      message: `🏨 New Chamber #${newRoomNo} added to inventory!`
+      message: `🏨 New Chamber #${roomNoVal} added to inventory!`
     });
   };
 

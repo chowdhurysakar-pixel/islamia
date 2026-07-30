@@ -820,20 +820,41 @@ Islamia Guest House Dhanmondi System`;
 
   // Room Actions
   const addRoom = async (roomData: Omit<Room, 'id'>) => {
-    const newId = (rooms.length > 0 ? (Math.max(...rooms.map(r => Number(r.id) || 0)) + 1).toString() : '101');
+    const cleanNumber = roomData.number ? roomData.number.trim() : '101';
+    const newId = cleanNumber.replace(/[^a-zA-Z0-9_\-]/g, '') || String(Date.now());
+    
     const newRoom: Room = {
       id: newId,
-      ...roomData
+      amenities: (roomData.amenities && roomData.amenities.length > 0) 
+        ? roomData.amenities 
+        : ['Free High-Speed Wi-Fi', 'Air Conditioning', 'LED TV', 'Bathroom En-suite'],
+      image: roomData.image || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
+      ...roomData,
+      number: cleanNumber,
+      price: Number(roomData.price) >= 0 ? Number(roomData.price) : 0,
+      capacity: Number(roomData.capacity) > 0 ? Number(roomData.capacity) : 1
     };
 
-    setRooms(prev => [...prev.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number)));
+    setRooms(prev => {
+      const filtered = prev.filter(r => r.id !== newId && r.number !== cleanNumber);
+      return [...filtered, newRoom].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
+    });
+
+    try {
+      const currentStored = localStorage.getItem('hotel_rooms');
+      const parsed: Room[] = currentStored ? JSON.parse(currentStored) : rooms;
+      const updatedList = [...parsed.filter(r => r.id !== newId && r.number !== cleanNumber), newRoom];
+      localStorage.setItem('hotel_rooms', JSON.stringify(updatedList));
+    } catch (e) {
+      console.warn("LocalStorage save error:", e);
+    }
 
     if (isFirebaseActive && db) {
       const roomPath = `rooms/${newId}`;
       try {
         await setDoc(doc(db, 'rooms', newId), sanitizeFirestoreData(newRoom));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, roomPath);
+        console.error("Firestore room write error:", error);
       }
     }
   };
@@ -841,12 +862,23 @@ Islamia Guest House Dhanmondi System`;
   const updateRoomStatus = async (roomId: string, status: RoomStatus) => {
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status } : r));
 
+    try {
+      const currentStored = localStorage.getItem('hotel_rooms');
+      if (currentStored) {
+        const parsed: Room[] = JSON.parse(currentStored);
+        const updatedList = parsed.map(r => r.id === roomId ? { ...r, status } : r);
+        localStorage.setItem('hotel_rooms', JSON.stringify(updatedList));
+      }
+    } catch (e) {
+      console.warn("LocalStorage update status error:", e);
+    }
+
     if (isFirebaseActive && db) {
       const roomPath = `rooms/${roomId}`;
       try {
         await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData({ status }));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, roomPath);
+        console.error("Firestore room status error:", error);
       }
     }
   };
@@ -854,12 +886,23 @@ Islamia Guest House Dhanmondi System`;
   const editRoomDetails = async (roomId: string, updates: Partial<Room>) => {
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, ...updates } : r));
 
+    try {
+      const currentStored = localStorage.getItem('hotel_rooms');
+      if (currentStored) {
+        const parsed: Room[] = JSON.parse(currentStored);
+        const updatedList = parsed.map(r => r.id === roomId ? { ...r, ...updates } : r);
+        localStorage.setItem('hotel_rooms', JSON.stringify(updatedList));
+      }
+    } catch (e) {
+      console.warn("LocalStorage edit details error:", e);
+    }
+
     if (isFirebaseActive && db) {
       const roomPath = `rooms/${roomId}`;
       try {
         await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(updates));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, roomPath);
+        console.error("Firestore room details edit error:", error);
       }
     }
   };
