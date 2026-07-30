@@ -121,7 +121,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
         </div>
 
         <div className="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg text-sm font-mono font-semibold">
-          ৳{room.price * 10} <span className="text-[10px] opacity-70 font-sans font-normal">/ night</span>
+          ৳{room.price} <span className="text-[10px] opacity-70 font-sans font-normal">/ night</span>
         </div>
       </div>
 

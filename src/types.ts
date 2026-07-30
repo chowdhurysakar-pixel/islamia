@@ -61,6 +61,9 @@ export interface UserProfile {
   email: string;
   name: string;
   role: UserRole;
+  phone?: string;
+  staffSecretKey?: string;
+  hrApproved?: boolean;
 }
 
 export interface ToastInfo {

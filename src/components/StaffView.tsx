@@ -27,7 +27,8 @@ export const StaffView: React.FC = () => {
     updateBookingStatus, 
     updateServiceRequestStatus,
     opMode,
-    setOpMode
+    setOpMode,
+    showToast
   } = useApp();
 
   // Active logs search and states
@@ -123,7 +124,7 @@ export const StaffView: React.FC = () => {
     if (selectedRoomToManage) {
       setEditRoomNumber(selectedRoomToManage.number);
       setEditRoomType(selectedRoomToManage.type);
-      setEditRoomPrice(selectedRoomToManage.price * 10);
+      setEditRoomPrice(selectedRoomToManage.price);
       setEditRoomCapacity(selectedRoomToManage.capacity);
       setEditRoomStatus(selectedRoomToManage.status);
       setEditRoomDescription(selectedRoomToManage.description || '');
@@ -176,15 +177,21 @@ export const StaffView: React.FC = () => {
     e.preventDefault();
     if (!newRoomNo) return;
     
+    const finalPrice = Number(newRoomPrice) || 0;
     await addRoom({
       number: newRoomNo,
       type: newRoomType,
-      price: newRoomPrice,
-      capacity: newRoomCapacity,
+      price: finalPrice,
+      capacity: Number(newRoomCapacity) || 1,
       description: newRoomDescription || `${newRoomType.toUpperCase()} Suite featuring high speed Wi-Fi and modern amenities.`,
       image: newRoomImage || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=600',
       status: 'available',
       amenities: ['Wi-Fi', 'Air Conditioning', 'LED TV', 'Bathroom En-suite']
+    });
+
+    showToast({
+      type: 'success',
+      message: `🏨 New Chamber #${newRoomNo} saved with rate ৳${finalPrice.toLocaleString()}/night!`
     });
 
     setNewRoomNo('');
@@ -214,25 +221,34 @@ export const StaffView: React.FC = () => {
   // Submit fast front desk booking
   const handleDeskBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!posSelectedRoomId) {
-      alert("Please select a room number from the list.");
-      return;
-    }
     if (!posCustomerName || !posCustomerPhone) {
       alert("Please provide the basic Customer Name and Phone Number.");
       return;
     }
 
-    const finalBill = posCustomBill ? Number(posCustomBill) : calculatedBasePrice;
-    const targetRoom = rooms.find(r => r.id === posSelectedRoomId);
-    
+    let selectedRoomIdToUse = posSelectedRoomId;
+    if (!selectedRoomIdToUse) {
+      const avail = rooms.find(r => r.status === 'available');
+      if (avail) {
+        selectedRoomIdToUse = avail.id;
+      } else if (rooms[0]) {
+        selectedRoomIdToUse = rooms[0].id;
+      } else {
+        alert("No chambers available in the system.");
+        return;
+      }
+    }
+
+    const targetRoom = rooms.find(r => r.id === selectedRoomIdToUse);
     if (!targetRoom) return;
+
+    const finalBill = posCustomBill ? Number(posCustomBill) : (calculatedBasePrice || (targetRoom.price * calcNights(posCheckIn, posCheckOut)));
 
     try {
       const gList = receptionistGuests.filter(g => g.name.trim() !== '');
       const kList = receptionistKids.filter(k => k.name.trim() !== '');
       const generatedRef = await createBooking({
-        roomId: posSelectedRoomId,
+        roomId: selectedRoomIdToUse,
         roomNumber: targetRoom.number,
         roomType: targetRoom.type,
         guestName: posCustomerName,
@@ -247,14 +263,14 @@ export const StaffView: React.FC = () => {
         status: 'checked-in', // Front-desk checkins go directly as checked-in!
         notes: `Checked in directly via front-desk guest registration desk at Dhanmondi, Dhaka.`,
         additionalGuests: gList,
-        referenceName: posReferenceName.trim() || undefined,
+        referenceName: posReferenceName.trim() || '',
         kids: kList
       });
 
       // Fetch the created booking object to launch the BILL INVOICE immediately!
       const finalBookingItem: Booking = {
         id: generatedRef,
-        roomId: posSelectedRoomId,
+        roomId: selectedRoomIdToUse,
         roomNumber: targetRoom.number,
         roomType: targetRoom.type,
         guestName: posCustomerName,
@@ -269,7 +285,7 @@ export const StaffView: React.FC = () => {
         status: 'checked-in',
         notes: 'Checked in directly via front-desk guest registration desk.',
         additionalGuests: gList,
-        referenceName: posReferenceName.trim() || undefined,
+        referenceName: posReferenceName.trim() || '',
         kids: kList,
         createdAt: new Date().toISOString()
       };
@@ -311,8 +327,8 @@ export const StaffView: React.FC = () => {
   // Filter Active bookings
   const filteredBookings = useMemo(() => {
     return bookings.filter(booking => {
-      // Filter out bookings that correspond to historical checked-out ones if in standard "receptionist" mode to keep UI simple
-      if (opMode === 'receptionist' && booking.status === 'checked-out') {
+      // Filter out bookings that correspond to historical checked-out ones if in standard "receptionist" mode UNLESS filtering for all or checked-out specifically
+      if (opMode === 'receptionist' && booking.status === 'checked-out' && bookingStatusFilter !== 'all' && bookingStatusFilter !== 'checked-out') {
         return false;
       }
 
@@ -584,15 +600,15 @@ export const StaffView: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Night Price (৳)</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Night Price (৳ BDT)</label>
                 <input
                   type="number"
-                  min="30"
-                  max="1000"
+                  min="0"
                   required
-                  value={newRoomPrice}
-                  onChange={(e) => setNewRoomPrice(Number(e.target.value))}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                  value={newRoomPrice || ''}
+                  onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
+                  placeholder="e.g. 2500"
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white font-mono font-bold text-teal-700"
                 />
               </div>
 
@@ -686,7 +702,7 @@ export const StaffView: React.FC = () => {
                   </span>
                   <div className="flex justify-between items-baseline mt-1">
                     <span className="text-xs font-mono font-bold text-teal-700">
-                      ৳{room.price * 10} / night
+                      ৳{room.price} / night
                     </span>
                     <span className="text-[10px] text-slate-500 font-mono">
                       Cap: {room.capacity}
@@ -718,6 +734,24 @@ export const StaffView: React.FC = () => {
           </div>
 
           <form onSubmit={handleDeskBookingSubmit} className="space-y-3.5">
+            {/* Room Selection Dropdown */}
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Select Chamber / Room *</label>
+              <select
+                id="pos-room-select-dropdown"
+                value={posSelectedRoomId}
+                onChange={(e) => setPosSelectedRoomId(e.target.value)}
+                className="w-full text-xs border border-slate-200 rounded-xl p-2.5 bg-white font-serif font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              >
+                <option value="">-- Click a Room Left or Choose Here --</option>
+                {rooms.map(r => (
+                  <option key={r.id} value={r.id}>
+                    Chamber {r.number} ({r.type.toUpperCase()}) - ৳{r.price}/night [{r.status.toUpperCase()}]
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Selected Room Info */}
             <div className="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
               <div>
@@ -731,7 +765,7 @@ export const StaffView: React.FC = () => {
               <div>
                 {selectedRoomDetails ? (
                   <span className="bg-teal-50 text-teal-700 font-mono font-semibold px-2 py-1 rounded text-[10px] border border-teal-100 uppercase">
-                    ৳{selectedRoomDetails.price * 10}/Night
+                    ৳{selectedRoomDetails.price}/Night
                   </span>
                 ) : (
                   <span className="text-rose-500 font-mono text-[10px] uppercase font-bold animate-pulse">
@@ -984,7 +1018,7 @@ export const StaffView: React.FC = () => {
               <input
                 id="pos-bill-input"
                 type="number"
-                placeholder={selectedRoomDetails ? `Auto BDT Subtotal: ৳${calculatedBasePrice * 10}` : "Select Room..."}
+                placeholder={selectedRoomDetails ? `Auto BDT Subtotal: ৳${calculatedBasePrice}` : "Select Room..."}
                 value={posCustomBill}
                 onChange={(e) => setPosCustomBill(e.target.value)}
                 className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white text-teal-800 font-mono font-bold font-semibold focus:outline-none"
@@ -997,15 +1031,10 @@ export const StaffView: React.FC = () => {
             <button
               id="pos-submit-booking-btn"
               type="submit"
-              disabled={!posSelectedRoomId}
-              className={`w-full py-2.5 rounded-xl text-xs font-bold font-mono tracking-wider transition uppercase flex items-center justify-center gap-2 ${
-                posSelectedRoomId 
-                  ? 'bg-teal-600 hover:bg-teal-700 text-white shadow-sm shadow-teal-600/30 active:scale-95' 
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-              }`}
+              className="w-full py-2.5 rounded-xl text-xs font-bold font-mono tracking-wider transition uppercase flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white shadow-sm shadow-teal-600/30 active:scale-95 cursor-pointer"
             >
               <TicketPlus className="w-4 h-4" />
-              <span>Checkout Booking & Show Bill</span>
+              <span>Checkout Booking</span>
             </button>
           </form>
         </div>
@@ -1047,7 +1076,7 @@ export const StaffView: React.FC = () => {
                         <h4 className="text-xs font-serif font-bold text-slate-800 capitalize mt-2">{room.type} Bed</h4>
                       </div>
                       <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-teal-800 bg-teal-50/50 border border-teal-100 px-2.5 py-1 rounded-lg">
-                        <span>৳{room.price * 10}/night</span>
+                        <span>৳{room.price}/night</span>
                       </div>
                     </div>
 
@@ -1219,7 +1248,7 @@ export const StaffView: React.FC = () => {
                     <div className="space-y-0.5">
                       <span className="text-[10px] font-mono text-slate-500 uppercase block">Lifetime Billed Revenue</span>
                       <span className="text-sm font-bold text-teal-400 font-mono">
-                        ৳{guestHistoryBookings.reduce((acc, curr) => acc + (curr.totalAmount * 10), 0).toLocaleString()} BDT
+                        ৳{guestHistoryBookings.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0).toLocaleString()} BDT
                       </span>
                     </div>
                   </div>
@@ -1259,8 +1288,16 @@ export const StaffView: React.FC = () => {
                                   {b.status}
                                 </span>
                                 <span className="text-xs font-mono text-slate-400 font-bold">
-                                  ৳{b.totalAmount * 10}
+                                  ৳{b.totalAmount}
                                 </span>
+                                <button
+                                  type="button"
+                                  onClick={() => openInvoiceForBooking(b, false)}
+                                  className="ml-2 px-2 py-0.5 bg-teal-600/30 hover:bg-teal-600/50 text-teal-300 rounded text-[9px] font-bold font-mono transition inline-flex items-center gap-1 border border-teal-500/30"
+                                >
+                                  <Receipt className="w-2.5 h-2.5" />
+                                  <span>Show Bill</span>
+                                </button>
                               </div>
                             </div>
 
@@ -1452,7 +1489,7 @@ export const StaffView: React.FC = () => {
                         </td>
                         <td className="py-3.5 px-2">
                           <span className="font-mono font-bold text-teal-700 block text-xs">
-                            ৳{booking.totalAmount * 10}
+                            ৳{booking.totalAmount}
                           </span>
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wide mt-1 ${
                             booking.status === 'checked-in' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
@@ -1476,10 +1513,13 @@ export const StaffView: React.FC = () => {
                           {booking.status === 'checked-in' && (
                             <button
                               id={`check-out-btn-${booking.id}`}
-                              onClick={() => updateBookingStatus(booking.id, 'checked-out')}
+                              onClick={async () => {
+                                await updateBookingStatus(booking.id, 'checked-out');
+                                openInvoiceForBooking({ ...booking, status: 'checked-out' }, false);
+                              }}
                               className="px-2 py-1.5 bg-rose-600 text-white rounded-lg font-bold text-[10px] hover:bg-rose-700 transition"
                             >
-                              Check Out
+                              Check Out & Bill
                             </button>
                           )}
                           {(booking.status === 'confirmed' || booking.status === 'pending') && (
@@ -1661,6 +1701,38 @@ export const StaffView: React.FC = () => {
 
             {/* Body */}
             <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+
+              {/* If chamber is occupied, show prominent quick Checkout & Show Bill Banner */}
+              {selectedRoomToManage.status === 'occupied' && (
+                <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase text-rose-700 block font-mono">Currently Occupied</span>
+                    <p className="text-xs font-bold text-slate-800 mt-0.5">
+                      {bookings.find(b => b.roomId === selectedRoomToManage.id && b.status === 'checked-in')?.guestName ? 
+                        `Guest: ${bookings.find(b => b.roomId === selectedRoomToManage.id && b.status === 'checked-in')?.guestName}` : 
+                        `Chamber #${selectedRoomToManage.number}`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="modal-checkout-and-bill-btn"
+                    onClick={async () => {
+                      const activeBookingForRoom = bookings.find(b => b.roomId === selectedRoomToManage.id && b.status === 'checked-in');
+                      if (activeBookingForRoom) {
+                        await updateBookingStatus(activeBookingForRoom.id, 'checked-out');
+                        openInvoiceForBooking({ ...activeBookingForRoom, status: 'checked-out' }, false);
+                      } else {
+                        await updateRoomStatus(selectedRoomToManage.id, 'cleaning');
+                      }
+                      setSelectedRoomToManage(null);
+                    }}
+                    className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold text-xs shadow-sm transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                  >
+                    <Receipt className="w-3.5 h-3.5" />
+                    <span>Checkout & Show Bill</span>
+                  </button>
+                </div>
+              )}
               
               {/* Settings Fields: Room details, capacity, and PRICE (Money edit!) */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-4">
@@ -1684,8 +1756,10 @@ export const StaffView: React.FC = () => {
                     <input
                       id="edit-room-price-input"
                       type="number"
-                      value={editRoomPrice}
-                      onChange={(e) => setEditRoomPrice(Number(e.target.value))}
+                      min="0"
+                      value={editRoomPrice || ''}
+                      onChange={(e) => setEditRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
+                      placeholder="e.g. 2500"
                       className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-mono font-bold text-teal-700"
                     />
                   </div>
@@ -1973,9 +2047,10 @@ export const StaffView: React.FC = () => {
                 id="apply-status-manager-btn"
                 type="button"
                 onClick={async () => {
+                  const finalPrice = Number(editRoomPrice) || 0;
                   await editRoomDetails(selectedRoomToManage.id, {
                     number: editRoomNumber,
-                    price: editRoomPrice / 10,
+                    price: finalPrice,
                     type: editRoomType,
                     capacity: editRoomCapacity,
                     status: editRoomStatus,
@@ -1984,9 +2059,13 @@ export const StaffView: React.FC = () => {
                     images: editRoomImages,
                     image: editRoomImages[0] || selectedRoomToManage.image
                   });
+                  showToast({
+                    type: 'success',
+                    message: `✅ Chamber #${editRoomNumber} saved with tariff ৳${finalPrice.toLocaleString()}/night!`
+                  });
                   setSelectedRoomToManage(null);
                 }}
-                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition"
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
               >
                 Apply & Save Settings
               </button>

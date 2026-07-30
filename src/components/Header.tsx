@@ -5,11 +5,18 @@
 
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Shield, User, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Shield, User, Clock, ShieldCheck, Lock, X, Key, AlertCircle } from 'lucide-react';
+
+const VALID_ADMIN_PASSCODES = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026', 'STAFF789'];
 
 export const Header: React.FC = () => {
-  const { currentRole, toggleRole, currentUser, isFirebaseActive, opMode } = useApp();
+  const { currentRole, toggleRole, currentUser, opMode, setOpMode, showToast } = useApp();
   const [time, setTime] = useState<string>('');
+  
+  // Admin Passcode Modal
+  const [showAdminPasscodeModal, setShowAdminPasscodeModal] = useState<boolean>(false);
+  const [adminPasscodeInput, setAdminPasscodeInput] = useState<string>('');
+  const [adminPasscodeError, setAdminPasscodeError] = useState<string>('');
 
   useEffect(() => {
     const updateTime = () => {
@@ -21,80 +28,205 @@ export const Header: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  return (
-    <header className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
-          
-          {/* Logo Brand / Identity */}
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm shadow-teal-600/30">
-                I
-              </div>
-              <span className="font-serif text-xl tracking-tight font-semibold text-slate-850">
-                Islamia Guest House
-              </span>
-            </div>
-            <span className="text-[10px] uppercase tracking-widest text-teal-600 font-mono font-bold mt-1">
-              Dhanmondi, Dhaka
-              {currentRole === 'guest' 
-                ? ' • Guest View' 
-                : opMode === 'hr' 
-                  ? ' • HR Manager' 
-                  : ' • Front Desk'
-              }
-            </span>
-          </div>
+  const handleAdminAccessClick = () => {
+    const isAlreadyAdminUser = currentUser?.role === 'admin';
+    const isSessionUnlocked = sessionStorage.getItem('admin_authorized') === 'true';
 
-          {/* Time & Server Status Indicator */}
-          <div className="hidden md:flex items-center gap-6">
-            <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-              <Clock className="w-3.5 h-3.5 text-teal-600 animate-pulse" />
-              <span>{time}</span>
-            </div>
-            {currentRole !== 'guest' && (
-              <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-                <span className={`w-2 h-2 rounded-full ${isFirebaseActive ? 'bg-emerald-500 animate-ping' : 'bg-slate-400'}`} />
-                <span className="text-slate-500">
-                  {isFirebaseActive ? 'Google Cloud Active' : 'Offline Local Sandbox'}
+    if (isAlreadyAdminUser || isSessionUnlocked) {
+      if (currentRole === 'guest') toggleRole();
+      setOpMode('admin');
+    } else {
+      setAdminPasscodeInput('');
+      setAdminPasscodeError('');
+      setShowAdminPasscodeModal(true);
+    }
+  };
+
+  const handleVerifyAdminPasscode = (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminPasscodeError('');
+    const cleanCode = adminPasscodeInput.trim().toUpperCase();
+
+    if (VALID_ADMIN_PASSCODES.includes(cleanCode)) {
+      sessionStorage.setItem('admin_authorized', 'true');
+      setShowAdminPasscodeModal(false);
+      if (currentRole === 'guest') toggleRole();
+      setOpMode('admin');
+      showToast({
+        type: 'success',
+        message: '🔓 Admin Control Center unlocked successfully.'
+      });
+    } else {
+      setAdminPasscodeError('Access Denied: Invalid Admin Passcode. Guest, regular Staff, and HR accounts cannot access Admin controls without authorization.');
+    }
+  };
+
+  return (
+    <>
+      <header className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-20">
+            
+            {/* Logo Brand / Identity */}
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm shadow-teal-600/30">
+                  I
+                </div>
+                <span className="font-serif text-xl tracking-tight font-semibold text-slate-850">
+                  Islamia Guest House
                 </span>
               </div>
-            )}
-          </div>
-
-          {/* Role simulation Toggle bar */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center bg-slate-100/85 p-1 rounded-xl border border-slate-200/50">
-              <button
-                id="role-switch-guest-btn"
-                onClick={() => currentRole !== 'guest' && toggleRole()}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
-                  currentRole === 'guest'
-                    ? 'bg-white text-slate-800 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <User className="w-3.5 h-3.5 text-teal-500" />
-                <span>Guest</span>
-              </button>
-              <button
-                id="role-switch-staff-btn"
-                onClick={() => currentRole !== 'staff' && toggleRole()}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 ${
-                  currentRole === 'staff'
-                    ? 'bg-slate-850 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <Shield className="w-3.5 h-3.5 text-teal-400" />
-                <span>Receptionist / Staff</span>
-              </button>
+              <span className="text-[10px] uppercase tracking-widest text-teal-600 font-mono font-bold mt-1">
+                Dhanmondi, Dhaka
+                {currentRole === 'guest' 
+                  ? ' • Guest View' 
+                  : opMode === 'admin'
+                    ? ' • Admin Control Center'
+                    : opMode === 'hr' 
+                      ? ' • HR Manager' 
+                      : ' • Front Desk'
+                }
+              </span>
             </div>
+
+            {/* Time Indicator */}
+            <div className="hidden md:flex items-center gap-6">
+              <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                <Clock className="w-3.5 h-3.5 text-teal-600 animate-pulse" />
+                <span>{time}</span>
+              </div>
+            </div>
+
+            {/* Role & Operational Mode Switcher */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center bg-slate-100/85 p-1 rounded-xl border border-slate-200/50">
+                <button
+                  id="role-switch-guest-btn"
+                  onClick={() => {
+                    if (currentRole !== 'guest') toggleRole();
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 cursor-pointer ${
+                    currentRole === 'guest'
+                      ? 'bg-white text-slate-800 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5 text-teal-500" />
+                  <span className="hidden sm:inline">Guest</span>
+                </button>
+
+                <button
+                  id="role-switch-staff-btn"
+                  onClick={() => {
+                    if (currentRole === 'guest') toggleRole();
+                    setOpMode('receptionist');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 cursor-pointer ${
+                    currentRole === 'staff' && opMode !== 'admin'
+                      ? 'bg-slate-850 text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Front Desk / Staff</span>
+                </button>
+
+                <button
+                  id="role-switch-admin-btn"
+                  onClick={handleAdminAccessClick}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 cursor-pointer ${
+                    currentRole === 'staff' && opMode === 'admin'
+                      ? 'bg-teal-600 text-white shadow-sm font-bold'
+                      : 'text-slate-500 hover:text-teal-700'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Admin Panel</span>
+                </button>
+              </div>
+            </div>
+            
           </div>
-          
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* Admin Passcode Gate Modal */}
+      {showAdminPasscodeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 relative">
+            <button
+              onClick={() => setShowAdminPasscodeModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-full bg-slate-100 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-100">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-serif font-bold text-slate-800">
+                  Admin Panel Security Gate
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Restricted Access • Admin Credentials Required
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              The Admin Panel is secured from Guests, regular Staff, and HR accounts. Enter the <strong>Admin Executive Passcode</strong> (e.g., <code className="text-teal-700 font-mono font-bold">ADMIN2026</code>) to proceed.
+            </p>
+
+            {adminPasscodeError && (
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                <span className="leading-snug">{adminPasscodeError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyAdminPasscode} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Admin Master Passcode
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Key className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="password"
+                    required
+                    autoFocus
+                    value={adminPasscodeInput}
+                    onChange={(e) => setAdminPasscodeInput(e.target.value)}
+                    placeholder="Enter ADMIN2026"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs font-mono font-bold transition focus:outline-none placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPasscodeModal(false)}
+                  className="flex-1 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+                >
+                  Unlock Admin Panel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

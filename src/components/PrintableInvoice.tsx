@@ -97,7 +97,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
 
   // Find corresponding room if available
   const associatedRoom = useMemo(() => {
-    return rooms.find(r => r.id === booking.roomId || r.number === booking.roomNumber);
+    return (rooms || []).find(r => r.id === booking.roomId || r.number === booking.roomNumber);
   }, [rooms, booking]);
 
   // Helpers
@@ -116,7 +116,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
 
   // BDT calculations matching Dhaka rules
   const billing = useMemo(() => {
-    const totalBDT = booking.totalAmount * 10;
+    const totalBDT = booking.totalAmount || 0;
     const vat = 0;
     const serviceFee = Math.round(totalBDT * 0.05);
     const subtotal = totalBDT - serviceFee;

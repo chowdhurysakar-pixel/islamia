@@ -8,7 +8,8 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink } from 'lucide-react';
+import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 
 // Custom contact icon/badge components
 const BkashLogo: React.FC<{ className?: string }> = ({ className = "w-3.5 h-3.5" }) => (
@@ -40,6 +41,9 @@ export const GuestView: React.FC = () => {
     serviceRequests,
     feedbacks,
     currentUser, 
+    currentRole,
+    toggleRole,
+    logout,
     createBooking, 
     updateBookingStatus, 
     createServiceRequest,
@@ -48,7 +52,7 @@ export const GuestView: React.FC = () => {
 
   // Guest Search state
   const [roomTypeFilter, setRoomTypeFilter] = useState<RoomType | 'all'>('all');
-  const [priceLimit, setPriceLimit] = useState<number>(700);
+  const [roomsCount, setRoomsCount] = useState<number>(1);
   const [adultsCount, setAdultsCount] = useState<number>(1);
   
   // Date states for filtering / booking
@@ -219,11 +223,10 @@ export const GuestView: React.FC = () => {
   const filteredRooms = useMemo(() => {
     return rooms.filter(room => {
       const matchesType = roomTypeFilter === 'all' || room.type === roomTypeFilter;
-      const matchesPrice = room.price <= priceLimit;
       const matchesCapacity = room.capacity >= adultsCount;
-      return matchesType && matchesPrice && matchesCapacity;
+      return matchesType && matchesCapacity;
     });
-  }, [rooms, roomTypeFilter, priceLimit, adultsCount]);
+  }, [rooms, roomTypeFilter, adultsCount]);
 
   // Guest reservations made (filter bookings made by simulated or real user)
   const myBookings = useMemo(() => {
@@ -294,7 +297,7 @@ export const GuestView: React.FC = () => {
       status: 'confirmed',
       notes: bookNotes,
       additionalGuests: additionalGuests.filter(g => g.name.trim() !== ''),
-      referenceName: bookReferenceName.trim() || undefined,
+      referenceName: bookReferenceName.trim() || '',
       kids: kids.filter(k => k.name.trim() !== '')
     });
 
@@ -342,179 +345,258 @@ export const GuestView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-12">
+    <div className="min-h-screen bg-[#f8f4ec] text-[#20242a] w-full">
       
-      {/* 1. Hero Welcomer Greeting */}
-      <div className="relative rounded-3xl overflow-hidden bg-slate-900 text-white p-8 md:p-12 shadow-md">
-        <div className="absolute inset-0 opacity-20">
-          <img 
-            src="https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80" 
-            alt="Estate Background" 
-            className="w-full h-full object-cover"
-          />
-        </div>
-        <div className="relative max-w-2xl space-y-4">
-          <div className="inline-flex items-center gap-1.5 bg-teal-500/10 border border-teal-400/20 px-3.5 py-1 text-teal-300 rounded-full text-xs font-mono tracking-wider">
-            <Sparkles className="w-3 text-teal-300" />
-            <span>WELCOME TO DHAKA, DHANMONDI</span>
+      {/* 0. Utility Bar */}
+      <div className="bg-[#081b21] text-[#efe8d8] text-xs py-2.5 px-4">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+          <div className="flex gap-6 items-center">
+            <a href="tel:01909806960" className="hover:text-[#d7bd8a] flex items-center gap-1.5 font-mono">
+              <Phone className="w-3 h-3 text-[#af8a52]" />
+              <span>☏ 01909-806960</span>
+            </a>
+            <a 
+              href="https://wa.me/8801799148408?text=Hello%20Islamia%20Guest%20House,%20I%20would%20like%20to%20inquire%20about%20room%20availability." 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="hover:text-[#d7bd8a] flex items-center gap-1.5"
+            >
+              <WhatsappLogo className="w-3.5 h-3.5" />
+              <span>Chat on WhatsApp</span>
+            </a>
           </div>
-          <h1 className="font-serif text-3xl md:text-4xl lg:text-5xl tracking-tight leading-none">
-            Comfortable & Secure Homely Stay.
-          </h1>
-          <p className="text-slate-300 text-sm md:text-base max-w-lg leading-relaxed">
-            Welcome to <span className="text-white font-semibold">Islamia Guest House</span>. Experience high-quality hospitality, family-friendly security, and peaceful tranquility in the heart of Dhanmondi, Dhaka.
-          </p>
-          <div className="flex flex-wrap items-center gap-3 pt-2">
-            <a 
-              id="whats-app-support-btn"
-              href="https://wa.me/8801799148408?text=Hello%20Islamia%20Guest%20House,%20I%20would%20like%20to%20inquire%20about%20room%20availability%20and%20booking%20details."
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-emerald-500/10 active:scale-95 cursor-pointer"
-            >
-              <WhatsappLogo className="w-4 h-4 shrink-0" />
-              <span>Message Support (WhatsApp)</span>
+          <div className="flex flex-wrap gap-3.5 items-center text-[11px]">
+            <span className="opacity-80">🌐 English / বাংলা</span>
+            <a href="#my-stays-section" className="hover:text-[#d7bd8a] font-medium">
+              My Stays ({myBookings.length})
             </a>
-            <a 
-              id="hotline-call-btn"
-              href="tel:01909806960"
-              className="inline-flex items-center gap-2 bg-slate-800/80 hover:bg-slate-800 text-white border border-slate-700/60 font-semibold px-5 py-2.5 rounded-xl text-xs sm:text-sm transition-all duration-200 active:scale-95 cursor-pointer"
+            <span className="bg-[#af8a52] text-[#081b21] px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider">
+              bKash: 01832-841818
+            </span>
+            {currentUser && (
+              <div className="flex items-center gap-1.5 bg-[#0e2b33] px-2 py-0.5 rounded text-[10px] border border-[#af8a52]/30">
+                <span className="text-[#d7bd8a] font-bold">{currentUser.name}</span>
+                <button 
+                  onClick={logout}
+                  className="text-slate-400 hover:text-white text-[9px] underline ml-1"
+                  title="Sign Out"
+                >
+                  Exit
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => toggleRole()}
+              className="bg-[#af8a52] hover:bg-[#d7bd8a] text-[#081b21] px-2.5 py-1 rounded text-[10px] font-bold transition-all shadow-sm"
+              title="Sign In to Staff Portal"
             >
-              <Phone className="w-3.5 h-3.5 text-teal-400 shrink-0" />
-              <span>Call Hotline</span>
-            </a>
+              Sign In →
+            </button>
           </div>
         </div>
       </div>
 
-      {/* 2. Interactive Availability Filter Controls */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
-        <div className="flex items-center gap-2 mb-2">
-          <Sliders className="w-4 h-4 text-teal-600" />
-          <h2 className="text-sm font-semibold tracking-wide uppercase text-slate-700 font-mono">
-            Customize Room Filters
-          </h2>
+      {/* 0.1 Main Navigation Bar */}
+      <nav className="bg-[#f8f4ec] border-b border-[#0e2b33]/15 py-5 px-6 sticky top-0 z-30 backdrop-blur-md bg-[#f8f4ec]/95">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <a href="#" className="flex items-center gap-2.5 font-serif text-xl sm:text-2xl text-[#af8a52] font-semibold tracking-wide">
+            <span className="text-[#af8a52] text-lg">◆</span>
+            <span>
+              ISLAMIA GUEST HOUSE
+              <small className="block font-sans text-[9px] tracking-[0.28em] text-[#af8a52]/80 font-semibold uppercase">
+                DHANMONDI, DHAKA
+              </small>
+            </span>
+          </a>
+          <ul className="hidden md:flex gap-7 text-[11px] tracking-widest text-[#0e2b33] uppercase font-semibold">
+            <li><a href="#destinations" className="hover:text-[#af8a52] transition">Chambers</a></li>
+            <li><a href="#philosophy" className="hover:text-[#af8a52] transition">Philosophy</a></li>
+            <li><a href="#events" className="hover:text-[#af8a52] transition">Experience</a></li>
+            <li><a href="#guest-reviews-section" className="hover:text-[#af8a52] transition">Reviews</a></li>
+            <li><a href="#contact-footer" className="hover:text-[#af8a52] transition">Location</a></li>
+          </ul>
+          <div className="flex items-center gap-3">
+            <a 
+              href="#book-section" 
+              className="bg-[#af8a52] hover:bg-[#d7bd8a] text-[#081b21] px-5 py-2.5 text-xs font-bold tracking-wider rounded transition-all shadow-sm"
+            >
+              Book Now
+            </a>
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      </nav>
+
+      {/* 0.2 Promo Strip */}
+      <div className="bg-[#efe8d8] border-b border-[#0e2b33]/10 py-3 px-6 text-xs text-[#0e2b33] text-center">
+        <div className="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-2">
+          <span>
+            Stay 3, pay for 2 on Suites &amp; Deluxe Chambers across our Dhanmondi location. Extend your stay — valid through 2026.
+          </span>
+          <a 
+            href="https://wa.me/8801799148408" 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="font-bold text-[#c0603f] hover:underline"
+          >
+            Inquire on WhatsApp →
+          </a>
+        </div>
+      </div>
+
+      {/* 1. Hero Room Showcase Image */}
+      <section 
+        className="relative h-[480px] sm:h-[540px] bg-cover bg-center shadow-inner" 
+        style={{ 
+          backgroundImage: "url('https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1920&q=80')" 
+        }}
+      >
+      </section>
+
+      {/* 2. Interactive Search Widget Bar */}
+      <div id="book-section" className="-mt-20 relative z-20 max-w-7xl mx-auto px-6 mb-16">
+        <div className="bg-white rounded shadow-2xl border border-[#0e2b33]/15 p-5 md:p-6 grid grid-cols-1 md:grid-cols-5 gap-4 items-stretch">
           
-          {/* Calendar Check In/Out Simulation */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-500 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5" /> Check-in & Out Dates
+          {/* Field 1: Destination */}
+          <div className="md:border-r border-[#0e2b33]/12 pr-4 flex flex-col justify-center">
+            <label className="text-[10px] tracking-widest text-[#af8a52] font-bold uppercase block mb-1">
+              DESTINATION
             </label>
-            <div className="flex items-center gap-2">
+            <div className="text-xs font-semibold text-[#0e2b33] flex items-center gap-2">
+              <span className="text-[#af8a52]">⌕</span>
+              <input 
+                type="text" 
+                readOnly 
+                value="Road 9/A, Dhanmondi, Dhaka" 
+                className="w-full border-none focus:outline-none text-xs font-semibold text-[#0e2b33] bg-transparent cursor-default" 
+              />
+            </div>
+          </div>
+
+          {/* Field 2: Dates */}
+          <div className="md:border-r border-[#0e2b33]/12 pr-4 flex flex-col justify-center">
+            <label id="nightsLabel" className="text-[10px] tracking-widest text-[#af8a52] font-bold uppercase block mb-1">
+              {computedNights > 0 ? `${computedNights} NIGHT${computedNights > 1 ? 'S' : ''}` : 'SELECT DATES'}
+            </label>
+            <div className="flex items-center gap-1">
               <input
                 id="search-check-in-date"
                 type="date"
                 value={searchCheckIn}
                 min={todayStr}
                 onChange={(e) => setSearchCheckIn(e.target.value)}
-                className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-teal-500"
+                className="w-full text-xs text-[#0e2b33] font-mono border-none focus:outline-none bg-transparent"
               />
+              <span className="text-[#af8a52]">→</span>
               <input
                 id="search-check-out-date"
                 type="date"
                 value={searchCheckOut}
                 min={searchCheckIn || todayStr}
                 onChange={(e) => setSearchCheckOut(e.target.value)}
-                className="w-full text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-teal-500"
+                className="w-full text-xs text-[#0e2b33] font-mono border-none focus:outline-none bg-transparent"
               />
             </div>
           </div>
 
-          {/* Room Type Selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-500">
-              Chamber Type
+          {/* Field 3: Rooms & Guests */}
+          <div className="md:border-r border-[#0e2b33]/12 pr-4 flex flex-col justify-center">
+            <label className="text-[10px] tracking-widest text-[#af8a52] font-bold uppercase block mb-1">
+              ROOMS & GUESTS
+            </label>
+            <select
+              id="search-rooms-guests"
+              value={`${roomsCount}-${adultsCount}`}
+              onChange={(e) => {
+                const [r, g] = e.target.value.split('-').map(Number);
+                setRoomsCount(r || 1);
+                setAdultsCount(g || 1);
+              }}
+              className="w-full text-xs text-[#0e2b33] font-semibold border-none focus:outline-none bg-transparent cursor-pointer"
+            >
+              <option value="1-1">1 Room, 1 Guest</option>
+              <option value="1-2">1 Room, 2 Guests</option>
+              <option value="1-3">1 Room, 3 Guests</option>
+              <option value="2-4">2 Rooms, 4 Guests</option>
+              <option value="2-6">2 Rooms, 6+ Guests (Family)</option>
+              <option value="3-8">3+ Rooms, Group / Delegation</option>
+            </select>
+          </div>
+
+          {/* Field 4: Chamber Type */}
+          <div className="md:border-r border-[#0e2b33]/12 pr-4 flex flex-col justify-center">
+            <label className="text-[10px] tracking-widest text-[#af8a52] font-bold uppercase block mb-1">
+              CHAMBER TYPE
             </label>
             <select
               id="search-room-type"
               value={roomTypeFilter}
               onChange={(e) => setRoomTypeFilter(e.target.value as RoomType | 'all')}
-              className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl p-2.5 focus:outline-none focus:border-teal-500 font-medium text-slate-700"
+              className="w-full text-xs text-[#0e2b33] font-semibold border-none focus:outline-none bg-transparent cursor-pointer"
             >
-              <option value="all">All Rooms</option>
-              <option value="single">Standard Single Room</option>
-              <option value="double">Deluxe Double Room</option>
-              <option value="deluxe">Executive Premium Room</option>
+              <option value="all">Best Available (All Chambers)</option>
+              <option value="single">Standard Single</option>
+              <option value="double">Deluxe Double</option>
+              <option value="deluxe">Executive Premium</option>
               <option value="suite">VIP Suite Room</option>
             </select>
           </div>
 
-          {/* Price Range Slider */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center text-xs text-slate-500">
-              <label className="font-medium">Maximum Budget</label>
-              <span className="font-mono font-semibold text-slate-800">৳{priceLimit * 10}/night</span>
-            </div>
-            <input
-              id="search-price-range"
-              type="range"
-              min="100"
-              max="700"
-              step="25"
-              value={priceLimit}
-              onChange={(e) => setPriceLimit(Number(e.target.value))}
-              className="w-full accent-teal-600 cursor-pointer"
-            />
-          </div>
-
-          {/* Person Count */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-500">
-              Expected Person Count
-            </label>
-            <div className="flex gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200">
-              {[1, 2, 4, 6].map((num) => (
-                <button
-                  key={num}
-                  id={`capacity-btn-${num}`}
-                  type="button"
-                  onClick={() => setAdultsCount(num)}
-                  className={`flex-1 text-center py-1.5 rounded-lg text-xs font-semibold font-mono ${
-                    adultsCount === num
-                      ? 'bg-white shadow-sm text-teal-600'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {num}👤
-                </button>
-              ))}
-            </div>
-          </div>
-
+          {/* Search CTA */}
+          <button 
+            type="button"
+            onClick={() => {
+              const el = document.getElementById('destinations');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="bg-[#af8a52] hover:bg-[#d7bd8a] text-[#081b21] font-bold text-xs tracking-wider py-3 px-6 rounded transition-colors w-full flex items-center justify-center cursor-pointer shadow-sm"
+          >
+            Search Availability
+          </button>
         </div>
       </div>
 
+      {/* 2.5 Our Philosophy Section */}
+      <section id="philosophy" className="py-12 bg-[#efe8d8]/50 border-y border-[#0e2b33]/10 mb-16">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-[11px] tracking-[0.28em] text-[#af8a52] font-bold mb-3 uppercase">OUR PHILOSOPHY</div>
+          <h2 className="font-serif text-3xl md:text-4xl text-[#0e2b33] max-w-2xl leading-tight mb-4">
+            Opening doors to a world of quiet fascination and homely luxury
+          </h2>
+          <p className="text-sm md:text-base text-[#3c4650] max-w-2xl leading-relaxed">
+            Travel, to us, is more than a destination — it's a passage that widens perspective, connects cultures, and leaves a mark long after check-out. As custodians of a slower kind of luxury in Dhanmondi, Islamia Guest House invites you into peaceful chambers where remarkable service happens in the moments you least expect.
+          </p>
+        </div>
+      </section>
+
       {/* 3. Rooms Listing Grid */}
-      <div className="space-y-6">
-        <div className="flex justify-between items-baseline">
+      <section id="destinations" className="max-w-7xl mx-auto px-6 mb-16 space-y-8">
+        <div className="flex justify-between items-end border-b border-[#0e2b33]/10 pb-4">
           <div>
-            <h2 className="font-serif text-2xl font-bold text-slate-800">
-              Exquisite Chambers & Rooms
+            <div className="text-[11px] tracking-[0.28em] text-[#af8a52] font-bold uppercase mb-1">
+              LUXURY ACCOMMODATIONS
+            </div>
+            <h2 className="font-serif text-2xl sm:text-3xl font-normal text-[#0e2b33]">
+              Discover indulgent escapes in our Dhanmondi chambers
             </h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Select an available room to view dynamic booking computations
-            </p>
           </div>
-          <span className="text-xs font-mono font-semibold text-teal-600 bg-teal-50 px-3 py-1.5 rounded-full">
-            {filteredRooms.length} Spaces Matched
+          <span className="text-xs font-mono font-semibold text-[#0e2b33] bg-[#efe8d8] px-3.5 py-1.5 rounded border border-[#0e2b33]/10">
+            {filteredRooms.length} Chambers Available
           </span>
         </div>
 
         {filteredRooms.length === 0 ? (
-          <div className="text-center py-16 bg-slate-50 rounded-2xl border border-slate-200/50">
-            <p className="text-slate-500 font-medium">No rooms match your specific filters.</p>
+          <div className="text-center py-16 bg-[#efe8d8]/30 rounded border border-[#0e2b33]/10">
+            <p className="text-[#0e2b33] font-medium text-sm">No chambers match your specific parameters.</p>
             <button 
               id="clear-filters-btn"
-              onClick={() => { setRoomTypeFilter('all'); setPriceLimit(700); setAdultsCount(1); }}
-              className="mt-3 text-xs text-teal-600 font-semibold underline hover:text-teal-700"
+              onClick={() => { setRoomTypeFilter('all'); setRoomsCount(1); setAdultsCount(1); }}
+              className="mt-3 text-xs text-[#af8a52] font-bold underline hover:text-[#d7bd8a]"
             >
-              Reset Filters
+              Reset Search Parameters
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredRooms.map((room) => (
               <RoomCard 
                 key={room.id}
@@ -525,23 +607,65 @@ export const GuestView: React.FC = () => {
             ))}
           </div>
         )}
-      </div>
+      </section>
+
+      {/* 3.5 Events & Experience Collage Section */}
+      <section id="events" className="bg-[#0e2b33] text-[#f8f4ec] py-20 px-6 mb-16">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="lg:col-span-5 space-y-4">
+            <div className="text-[11px] tracking-[0.28em] text-[#d7bd8a] font-bold uppercase">
+              YOU'RE INVITED
+            </div>
+            <h2 className="font-serif text-3xl sm:text-4xl text-white leading-tight">
+              Insider access to Dhanmondi's dining, medical centers & culture
+            </h2>
+            <p className="text-sm text-[#f8f4ec]/80 leading-relaxed">
+              Step outside into the vibrant heartbeat of Dhanmondi. Directly opposite Ibn Sina 9/A, beside Meena Bazar, and minutes from Dhanmondi Lake — private medical convenience, chef's table dining, and local heritage await our guests.
+            </p>
+            <a 
+              href="https://wa.me/8801799148408" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-block border border-[#f8f4ec]/50 hover:border-[#d7bd8a] text-white px-7 py-3 text-xs font-bold tracking-wider rounded transition-all hover:bg-white/5"
+            >
+              Discover Concierge Assistance →
+            </a>
+          </div>
+          <div className="lg:col-span-7 grid grid-cols-2 gap-4">
+            <img 
+              src="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80" 
+              alt="Coastal Resort" 
+              className="rounded h-48 w-full object-cover shadow-lg" 
+            />
+            <img 
+              src="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80" 
+              alt="Lobby Area" 
+              className="rounded h-48 w-full object-cover shadow-lg" 
+            />
+            <img 
+              src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=800&q=80" 
+              alt="Luxury Suite" 
+              className="col-span-2 rounded h-56 w-full object-cover shadow-lg" 
+            />
+          </div>
+        </div>
+      </section>
 
       {/* 4. Active Guest Reservations Section */}
-      <div className="pt-6 border-t border-slate-100">
-        <div className="flex items-center gap-2.5 mb-6">
-          <Ticket className="w-5 h-5 text-teal-600" />
-          <h2 className="font-serif text-2xl font-bold text-slate-800">
-            My Reservations & Room Control
+      <section id="my-stays-section" className="max-w-7xl mx-auto px-6 mb-16">
+        <div className="flex items-center gap-2.5 mb-6 pb-2 border-b border-[#0e2b33]/10">
+          <Ticket className="w-5 h-5 text-[#af8a52]" />
+          <h2 className="font-serif text-2xl font-normal text-[#0e2b33]">
+            My Stays &amp; Room Control
           </h2>
         </div>
 
         {myBookings.length === 0 ? (
-          <div className="bg-slate-50 p-8 rounded-2xl text-center border border-slate-200/50 max-w-xl">
-            <HeartHandshake className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-            <h4 className="font-medium text-slate-600 text-sm">No Active Booking Records</h4>
-            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              Explore our boutique chambers above, choose your dates, and secure a reservation to manage custom service requests.
+          <div className="bg-[#efe8d8]/40 p-8 rounded text-center border border-[#0e2b33]/10 max-w-xl">
+            <HeartHandshake className="w-10 h-10 text-[#af8a52] mx-auto mb-3" />
+            <h4 className="font-medium text-[#0e2b33] text-sm">No Active Booking Records</h4>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Explore our boutique chambers above, choose your stay dates, and secure a reservation to manage in-room services and tickets.
             </p>
           </div>
         ) : (
@@ -552,52 +676,52 @@ export const GuestView: React.FC = () => {
                 <div 
                   key={booking.id}
                   id={`my-booking-${booking.id}`}
-                  className="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 hover:border-slate-200 transition-all flex flex-col md:flex-row justify-between gap-6"
+                  className="bg-white border border-[#0e2b33]/10 shadow-sm rounded p-5 hover:border-[#af8a52] transition-all flex flex-col md:flex-row justify-between gap-6"
                 >
                   {/* Reservation Room detail info */}
                   <div className="flex gap-4">
                     {rDetails && (
-                      <div className="w-20 h-20 rounded-lg overflow-hidden bg-slate-100 shrink-0 hidden sm:block">
+                      <div className="w-20 h-20 rounded overflow-hidden bg-slate-100 shrink-0 hidden sm:block">
                         <img src={rDetails.image} alt="Room" className="w-full h-full object-cover" />
                       </div>
                     )}
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-slate-800">Room {rDetails?.number || 'N/A'}</span>
-                        <span className="text-[10px] font-mono uppercase bg-slate-100 text-slate-500 py-0.5 px-2 rounded">
+                        <span className="font-semibold text-[#0e2b33]">Room {rDetails?.number || 'N/A'}</span>
+                        <span className="text-[10px] font-mono uppercase bg-[#efe8d8] text-[#0e2b33] py-0.5 px-2 rounded">
                           {rDetails?.type || 'Standard'}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 font-mono">
                         {booking.checkIn} — {booking.checkOut}
                       </p>
-                      <div className="text-xs text-slate-400 flex items-center flex-wrap gap-1.5">
-                        <span>Reserved for: <span className="font-medium text-slate-600">{booking.guestName}</span></span>
+                      <div className="text-xs text-slate-500 flex items-center flex-wrap gap-1.5">
+                        <span>Reserved for: <span className="font-semibold text-[#0e2b33]">{booking.guestName}</span></span>
                         {isRepeatGuest(booking) && (
-                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-250 rounded-full text-[8px] font-extrabold uppercase tracking-wide shrink-0 font-sans">
-                            <Sparkles className="w-2.5 h-2.5 text-amber-500 fill-amber-400" />
+                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-[#af8a52]/10 text-[#af8a52] border border-[#af8a52]/30 rounded text-[9px] font-bold uppercase tracking-wide">
+                            <Sparkles className="w-2.5 h-2.5 text-[#af8a52]" />
                             Repeat Guest
                           </span>
                         )}
                       </div>
                       {booking.notes && (
-                        <p className="text-[10px] text-amber-600 bg-amber-50/50 px-2 py-1 rounded inline-block border border-amber-100/50 mt-1">
+                        <p className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded inline-block border border-amber-200 mt-1">
                           Notes: "{booking.notes}"
                         </p>
                       )}
                       {booking.referenceName && (
                         <div className="mt-1">
-                          <span className="text-[10px] text-teal-600 bg-teal-50/50 px-2 py-1 rounded inline-block border border-teal-100/50">
+                          <span className="text-[10px] text-teal-800 bg-teal-50 px-2 py-1 rounded inline-block border border-teal-200">
                             Reference: <span className="font-semibold">{booking.referenceName}</span>
                           </span>
                         </div>
                       )}
                       {booking.additionalGuests && booking.additionalGuests.length > 0 && (
-                        <div className="mt-1.5 pt-1.5 border-t border-slate-100/60">
+                        <div className="mt-1.5 pt-1.5 border-t border-slate-100">
                           <p className="text-[10px] font-semibold text-slate-500">Additional Guests ({booking.additionalGuests.length}):</p>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {booking.additionalGuests.map((g, gi) => (
-                              <span key={gi} className="inline-flex text-[9px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded border border-slate-150 font-mono">
+                              <span key={gi} className="inline-flex text-[9px] bg-slate-50 text-slate-600 px-2 py-0.5 rounded border border-slate-200 font-mono">
                                 {g.name} ({g.phone})
                               </span>
                             ))}
@@ -605,11 +729,11 @@ export const GuestView: React.FC = () => {
                         </div>
                       )}
                       {booking.kids && booking.kids.length > 0 && (
-                        <div className="mt-1.5 pt-1.5 border-t border-slate-100/60">
+                        <div className="mt-1.5 pt-1.5 border-t border-slate-100">
                           <p className="text-[10px] font-semibold text-slate-500">Kids / Children ({booking.kids.length}):</p>
                           <div className="flex flex-wrap gap-1 mt-1">
                             {booking.kids.map((k, ki) => (
-                              <span key={ki} className="inline-flex text-[9px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded border border-sky-150 font-mono">
+                              <span key={ki} className="inline-flex text-[9px] bg-sky-50 text-sky-700 px-2 py-0.5 rounded border border-sky-200 font-mono">
                                 {k.name} ({k.age} yrs)
                               </span>
                             ))}
@@ -622,21 +746,21 @@ export const GuestView: React.FC = () => {
                   {/* Status, Total, Services trigger */}
                   <div className="flex flex-row md:flex-col justify-between items-end md:text-right gap-4">
                     <div className="space-y-1 text-left md:text-right">
-                      <span className="text-xs font-mono font-semibold text-slate-500 block">
-                        Total Amount: <span className="text-slate-800 font-bold">৳{booking.totalAmount * 10}</span>
+                      <span className="text-xs font-mono text-slate-500 block">
+                        Total Amount: <span className="text-[#0e2b33] font-bold">৳{booking.totalAmount}</span>
                       </span>
-                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                        booking.status === 'checked-in' ? 'bg-emerald-50 text-emerald-700' :
-                        booking.status === 'confirmed' ? 'bg-indigo-50 text-indigo-700' :
-                        booking.status === 'cancelled' ? 'bg-rose-50 text-rose-700' :
-                        'bg-slate-50 text-slate-500'
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold ${
+                        booking.status === 'checked-in' ? 'bg-emerald-100 text-emerald-800' :
+                        booking.status === 'confirmed' ? 'bg-indigo-100 text-indigo-800' :
+                        booking.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
+                        'bg-slate-100 text-slate-600'
                       }`}>
                         <span>●</span>
                         <span>{booking.status.toUpperCase()}</span>
                       </span>
                     </div>
 
-                     <div className="flex gap-2">
+                    <div className="flex gap-2">
                       {/* Print Ticket / Invoice Option */}
                       {(booking.status === 'confirmed' || booking.status === 'checked-in' || booking.status === 'checked-out') && (
                         <>
@@ -647,10 +771,10 @@ export const GuestView: React.FC = () => {
                               setInvoiceBooking(booking);
                               setShowBillModal(true);
                             }}
-                            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-teal-650 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold transition"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0e2b33] hover:bg-[#081b21] text-white rounded text-xs font-semibold transition"
                           >
                             <Receipt className="w-3.5 h-3.5" />
-                            <span>Invoice / Ticket</span>
+                            <span>Invoice</span>
                           </button>
                           <button
                             id={`guest-direct-print-${booking.id}`}
@@ -659,28 +783,28 @@ export const GuestView: React.FC = () => {
                               setInvoiceBooking(booking);
                               setShowBillModal(true);
                             }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition border border-amber-150"
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#af8a52] hover:bg-[#d7bd8a] text-[#081b21] rounded text-xs font-bold transition"
                             title="Directly trigger browser printing"
                           >
-                            <Printer className="w-3.5 h-3.5 text-amber-600" />
-                            <span>Direct Print</span>
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Print</span>
                           </button>
                         </>
                       )}
 
-                      {/* Only allowing service requests if currently checked-in */}
+                      {/* Service request option */}
                       {booking.status === 'checked-in' && (
                         <button
                           id={`make-service-req-${booking.id}`}
                           onClick={() => { setSelectedServiceBooking(booking); setServiceSuccess(false); }}
-                          className="flex items-center gap-1 px-3.5 py-1.5 bg-teal-5 warm-teal hover:bg-teal-100 text-teal-700 rounded-xl text-xs font-semibold transition"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-teal-50 hover:bg-teal-100 text-teal-800 rounded text-xs font-semibold transition border border-teal-200"
                         >
                           <BellDot className="w-3.5 h-3.5 text-teal-600" />
-                          <span>Request In-Room Service</span>
+                          <span>Request Service</span>
                         </button>
                       )}
 
-                      {/* Star rating option after stay or during stay */}
+                      {/* Feedback option */}
                       {(booking.status === 'checked-out' || booking.status === 'checked-in') && (
                         <button
                           id={`leave-feedback-btn-${booking.id}`}
@@ -690,19 +814,19 @@ export const GuestView: React.FC = () => {
                               section.scrollIntoView({ behavior: 'smooth' });
                             }
                           }}
-                          className="flex items-center gap-1 px-3.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl text-xs font-semibold transition border border-amber-100"
+                          className="flex items-center gap-1 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded text-xs font-semibold transition border border-amber-200"
                         >
                           <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                          <span>Rate Stay Experience</span>
+                          <span>Rate Stay</span>
                         </button>
                       )}
 
-                      {/* Cancel Booking option */}
+                      {/* Cancel option */}
                       {(booking.status === 'confirmed' || booking.status === 'pending') && (
                         <button
                           id={`cancel-booking-${booking.id}`}
                           onClick={() => updateBookingStatus(booking.id, 'cancelled')}
-                          className="px-3.5 py-1.5 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition"
+                          className="px-3 py-1.5 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded text-xs font-semibold transition"
                         >
                           Cancel Stay
                         </button>
@@ -715,7 +839,7 @@ export const GuestView: React.FC = () => {
             })}
           </div>
         )}
-      </div>
+      </section>
 
       {/* ==================== 5. MODAL: Reserve Suite Workout Checkout ==================== */}
       {selectedRoom && (
@@ -762,7 +886,7 @@ export const GuestView: React.FC = () => {
               <form onSubmit={handleBookingSubmit} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
                   <div className="text-xs font-medium text-slate-500">
-                    Daily Chamber Rate: <span className="font-semibold text-slate-700 block mt-0.5">৳{selectedRoom.price * 10} / night</span>
+                    Daily Chamber Rate: <span className="font-semibold text-slate-700 block mt-0.5">৳{selectedRoom.price} / night</span>
                   </div>
                   <div className="text-xs font-medium text-slate-500">
                     Max Capacity: <span className="font-semibold text-slate-700 block mt-0.5">{selectedRoom.capacity} Person{selectedRoom.capacity > 1 ? 's' : ''}</span>
@@ -1087,7 +1211,7 @@ export const GuestView: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <span className="font-medium text-teal-700">Total Invoice Amount:</span>
-                    <span className="text-lg font-serif font-semibold text-teal-900 block">৳{computedTotal * 10}</span>
+                    <span className="text-lg font-serif font-semibold text-teal-900 block">৳{computedTotal}</span>
                   </div>
                 </div>
 
@@ -1378,111 +1502,195 @@ export const GuestView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. Contact & Location Info Footer Banner */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 md:p-8 shadow-lg border border-slate-800 relative overflow-hidden">
-        {/* Subtle background decoration */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
+      {/* 5. Contact & Location Info Footer Banner with Map Background */}
+      <div 
+        id="contact-footer" 
+        className="text-white rounded p-8 shadow-2xl border border-[#d7bd8a]/30 relative overflow-hidden max-w-7xl mx-auto mb-16 bg-cover bg-center"
+        style={{
+          backgroundImage: `linear-gradient(135deg, rgba(8,27,33,0.90) 0%, rgba(14,43,51,0.85) 50%, rgba(8,27,33,0.94) 100%), url('${dhanmondiMapImg}')`
+        }}
+      >
+        {/* Subtle background glow */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-[#af8a52]/15 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#d7bd8a]/10 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
         
-        <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
           
-          {/* Left Column: Heading, Address & Landmark */}
-          <div className="lg:col-span-7 space-y-4">
-            <div className="inline-flex items-center gap-1.5 bg-teal-500/10 border border-teal-400/20 px-3 py-1 text-teal-300 rounded-full text-xs font-mono tracking-wider">
-              <MapPin className="w-3.5 h-3.5 text-teal-300" />
-              <span>FIND US IN DHANMONDI</span>
-            </div>
-            
-            <div className="space-y-2">
-              <h3 className="text-xl font-bold text-white tracking-tight font-sans">
-                ইসলামিয়া গেস্ট হাউস (Islamia Guest House)
-              </h3>
-              <p className="text-sm text-slate-200 font-medium leading-relaxed">
-                বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি, ঢাকা - ১২০৯ <br />
-                <span className="text-slate-400 text-xs font-normal">
-                  (House No: 55/C/1, Road No: 9/A, Dhanmondi, Dhaka - 1209)
-                </span>
-              </p>
-            </div>
-
-            <div className="flex gap-2.5 items-start bg-slate-800/50 border border-slate-700/50 p-4 rounded-2xl">
-              <Info className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
-                  Landmarks / ল্যান্ডমার্ক
-                </p>
-                <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                  ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন
+          {/* Left Column: Heading, Address & Interactive Google Maps Link */}
+          <div className="lg:col-span-7 space-y-4 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-1.5 bg-[#af8a52]/30 border border-[#d7bd8a]/40 px-3.5 py-1 text-[#d7bd8a] rounded text-xs font-mono tracking-widest uppercase shadow-sm">
+                <MapPin className="w-3.5 h-3.5 text-[#d7bd8a]" />
+                <span>FIND US IN DHANMONDI</span>
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-2xl sm:text-3xl font-serif text-white tracking-tight drop-shadow">
+                  ইসলামিয়া গেস্ট হাউস (Islamia Guest House)
+                </h3>
+                <p className="text-sm text-[#efe8d8] font-medium leading-relaxed">
+                  বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি, ঢাকা - ১২০৯ <br />
+                  <span className="text-[#efe8d8]/80 text-xs font-normal">
+                    (House No: 55/C/1, Road No: 9/A, Dhanmondi, Dhaka - 1209)
+                  </span>
                 </p>
               </div>
+
+              <div className="flex gap-2.5 items-start bg-[#0e2b33]/80 backdrop-blur-md border border-[#d7bd8a]/30 p-4 rounded shadow-lg">
+                <Info className="w-5 h-5 text-[#d7bd8a] shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-xs font-bold text-[#d7bd8a] uppercase tracking-wider font-mono">
+                    Landmarks / ল্যান্ডমার্ক
+                  </p>
+                  <p className="text-xs text-[#efe8d8] leading-relaxed font-sans">
+                    ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Direct Google Maps Action Box */}
+            <div className="pt-2">
+              <a
+                href="https://maps.app.goo.gl/e3o656i1uDh3QXHV8"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-3 bg-[#af8a52] hover:bg-[#c29b5f] text-slate-950 font-semibold px-5 py-3 rounded-lg shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-xs sm:text-sm tracking-wide border border-[#f5e5c8]/50 group"
+              >
+                <MapPin className="w-4 h-4 text-slate-950 group-hover:scale-110 transition" />
+                <span>Open Location in Google Maps / গুগল ম্যাপে লোকেশন দেখুন</span>
+                <ExternalLink className="w-4 h-4 text-slate-950/70 group-hover:translate-x-0.5 transition" />
+              </a>
             </div>
           </div>
 
-          {/* Right Column: Contact Details with logos */}
-          <div className="lg:col-span-5 space-y-4 bg-slate-800/40 p-6 rounded-2xl border border-slate-700/30">
-            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
-              Hotline & Payment Support / যোগাযোগ
-            </h4>
-            
-            <div className="space-y-3.5">
-              {/* bKash */}
-              <div className="flex items-center justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800 hover:border-pink-500/30 transition group">
-                <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-pink-500/10 rounded-lg group-hover:scale-105 transition">
-                    <BkashLogo className="w-5 h-5" />
+          {/* Right Column: Contact Details with logos & Map Preview Card */}
+          <div className="lg:col-span-5 space-y-4 bg-[#0e2b33]/80 backdrop-blur-md p-6 rounded-xl border border-[#d7bd8a]/30 shadow-2xl flex flex-col justify-between">
+            <div>
+              <h4 className="text-xs font-bold text-[#d7bd8a] uppercase tracking-wider font-mono mb-3.5">
+                Hotline &amp; Payment Support / যোগাযোগ
+              </h4>
+              
+              <div className="space-y-3">
+                {/* bKash */}
+                <div className="flex items-center justify-between p-3 bg-[#081b21]/90 rounded-lg border border-pink-500/30 group">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-pink-500/10 rounded group-hover:scale-105 transition">
+                      <BkashLogo className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
+                        bKash (Merchant / Personal)
+                      </p>
+                      <p className="text-sm font-mono font-bold text-slate-100">01832-841818</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
-                      bKash (Merchant / Personal)
-                    </p>
-                    <p className="text-sm font-mono font-bold text-slate-100">01832-841818</p>
-                  </div>
+                  <span className="text-[10px] font-bold font-mono text-pink-400 bg-pink-400/10 px-2 py-0.5 rounded-full">
+                    bKash
+                  </span>
                 </div>
-                <span className="text-[10px] font-bold font-mono text-pink-400 bg-pink-400/10 px-2 py-0.5 rounded-full">
-                  bKash
-                </span>
-              </div>
 
-              {/* Call */}
-              <div className="flex items-center justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800 hover:border-teal-500/30 transition group">
-                <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-slate-700/50 rounded-lg group-hover:scale-105 transition">
-                    <CallLogo className="w-4 h-4" />
+                {/* Call */}
+                <div className="flex items-center justify-between p-3 bg-[#081b21]/90 rounded-lg border border-[#af8a52]/30 group">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-slate-700/50 rounded group-hover:scale-105 transition">
+                      <CallLogo className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
+                        Direct Call Support
+                      </p>
+                      <p className="text-sm font-mono font-bold text-slate-100">01909-806960</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
-                      Direct Call Support
-                    </p>
-                    <p className="text-sm font-mono font-bold text-slate-100">01909-806960</p>
-                  </div>
+                  <span className="text-[10px] font-bold font-mono text-[#d7bd8a] bg-[#af8a52]/10 px-2 py-0.5 rounded-full">
+                    Call
+                  </span>
                 </div>
-                <span className="text-[10px] font-bold font-mono text-teal-400 bg-teal-400/10 px-2 py-0.5 rounded-full">
-                  Call
-                </span>
-              </div>
 
-              {/* WhatsApp */}
-              <div className="flex items-center justify-between p-3 bg-slate-900/60 rounded-xl border border-slate-800 hover:border-emerald-500/30 transition group">
-                <div className="flex items-center gap-3">
-                  <div className="p-1.5 bg-emerald-500/10 rounded-lg group-hover:scale-105 transition">
-                    <WhatsappLogo className="w-5 h-5" />
+                {/* WhatsApp */}
+                <div className="flex items-center justify-between p-3 bg-[#081b21]/90 rounded-lg border border-emerald-500/30 group">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-emerald-500/10 rounded group-hover:scale-105 transition">
+                      <WhatsappLogo className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
+                        WhatsApp Message
+                      </p>
+                      <p className="text-sm font-mono font-bold text-slate-100">01799-148408</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
-                      WhatsApp Message
-                    </p>
-                    <p className="text-sm font-mono font-bold text-slate-100">01799-148408</p>
-                  </div>
+                  <span className="text-[10px] font-bold font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
+                    WhatsApp
+                  </span>
                 </div>
-                <span className="text-[10px] font-bold font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
-                  WhatsApp
-                </span>
               </div>
             </div>
+
+            {/* Clickable Map Thumbnail Banner */}
+            <a
+              href="https://maps.app.goo.gl/e3o656i1uDh3QXHV8"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block relative rounded-lg overflow-hidden border border-[#d7bd8a]/40 group shadow-md hover:border-[#d7bd8a] transition"
+            >
+              <img 
+                src={dhanmondiMapImg} 
+                alt="Dhanmondi Road 9/A Islamia Guesthouse Map" 
+                className="w-full h-24 object-cover group-hover:scale-105 transition duration-500"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition flex items-center justify-center gap-2 text-xs font-mono text-white font-bold uppercase tracking-wider">
+                <MapPin className="w-4 h-4 text-[#d7bd8a] animate-bounce" />
+                <span>View Dhanmondi Map</span>
+                <ExternalLink className="w-3.5 h-3.5 text-[#d7bd8a]" />
+              </div>
+            </a>
+
           </div>
 
         </div>
       </div>
+
+      {/* 6. Luxury Footer */}
+      <footer className="bg-[#081b21] text-[#f8f4ec]/70 py-12 px-6 border-t border-[#0e2b33]">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-col md:flex-row justify-between items-start gap-8 pb-8 border-b border-white/10">
+            <div>
+              <div className="font-serif text-xl text-[#af8a52] font-semibold tracking-wide mb-2 flex items-center gap-2">
+                <span className="text-[#af8a52]">◆</span>
+                <span>ISLAMIA GUEST HOUSE</span>
+              </div>
+              <p className="text-xs text-[#efe8d8]/60 max-w-sm leading-relaxed">
+                Dhanmondi Road 9/A, Dhaka. Homely luxury, family-friendly security, and peaceful accommodations.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-12 text-xs">
+              <div>
+                <h5 className="text-[11px] font-bold tracking-widest text-[#d7bd8a] uppercase mb-3">Explore</h5>
+                <ul className="space-y-2">
+                  <li><a href="#destinations" className="hover:text-white">Chambers</a></li>
+                  <li><a href="#philosophy" className="hover:text-white">Philosophy</a></li>
+                  <li><a href="#events" className="hover:text-white">Experience</a></li>
+                </ul>
+              </div>
+              <div>
+                <h5 className="text-[11px] font-bold tracking-widest text-[#d7bd8a] uppercase mb-3">Support</h5>
+                <ul className="space-y-2">
+                  <li><a href="https://maps.app.goo.gl/e3o656i1uDh3QXHV8" target="_blank" rel="noopener noreferrer" className="hover:text-white flex items-center gap-1">Location &amp; Map <ExternalLink className="w-3 h-3 text-[#d7bd8a]" /></a></li>
+                  <li><a href="tel:01909806960" className="hover:text-white">Hotline: 01909-806960</a></li>
+                  <li><a href="https://wa.me/8801799148408" target="_blank" rel="noopener noreferrer" className="hover:text-white">WhatsApp 01799-148408</a></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div className="pt-6 text-xs flex flex-col sm:flex-row justify-between items-center gap-4 text-[#efe8d8]/50">
+            <span>© 2026 Islamia Guest House, Dhanmondi, Dhaka. All rights reserved.</span>
+            <span>Privacy Policy · Terms of Service</span>
+          </div>
+        </div>
+      </footer>
 
       {/* Dedicated Guest Invoice / Ticket modal */}
       {showBillModal && invoiceBooking && (

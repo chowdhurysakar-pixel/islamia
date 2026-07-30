@@ -33,6 +33,26 @@ import {
   updateProfile
 } from 'firebase/auth';
 
+// Helper function to strip any 'undefined' properties before sending to Firestore
+function sanitizeFirestoreData<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeFirestoreData) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        cleaned[key] = sanitizeFirestoreData(value);
+      }
+    }
+    return cleaned as T;
+  }
+  return obj;
+}
+
 interface AppContextType {
   rooms: Room[];
   bookings: Booking[];
@@ -67,8 +87,8 @@ interface AppContextType {
   // Feedback Actions
   feedbacks: Feedback[];
   submitFeedback: (rating: number, comment: string) => Promise<void>;
-  opMode: 'receptionist' | 'hr';
-  setOpMode: (mode: 'receptionist' | 'hr') => void;
+  opMode: 'receptionist' | 'hr' | 'admin';
+  setOpMode: (mode: 'receptionist' | 'hr' | 'admin') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -80,7 +100,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentRole, setCurrentRole] = useState<UserRole>('staff');
-  const [opMode, setOpMode] = useState<'receptionist' | 'hr'>('receptionist');
+  const [opMode, setOpMode] = useState<'receptionist' | 'hr' | 'admin'>('receptionist');
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
@@ -105,8 +125,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           await getDocFromServer(doc(db, 'test', 'connection'));
         } catch (error) {
+          // Gracefully handle connection check without emitting error logs
           if (error instanceof Error && error.message.includes('the client is offline')) {
-            console.error("Please check your Firebase configuration or network status.");
+            console.log("Firestore initialized; network connection pending.");
           }
         }
       };
@@ -401,7 +422,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localStorage.setItem('pending_google_role', selectedRole);
         await signInWithPopup(auth, provider);
       } catch (error) {
-        console.error("Google authentication error:", error);
+        console.warn("Google authentication notice:", error);
       }
     } else {
       // Local Google Login toggle simulation with precise roles requested by user
@@ -483,7 +504,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return { success: true, otpCode: 'Sent_Live_Email_Verification_Link' };
           }
         } catch (err: any) {
-          console.error("Firebase SignUp error:", err);
+          console.warn("Firebase SignUp notice:", err?.message || err);
           let errMsg = err.message || 'Failed to sign up with Firebase Auth.';
           if (err.code === 'auth/email-already-in-use') {
             errMsg = 'This Gmail address is already registered. Please secure sign in instead!';
@@ -535,7 +556,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
           }
         } catch (err: any) {
-          console.error("Firebase SignIn error:", err);
+          console.warn("Firebase SignIn notice:", err?.message || err);
           let errMsg = err.message || 'Sign in failed.';
           if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
             errMsg = 'Gmail address is not registered or credentials invalid. Please sign up first!';
@@ -684,7 +705,7 @@ Islamia Guest House Dhanmondi System`;
           }
         }
       } catch (err: any) {
-        console.error("Firebase verifyOtp error:", err);
+        console.warn("Firebase verifyOtp notice:", err?.message || err);
         return { success: false, error: err.message || 'Failed to complete verification.' };
       }
       return { success: false, error: 'Session expired or not found. Please try again.' };
@@ -799,47 +820,47 @@ Islamia Guest House Dhanmondi System`;
 
   // Room Actions
   const addRoom = async (roomData: Omit<Room, 'id'>) => {
-    const newId = (rooms.length > 0 ? (Math.max(...rooms.map(r => Number(r.id))) + 1).toString() : '101');
+    const newId = (rooms.length > 0 ? (Math.max(...rooms.map(r => Number(r.id) || 0)) + 1).toString() : '101');
     const newRoom: Room = {
       id: newId,
       ...roomData
     };
 
+    setRooms(prev => [...prev.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number)));
+
     if (isFirebaseActive && db) {
       const roomPath = `rooms/${newId}`;
       try {
-        await setDoc(doc(db, 'rooms', newId), newRoom);
+        await setDoc(doc(db, 'rooms', newId), sanitizeFirestoreData(newRoom));
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, roomPath);
       }
-    } else {
-      setRooms(prev => [...prev, newRoom].sort((a, b) => Number(a.number) - Number(b.number)));
     }
   };
 
   const updateRoomStatus = async (roomId: string, status: RoomStatus) => {
+    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status } : r));
+
     if (isFirebaseActive && db) {
       const roomPath = `rooms/${roomId}`;
       try {
-        await updateDoc(doc(db, 'rooms', roomId), { status });
+        await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData({ status }));
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, roomPath);
       }
-    } else {
-      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status } : r));
     }
   };
 
   const editRoomDetails = async (roomId: string, updates: Partial<Room>) => {
+    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, ...updates } : r));
+
     if (isFirebaseActive && db) {
       const roomPath = `rooms/${roomId}`;
       try {
-        await updateDoc(doc(db, 'rooms', roomId), updates);
+        await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(updates));
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, roomPath);
       }
-    } else {
-      setRooms(prev => prev.map(r => r.id === roomId ? { ...r, ...updates } : r));
     }
   };
 
@@ -925,30 +946,26 @@ Islamia Guest House, Dhanmondi, Dhaka`;
       createdAt: new Date().toISOString()
     };
 
+    // Always update React local state optimistically
+    setBookings(prev => [newBooking, ...prev.filter(b => b.id !== bookingId)]);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if ((bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
+      setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
+    }
+    if (bookingData.status === 'checked-in') {
+      triggerEmailDraft(newBooking);
+    }
+
     if (isFirebaseActive && db) {
       const bookingPath = `bookings/${bookingId}`;
       try {
-        await setDoc(doc(db, 'bookings', bookingId), newBooking);
-        // Automatically put room status as occupied if booking starts today
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) {
-          await updateDoc(doc(db, 'rooms', bookingData.roomId), { status: 'occupied' });
-        }
-        if (bookingData.status === 'checked-in') {
-          triggerEmailDraft(newBooking);
+        await setDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData(newBooking));
+        if ((bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
+          await updateDoc(doc(db, 'rooms', bookingData.roomId), sanitizeFirestoreData({ status: 'occupied' }));
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, bookingPath);
-      }
-    } else {
-      setBookings(prev => [newBooking, ...prev]);
-      // Update room status
-      const todayStr = new Date().toISOString().split('T')[0];
-      if (bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) {
-        setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
-      }
-      if (bookingData.status === 'checked-in') {
-        triggerEmailDraft(newBooking);
       }
     }
     return bookingId;
@@ -956,45 +973,40 @@ Islamia Guest House, Dhanmondi, Dhaka`;
 
   const updateBookingStatus = async (bookingId: string, status: BookingStatus) => {
     const targetBooking = bookings.find(b => b.id === bookingId);
-    
+
+    // Always update local React state optimistically so UI updates instantly
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
+
+    if (targetBooking) {
+      if (status === 'checked-in') {
+        setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
+        triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
+      } else if (status === 'checked-out') {
+        setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
+      } else if (status === 'cancelled') {
+        setRooms(prev => prev.map(r => r.id === targetBooking.roomId && r.status === 'occupied' ? { ...r, status: 'available' } : r));
+      }
+    }
+
     if (isFirebaseActive && db) {
       const bookingPath = `bookings/${bookingId}`;
       try {
-        await updateDoc(doc(db, 'bookings', bookingId), { status });
+        await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData({ status }));
         
         if (targetBooking) {
-          // If guest checked in, set room status to occupied
           if (status === 'checked-in') {
-            await updateDoc(doc(db, 'rooms', targetBooking.roomId), { status: 'occupied' });
-            triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
-          }
-          // If guest checked out, set room status to cleaning
-          else if (status === 'checked-out') {
-            await updateDoc(doc(db, 'rooms', targetBooking.roomId), { status: 'cleaning' });
-          }
-          // If booking was cancelled, set room status back to available if it is currently occupied by this guest
-          else if (status === 'cancelled') {
+            await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'occupied' }));
+          } else if (status === 'checked-out') {
+            await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'cleaning' }));
+          } else if (status === 'cancelled') {
             const room = rooms.find(r => r.id === targetBooking.roomId);
             if (room && room.status === 'occupied') {
-              await updateDoc(doc(db, 'rooms', targetBooking.roomId), { status: 'available' });
+              await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'available' }));
             }
           }
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, bookingPath);
-      }
-    } else {
-      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
-      
-      if (targetBooking) {
-        if (status === 'checked-in') {
-          setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
-          triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
-        } else if (status === 'checked-out') {
-          setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
-        } else if (status === 'cancelled') {
-          setRooms(prev => prev.map(r => r.id === targetBooking.roomId && r.status === 'occupied' ? { ...r, status: 'available' } : r));
-        }
       }
     }
   };
@@ -1003,7 +1015,7 @@ Islamia Guest House, Dhanmondi, Dhaka`;
     if (isFirebaseActive && db) {
       const bookingPath = `bookings/${bookingId}`;
       try {
-        await updateDoc(doc(db, 'bookings', bookingId), { notes });
+        await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData({ notes }));
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, bookingPath);
       }
@@ -1024,7 +1036,7 @@ Islamia Guest House, Dhanmondi, Dhaka`;
     if (isFirebaseActive && db) {
       const requestPath = `serviceRequests/${reqId}`;
       try {
-        await setDoc(doc(db, 'serviceRequests', reqId), newRequest);
+        await setDoc(doc(db, 'serviceRequests', reqId), sanitizeFirestoreData(newRequest));
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, requestPath);
       }
@@ -1037,7 +1049,7 @@ Islamia Guest House, Dhanmondi, Dhaka`;
     if (isFirebaseActive && db) {
       const requestPath = `serviceRequests/${requestId}`;
       try {
-        await updateDoc(doc(db, 'serviceRequests', requestId), { status });
+        await updateDoc(doc(db, 'serviceRequests', requestId), sanitizeFirestoreData({ status }));
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, requestPath);
       }
@@ -1066,7 +1078,7 @@ Islamia Guest House, Dhanmondi, Dhaka`;
     if (isFirebaseActive && db) {
       const feedbackPath = `feedbacks/${feedbackId}`;
       try {
-        await setDoc(doc(db, 'feedbacks', feedbackId), newFeedback);
+        await setDoc(doc(db, 'feedbacks', feedbackId), sanitizeFirestoreData(newFeedback));
         showToast({
           message: "⭐ Thank you! Your feedback has been stored in Firestore.",
           type: 'success'
