@@ -180,18 +180,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsLoading(false);
       });
 
-      // 3. Realtime collection sync with full onSnapshot listeners & error handlers (Skill Requirement)
+      // 3. Realtime collection sync with full onSnapshot listeners & error handlers
       const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
-        const roomsList: Room[] = [];
-        snapshot.forEach((docSnap) => {
-          roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
-        });
-        
-        // Sort by room number numerically
-        roomsList.sort((a, b) => Number(a.number) - Number(b.number));
-        setRooms(roomsList);
+        if (!snapshot.empty) {
+          const roomsList: Room[] = [];
+          snapshot.forEach((docSnap) => {
+            roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
+          });
+          roomsList.sort((a, b) => Number(a.number) - Number(b.number));
+          setRooms(roomsList);
+          try {
+            localStorage.setItem('hotel_rooms', JSON.stringify(roomsList));
+          } catch (e) {
+            console.error("Failed saving rooms snapshot to localStorage:", e);
+          }
+        } else {
+          // If Firestore collection is empty, seed initial rooms into Firestore
+          INITIAL_ROOMS.forEach(async (room) => {
+            try {
+              await setDoc(doc(db, 'rooms', room.id), room);
+            } catch (e) {
+              console.warn("Failed to seed initial room:", e);
+            }
+          });
+        }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'rooms');
+        console.warn("Firestore rooms listener warning:", error);
       });
 
       const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
@@ -394,24 +408,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, isFirebaseActive]);
 
-  // Sync to local storage if running in local sandbox mode
+  // Sync to local storage for instant browser persistence (e.g. Vercel hosting)
   useEffect(() => {
-    if (!isFirebaseActive) {
+    if (rooms && rooms.length > 0) {
       localStorage.setItem('hotel_rooms', JSON.stringify(rooms));
     }
-  }, [rooms, isFirebaseActive]);
+  }, [rooms]);
 
   useEffect(() => {
-    if (!isFirebaseActive) {
+    if (bookings) {
       localStorage.setItem('hotel_bookings', JSON.stringify(bookings));
     }
-  }, [bookings, isFirebaseActive]);
+  }, [bookings]);
 
   useEffect(() => {
-    if (!isFirebaseActive) {
+    if (serviceRequests) {
       localStorage.setItem('hotel_services', JSON.stringify(serviceRequests));
     }
-  }, [serviceRequests, isFirebaseActive]);
+  }, [serviceRequests]);
 
   // Auth Functions
   const loginWithGoogle = async (role?: UserRole) => {
@@ -820,46 +834,71 @@ Islamia Guest House Dhanmondi System`;
 
   // Room Actions
   const addRoom = async (roomData: Omit<Room, 'id'>) => {
-    const newId = (rooms.length > 0 ? (Math.max(...rooms.map(r => Number(r.id) || 0)) + 1).toString() : '101');
+    const numericIds = rooms.map(r => Number(r.id) || Number(r.number) || 0);
+    const maxVal = numericIds.length > 0 ? Math.max(...numericIds) : 100;
+    const newId = (maxVal >= 100 ? maxVal + 1 : 101).toString();
+
     const newRoom: Room = {
       id: newId,
-      ...roomData
+      number: roomData.number || newId,
+      type: roomData.type || 'single',
+      price: roomData.price || 1500,
+      status: roomData.status || 'available',
+      capacity: roomData.capacity || 2,
+      description: roomData.description || `${roomData.type ? roomData.type.toUpperCase() : 'Guest'} Chamber at Islamia Guest House`,
+      image: roomData.image || (roomData as any).imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
+      amenities: roomData.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
     };
 
-    setRooms(prev => [...prev.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number)));
+    const updatedRooms = [...rooms.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number));
+    setRooms(updatedRooms);
+    try {
+      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
+    } catch (e) {
+      console.error("Failed saving new room to localStorage:", e);
+    }
 
     if (isFirebaseActive && db) {
-      const roomPath = `rooms/${newId}`;
       try {
         await setDoc(doc(db, 'rooms', newId), sanitizeFirestoreData(newRoom));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, roomPath);
+        console.warn("Firestore room write error:", error);
       }
     }
   };
 
   const updateRoomStatus = async (roomId: string, status: RoomStatus) => {
-    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, status } : r));
+    const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, status } : r);
+    setRooms(updatedRooms);
+    try {
+      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
+    } catch (e) {
+      console.error("Failed saving updated room status to localStorage:", e);
+    }
 
     if (isFirebaseActive && db) {
-      const roomPath = `rooms/${roomId}`;
       try {
         await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData({ status }));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, roomPath);
+        console.warn("Firestore room status update error:", error);
       }
     }
   };
 
   const editRoomDetails = async (roomId: string, updates: Partial<Room>) => {
-    setRooms(prev => prev.map(r => r.id === roomId ? { ...r, ...updates } : r));
+    const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
+    setRooms(updatedRooms);
+    try {
+      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
+    } catch (e) {
+      console.error("Failed saving edited room details to localStorage:", e);
+    }
 
     if (isFirebaseActive && db) {
-      const roomPath = `rooms/${roomId}`;
       try {
         await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(updates));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, roomPath);
+        console.warn("Firestore room details edit error:", error);
       }
     }
   };

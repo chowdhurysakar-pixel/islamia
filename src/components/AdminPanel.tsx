@@ -227,7 +227,8 @@ export const AdminPanel: React.FC = () => {
       status: 'available',
       capacity: newRoomCapacity,
       description: newRoomDesc || `${newRoomType.toUpperCase()} Chamber at Islamia Guest House Dhanmondi`,
-      imageUrl: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800'
+      image: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
+      amenities: ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Clean Toiletries']
     });
 
     setIsAddRoomOpen(false);
