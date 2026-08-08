@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 
 // Custom contact icon/badge components
@@ -54,6 +54,23 @@ export const GuestView: React.FC = () => {
   const [roomTypeFilter, setRoomTypeFilter] = useState<RoomType | 'all'>('all');
   const [roomsCount, setRoomsCount] = useState<number>(1);
   const [adultsCount, setAdultsCount] = useState<number>(1);
+  const [childrenCount, setChildrenCount] = useState<number>(0);
+  const [showGuestPicker, setShowGuestPicker] = useState<boolean>(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const guestPickerRef = React.useRef<HTMLDivElement>(null);
+
+  // Close guest picker on click outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (guestPickerRef.current && !guestPickerRef.current.contains(event.target as Node)) {
+        setShowGuestPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
   // Date states for filtering / booking
   const todayStr = new Date().toISOString().split('T')[0];
@@ -396,38 +413,92 @@ export const GuestView: React.FC = () => {
         </div>
       </div>
 
-      {/* 0.1 Main Navigation Bar */}
-      <nav className="bg-[#f8f4ec] border-b border-[#0e2b33]/15 py-5 px-6 sticky top-0 z-30 backdrop-blur-md bg-[#f8f4ec]/95">
+      {/* 0.1 Main Navigation Bar (Clean luxury header like reference) */}
+      <nav className="bg-white border-b border-slate-200/80 py-3.5 px-4 sm:px-8 sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/95">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <a href="#" className="flex items-center gap-2.5 font-serif text-xl sm:text-2xl text-[#af8a52] font-semibold tracking-wide">
-            <span className="text-[#af8a52] text-lg">◆</span>
-            <span>
-              ISLAMIA GUEST HOUSE
-              <small className="block font-sans text-[9px] tracking-[0.28em] text-[#af8a52]/80 font-semibold uppercase">
-                DHANMONDI, DHAKA
-              </small>
+          {/* Brand Logo & Name */}
+          <a href="#" className="flex items-center gap-2.5 group">
+            <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition">
+              ◆
             </span>
+            <div className="flex flex-col">
+              <span className="font-serif text-base sm:text-xl text-[#0e2b33] font-bold tracking-tight leading-tight">
+                ISLAMIA GUEST HOUSE
+              </span>
+              <span className="text-[9px] tracking-[0.25em] text-[#af8a52] font-semibold uppercase">
+                DHANMONDI, DHAKA
+              </span>
+            </div>
           </a>
-          <ul className="hidden md:flex gap-7 text-[11px] tracking-widest text-[#0e2b33] uppercase font-semibold">
+
+          {/* Desktop Links */}
+          <ul className="hidden lg:flex gap-8 text-[11px] tracking-widest text-[#0e2b33] uppercase font-bold">
             <li><a href="#destinations" className="hover:text-[#af8a52] transition">Chambers</a></li>
             <li><a href="#philosophy" className="hover:text-[#af8a52] transition">Philosophy</a></li>
             <li><a href="#events" className="hover:text-[#af8a52] transition">Experience</a></li>
             <li><a href="#guest-reviews-section" className="hover:text-[#af8a52] transition">Reviews</a></li>
             <li><a href="#contact-footer" className="hover:text-[#af8a52] transition">Location</a></li>
           </ul>
-          <div className="flex items-center gap-3">
+
+          {/* Header Action Items: Quick Call + Hamburger Menu (NO Join for Free option) */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Direct Telephone Call Button (matching phone icon in image) */}
             <a 
-              href="#book-section" 
-              className="bg-[#af8a52] hover:bg-[#d7bd8a] text-[#081b21] px-5 py-2.5 text-xs font-bold tracking-wider rounded transition-all shadow-sm"
+              href="tel:01909806960" 
+              className="p-2 sm:p-2.5 rounded-full bg-slate-100 hover:bg-[#af8a52]/10 text-[#0e2b33] hover:text-[#af8a52] transition-colors border border-slate-200"
+              title="Call Reservation: 01909-806960"
             >
-              Book Now
+              <Phone className="w-4 h-4" />
             </a>
+
+            {/* Mobile / Compact Menu Toggle Button (≡) */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 sm:p-2.5 rounded-lg text-[#0e2b33] hover:bg-slate-100 transition-colors border border-slate-200 cursor-pointer"
+              aria-label="Toggle navigation menu"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Slide-down Drawer Navigation */}
+        {mobileMenuOpen && (
+          <div className="mt-3 pt-3 border-t border-slate-200 bg-white/95 rounded-b-2xl p-4 shadow-lg flex flex-col gap-3 text-xs uppercase font-semibold text-[#0e2b33] animate-in fade-in duration-200">
+            <a href="#destinations" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
+              Chambers &amp; Suites
+            </a>
+            <a href="#philosophy" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
+              Philosophy &amp; Service
+            </a>
+            <a href="#events" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
+              Experience &amp; Dining
+            </a>
+            <a href="#guest-reviews-section" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
+              Guest Reviews
+            </a>
+            <a href="#contact-footer" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
+              Location &amp; Directions
+            </a>
+            <a href="#my-stays-section" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded bg-slate-50 text-[#af8a52] font-bold">
+              My Stays ({myBookings.length})
+            </a>
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500 lowercase">Staff / Admin Portal</span>
+              <button
+                onClick={() => { setMobileMenuOpen(false); toggleRole(); }}
+                className="bg-[#0e2b33] text-white px-3 py-1.5 rounded-md text-[11px] font-bold hover:bg-[#af8a52] transition"
+              >
+                Sign In →
+              </button>
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* 0.2 Promo Strip */}
-      <div className="bg-[#efe8d8] border-b border-[#0e2b33]/10 py-3 px-6 text-xs text-[#0e2b33] text-center">
+      <div className="bg-[#efe8d8] border-b border-[#0e2b33]/10 py-2.5 px-4 text-xs text-[#0e2b33] text-center">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-2">
           <span>
             Stay 3, pay for 2 on Suites &amp; Deluxe Chambers across our Dhanmondi location. Extend your stay — valid through 2026.
@@ -443,115 +514,221 @@ export const GuestView: React.FC = () => {
         </div>
       </div>
 
-      {/* 1. Hero Room Showcase Image */}
+      {/* 1. Luxury Hero Banner Image with Display Serif Title Overlay */}
       <section 
-        className="relative h-[480px] sm:h-[540px] bg-cover bg-center shadow-inner" 
+        className="relative h-[380px] sm:h-[460px] md:h-[520px] bg-cover bg-center flex items-center justify-center overflow-hidden" 
         style={{ 
           backgroundImage: "url('https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1920&q=80')" 
         }}
       >
+        {/* Dark luxury gradient overlay for typography readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/30" />
+
+        {/* Hero Title Overlay - White Display Serif matching screenshot */}
+        <div className="relative z-10 text-center px-4 max-w-3xl -mt-12 sm:-mt-16">
+          <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl text-white font-normal tracking-wide drop-shadow-md leading-tight">
+            Islamia Guest House
+          </h1>
+          <p className="font-serif text-xl sm:text-3xl text-white/90 mt-2 font-light tracking-wider drop-shadow">
+            Dhaka
+          </p>
+        </div>
       </section>
 
-      {/* 2. Interactive Search Widget Bar */}
-      <div id="book-section" className="-mt-20 relative z-20 max-w-7xl mx-auto px-6 mb-16">
-        <div className="bg-white rounded shadow-2xl border border-[#0e2b33]/15 p-5 md:p-6 grid grid-cols-1 md:grid-cols-5 gap-4 items-stretch">
+      {/* 2. Floating Mobile & Desktop Booking Search Card (Matching Reference Picture Layout) */}
+      <div id="book-section" className="-mt-24 sm:-mt-32 relative z-20 max-w-sm sm:max-w-xl md:max-w-4xl mx-auto px-4 sm:px-6 mb-16">
+        <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/80 p-5 sm:p-6 text-slate-800">
           
-          {/* Field 1: Destination */}
-          <div className="md:border-r border-[#0e2b33]/12 pr-4 flex flex-col justify-center">
-            <label className="text-[10px] tracking-widest text-[#af8a52] font-bold uppercase block mb-1">
-              DESTINATION
-            </label>
-            <div className="text-xs font-semibold text-[#0e2b33] flex items-center gap-2">
-              <span className="text-[#af8a52]">⌕</span>
-              <input 
-                type="text" 
-                readOnly 
-                value="Road 9/A, Dhanmondi, Dhaka" 
-                className="w-full border-none focus:outline-none text-xs font-semibold text-[#0e2b33] bg-transparent cursor-default" 
-              />
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+            
+            {/* Field 1: CHECK IN & DATES (Matching Picture: Calendar icon + Check-in -> Check-out) */}
+            <div className="md:col-span-5 pb-3 md:pb-0 md:pr-4 md:border-r border-slate-200/80">
+              <label className="text-[10px] sm:text-[11px] tracking-widest text-slate-500 font-bold uppercase block mb-1">
+                CHECK IN
+              </label>
+              <div className="flex items-center gap-2.5">
+                <Calendar className="w-5 h-5 text-[#905e38] shrink-0" />
+                <div className="flex items-center gap-1.5 w-full">
+                  <input
+                    id="search-check-in-date"
+                    type="date"
+                    value={searchCheckIn}
+                    min={todayStr}
+                    onChange={(e) => setSearchCheckIn(e.target.value)}
+                    className="w-full text-xs sm:text-sm text-[#0e2b33] font-bold border-none focus:outline-none bg-transparent cursor-pointer p-0"
+                  />
+                  <span className="text-[#905e38] font-bold text-xs shrink-0">→</span>
+                  <input
+                    id="search-check-out-date"
+                    type="date"
+                    value={searchCheckOut}
+                    min={searchCheckIn || todayStr}
+                    onChange={(e) => setSearchCheckOut(e.target.value)}
+                    className="w-full text-xs sm:text-sm text-[#0e2b33] font-bold border-none focus:outline-none bg-transparent cursor-pointer p-0"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Field 2: Dates */}
-          <div className="md:border-r border-[#0e2b33]/12 pr-4 flex flex-col justify-center">
-            <label id="nightsLabel" className="text-[10px] tracking-widest text-[#af8a52] font-bold uppercase block mb-1">
-              {computedNights > 0 ? `${computedNights} NIGHT${computedNights > 1 ? 'S' : ''}` : 'SELECT DATES'}
-            </label>
-            <div className="flex items-center gap-1">
-              <input
-                id="search-check-in-date"
-                type="date"
-                value={searchCheckIn}
-                min={todayStr}
-                onChange={(e) => setSearchCheckIn(e.target.value)}
-                className="w-full text-xs text-[#0e2b33] font-mono border-none focus:outline-none bg-transparent"
-              />
-              <span className="text-[#af8a52]">→</span>
-              <input
-                id="search-check-out-date"
-                type="date"
-                value={searchCheckOut}
-                min={searchCheckIn || todayStr}
-                onChange={(e) => setSearchCheckOut(e.target.value)}
-                className="w-full text-xs text-[#0e2b33] font-mono border-none focus:outline-none bg-transparent"
-              />
+            {/* Mobile Divider line */}
+            <div className="block md:hidden border-b border-slate-100 my-0.5" />
+
+            {/* Field 2: ROOMS & GUESTS (Matching Picture: Person icon + 1 Room, 1 Guest + Popover) */}
+            <div ref={guestPickerRef} className="relative md:col-span-4 pb-3 md:pb-0 md:pr-4 md:border-r border-slate-200/80">
+              <label 
+                className="text-[10px] sm:text-[11px] tracking-widest text-slate-500 font-bold uppercase block mb-1 cursor-pointer select-none"
+                onClick={() => setShowGuestPicker(!showGuestPicker)}
+              >
+                ROOMS &amp; GUESTS
+              </label>
+              <button
+                id="search-rooms-guests-trigger"
+                type="button"
+                onClick={() => setShowGuestPicker(!showGuestPicker)}
+                className="w-full flex items-center justify-between text-xs sm:text-sm text-[#0e2b33] font-bold bg-transparent focus:outline-none cursor-pointer p-0 text-left select-none"
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <User className="w-5 h-5 text-[#905e38] shrink-0" />
+                  <span className="truncate">
+                    {roomsCount} {roomsCount === 1 ? 'Room' : 'Rooms'}, {adultsCount + childrenCount} {adultsCount + childrenCount === 1 ? 'Guest' : 'Guests'}
+                  </span>
+                </div>
+                {showGuestPicker ? (
+                  <ChevronUp className="w-4 h-4 text-[#905e38] shrink-0 ml-1" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-[#905e38] shrink-0 ml-1" />
+                )}
+              </button>
+
+              {/* Rooms & Guests Popover Card */}
+              {showGuestPicker && (
+                <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 z-50 text-slate-800 animate-in fade-in slide-in-from-top-2 duration-150">
+                  {/* Rooms Row */}
+                  <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
+                    <span className="text-xs font-semibold text-slate-800">Rooms</span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={roomsCount <= 1}
+                        onClick={() => setRoomsCount(Math.max(1, roomsCount - 1))}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition text-xs font-bold ${
+                          roomsCount <= 1 
+                            ? 'border-slate-200 text-slate-300 cursor-not-allowed' 
+                            : 'border-[#905e38] text-[#905e38] hover:bg-[#905e38]/10 cursor-pointer active:scale-95'
+                        }`}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-5 text-center text-xs font-bold text-[#0e2b33]">{roomsCount}</span>
+                      <button
+                        type="button"
+                        disabled={roomsCount >= 10}
+                        onClick={() => setRoomsCount(Math.min(10, roomsCount + 1))}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition text-xs font-bold ${
+                          roomsCount >= 10 
+                            ? 'border-slate-200 text-slate-300 cursor-not-allowed' 
+                            : 'border-[#905e38] text-[#905e38] hover:bg-[#905e38]/10 cursor-pointer active:scale-95'
+                        }`}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Adults Row */}
+                  <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
+                    <span className="text-xs font-semibold text-slate-800">Adults</span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={adultsCount <= 1}
+                        onClick={() => setAdultsCount(Math.max(1, adultsCount - 1))}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition text-xs font-bold ${
+                          adultsCount <= 1 
+                            ? 'border-slate-200 text-slate-300 cursor-not-allowed' 
+                            : 'border-[#905e38] text-[#905e38] hover:bg-[#905e38]/10 cursor-pointer active:scale-95'
+                        }`}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-5 text-center text-xs font-bold text-[#0e2b33]">{adultsCount}</span>
+                      <button
+                        type="button"
+                        disabled={adultsCount >= 10}
+                        onClick={() => setAdultsCount(Math.min(10, adultsCount + 1))}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition text-xs font-bold ${
+                          adultsCount >= 10 
+                            ? 'border-slate-200 text-slate-300 cursor-not-allowed' 
+                            : 'border-[#905e38] text-[#905e38] hover:bg-[#905e38]/10 cursor-pointer active:scale-95'
+                        }`}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Children Row */}
+                  <div className="flex items-center justify-between py-2.5">
+                    <span className="text-xs font-semibold text-slate-800">Children</span>
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        disabled={childrenCount <= 0}
+                        onClick={() => setChildrenCount(Math.max(0, childrenCount - 1))}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition text-xs font-bold ${
+                          childrenCount <= 0 
+                            ? 'border-slate-200 text-slate-300 cursor-not-allowed' 
+                            : 'border-[#905e38] text-[#905e38] hover:bg-[#905e38]/10 cursor-pointer active:scale-95'
+                        }`}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="w-5 text-center text-xs font-bold text-[#0e2b33]">{childrenCount}</span>
+                      <button
+                        type="button"
+                        disabled={childrenCount >= 10}
+                        onClick={() => setChildrenCount(Math.min(10, childrenCount + 1))}
+                        className={`w-7 h-7 rounded-full border flex items-center justify-center transition text-xs font-bold ${
+                          childrenCount >= 10 
+                            ? 'border-slate-200 text-slate-300 cursor-not-allowed' 
+                            : 'border-[#905e38] text-[#905e38] hover:bg-[#905e38]/10 cursor-pointer active:scale-95'
+                        }`}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Apply button */}
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowGuestPicker(false)}
+                      className="text-xs font-bold text-white bg-[#0e2b33] hover:bg-[#905e38] transition cursor-pointer px-4 py-1.5 rounded-lg shadow-sm"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Field 3: Action Button - View prices (Matching warm brown rounded button in image) */}
+            <div className="md:col-span-3 pt-2 md:pt-0">
+              <button 
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('destinations');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                className="bg-[#905e38] hover:bg-[#784d2d] active:scale-[0.99] text-white font-bold text-sm sm:text-base py-3.5 px-6 rounded-xl transition-all w-full flex items-center justify-center cursor-pointer shadow-md hover:shadow-lg"
+              >
+                View prices
+              </button>
+            </div>
+
           </div>
 
-          {/* Field 3: Rooms & Guests */}
-          <div className="md:border-r border-[#0e2b33]/12 pr-4 flex flex-col justify-center">
-            <label className="text-[10px] tracking-widest text-[#af8a52] font-bold uppercase block mb-1">
-              ROOMS & GUESTS
-            </label>
-            <select
-              id="search-rooms-guests"
-              value={`${roomsCount}-${adultsCount}`}
-              onChange={(e) => {
-                const [r, g] = e.target.value.split('-').map(Number);
-                setRoomsCount(r || 1);
-                setAdultsCount(g || 1);
-              }}
-              className="w-full text-xs text-[#0e2b33] font-semibold border-none focus:outline-none bg-transparent cursor-pointer"
-            >
-              <option value="1-1">1 Room, 1 Guest</option>
-              <option value="1-2">1 Room, 2 Guests</option>
-              <option value="1-3">1 Room, 3 Guests</option>
-              <option value="2-4">2 Rooms, 4 Guests</option>
-              <option value="2-6">2 Rooms, 6+ Guests (Family)</option>
-              <option value="3-8">3+ Rooms, Group / Delegation</option>
-            </select>
-          </div>
-
-          {/* Field 4: Chamber Type */}
-          <div className="md:border-r border-[#0e2b33]/12 pr-4 flex flex-col justify-center">
-            <label className="text-[10px] tracking-widest text-[#af8a52] font-bold uppercase block mb-1">
-              CHAMBER TYPE
-            </label>
-            <select
-              id="search-room-type"
-              value={roomTypeFilter}
-              onChange={(e) => setRoomTypeFilter(e.target.value as RoomType | 'all')}
-              className="w-full text-xs text-[#0e2b33] font-semibold border-none focus:outline-none bg-transparent cursor-pointer"
-            >
-              <option value="all">Best Available (All Chambers)</option>
-              <option value="single">Standard Single</option>
-              <option value="double">Deluxe Double</option>
-              <option value="deluxe">Executive Premium</option>
-              <option value="suite">VIP Suite Room</option>
-            </select>
-          </div>
-
-          {/* Search CTA */}
-          <button 
-            type="button"
-            onClick={() => {
-              const el = document.getElementById('destinations');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="bg-[#af8a52] hover:bg-[#d7bd8a] text-[#081b21] font-bold text-xs tracking-wider py-3 px-6 rounded transition-colors w-full flex items-center justify-center cursor-pointer shadow-sm"
-          >
-            Search Availability
-          </button>
         </div>
       </div>
 
@@ -614,39 +791,103 @@ export const GuestView: React.FC = () => {
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-5 space-y-4">
             <div className="text-[11px] tracking-[0.28em] text-[#d7bd8a] font-bold uppercase">
-              YOU'RE INVITED
+              EXPLORE HISTORIC DHAKA
             </div>
             <h2 className="font-serif text-3xl sm:text-4xl text-white leading-tight">
-              Insider access to Dhanmondi's dining, medical centers & culture
+              Discover Dhaka's Heritage & Iconic Landmarks
             </h2>
-            <p className="text-sm text-[#f8f4ec]/80 leading-relaxed">
-              Step outside into the vibrant heartbeat of Dhanmondi. Directly opposite Ibn Sina 9/A, beside Meena Bazar, and minutes from Dhanmondi Lake — private medical convenience, chef's table dining, and local heritage await our guests.
-            </p>
+            <div className="space-y-3 text-xs sm:text-sm text-[#f8f4ec]/85 leading-relaxed">
+              <p>
+                Stay at the center of culture and history. From our prime Dhanmondi location, immerse yourself in Bangladesh’s most celebrated architectural and historic wonders:
+              </p>
+              <ul className="space-y-2 pt-1 border-t border-[#f8f4ec]/10">
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">🏛️</span>
+                  <span><strong>Jatiya Sangsad Bhaban:</strong> World-renowned brutalist parliament house designed by Louis Kahn, framed by scenic water pools.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">🏰</span>
+                  <span><strong>Lalbagh Kella (Fort):</strong> Majestic 17th-century Mughal fortress featuring the tomb of Pari Bibi and subterranean gardens.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">🌿</span>
+                  <span><strong>Dhanmondi Lake Park:</strong> Serene waterfront promenade located steps away for morning walks, fresh breeze, and local tea stalls.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">✍️</span>
+                  <span><strong>Kazi Nazrul Islam Shrine & Museum:</strong> Pay homage to National Poet Kazi Nazrul Islam (Rebel Poet) at his central Dhaka memorial & Nazrul Institute.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">🕌</span>
+                  <span><strong>Ahsan Manzil & Tara Masjid:</strong> Explore the iconic Pink Palace on the Buriganga River and the stunning ornate Star Mosque in Old Dhaka.</span>
+                </li>
+              </ul>
+            </div>
             <a 
               href="https://wa.me/8801799148408" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="inline-block border border-[#f8f4ec]/50 hover:border-[#d7bd8a] text-white px-7 py-3 text-xs font-bold tracking-wider rounded transition-all hover:bg-white/5"
+              className="inline-flex items-center gap-2 border border-[#d7bd8a] text-[#d7bd8a] hover:bg-[#d7bd8a] hover:text-[#0e2b33] px-6 py-2.5 text-xs font-bold tracking-wider rounded transition-all mt-2"
             >
-              Discover Concierge Assistance →
+              <span>Get Guided City Tour Info on WhatsApp</span> →
             </a>
           </div>
-          <div className="lg:col-span-7 grid grid-cols-2 gap-4">
-            <img 
-              src="https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=800&q=80" 
-              alt="Coastal Resort" 
-              className="rounded h-48 w-full object-cover shadow-lg" 
-            />
-            <img 
-              src="https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=800&q=80" 
-              alt="Lobby Area" 
-              className="rounded h-48 w-full object-cover shadow-lg" 
-            />
-            <img 
-              src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=800&q=80" 
-              alt="Luxury Suite" 
-              className="col-span-2 rounded h-56 w-full object-cover shadow-lg" 
-            />
+          <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src="/src/assets/images/national_parliament_dhaka_1785812392106.jpg" 
+                alt="National Parliament House (Jatiya Sangsad Bhaban)" 
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">National Parliament</span>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src="/src/assets/images/lalbagh_fort_dhaka_1785812405532.jpg" 
+                alt="Lalbagh Fort (Lalbagh Kella)" 
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Lalbagh Fort (Kella)</span>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src="/src/assets/images/ahsan_manzil_dhaka_1785813447557.jpg" 
+                alt="Ahsan Manzil Pink Palace" 
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Ahsan Manzil (Pink Palace)</span>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src="/src/assets/images/tara_masjid_dhaka_1785813463413.jpg" 
+                alt="Tara Masjid Star Mosque" 
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Tara Masjid (Star Mosque)</span>
+              </div>
+            </div>
+            <div className="col-span-2 sm:col-span-2 relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src="/src/assets/images/dhanmondi_lake_dhaka_1785812418285.jpg" 
+                alt="Dhanmondi Lake Park" 
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Dhanmondi Lake Park</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
