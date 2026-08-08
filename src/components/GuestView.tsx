@@ -426,7 +426,7 @@ export const GuestView: React.FC = () => {
                 ISLAMIA GUEST HOUSE
               </span>
               <span className="text-[9px] tracking-[0.25em] text-[#af8a52] font-semibold uppercase">
-                DHANMONDI, DHAKA
+                DHANMONDI
               </span>
             </div>
           </a>
@@ -530,7 +530,7 @@ export const GuestView: React.FC = () => {
             Islamia Guest House
           </h1>
           <p className="font-serif text-xl sm:text-3xl text-white/90 mt-2 font-light tracking-wider drop-shadow">
-            Dhaka
+            Dhanmondi
           </p>
         </div>
       </section>
@@ -791,10 +791,10 @@ export const GuestView: React.FC = () => {
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-5 space-y-4">
             <div className="text-[11px] tracking-[0.28em] text-[#d7bd8a] font-bold uppercase">
-              EXPLORE HISTORIC DHAKA
+              EXPLORE HISTORIC DHANMONDI
             </div>
             <h2 className="font-serif text-3xl sm:text-4xl text-white leading-tight">
-              Discover Dhaka's Heritage & Iconic Landmarks
+              Discover Dhanmondi's Heritage & Iconic Landmarks
             </h2>
             <div className="space-y-3 text-xs sm:text-sm text-[#f8f4ec]/85 leading-relaxed">
               <p>
@@ -815,11 +815,11 @@ export const GuestView: React.FC = () => {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[#d7bd8a] font-bold">✍️</span>
-                  <span><strong>Kazi Nazrul Islam Shrine & Museum:</strong> Pay homage to National Poet Kazi Nazrul Islam (Rebel Poet) at his central Dhaka memorial & Nazrul Institute.</span>
+                  <span><strong>Kazi Nazrul Islam Shrine & Museum:</strong> Pay homage to National Poet Kazi Nazrul Islam (Rebel Poet) at his central Dhanmondi memorial & Nazrul Institute.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-[#d7bd8a] font-bold">🕌</span>
-                  <span><strong>Ahsan Manzil & Tara Masjid:</strong> Explore the iconic Pink Palace on the Buriganga River and the stunning ornate Star Mosque in Old Dhaka.</span>
+                  <span><strong>Ahsan Manzil & Tara Masjid:</strong> Explore the iconic Pink Palace on the Buriganga River and the stunning ornate Star Mosque in historic Dhanmondi surroundings.</span>
                 </li>
               </ul>
             </div>
@@ -1770,9 +1770,9 @@ export const GuestView: React.FC = () => {
                   ইসলামিয়া গেস্ট হাউস (Islamia Guest House)
                 </h3>
                 <p className="text-sm text-[#efe8d8] font-medium leading-relaxed">
-                  বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি, ঢাকা - ১২০৯ <br />
+                  বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি - ১২০৯ <br />
                   <span className="text-[#efe8d8]/80 text-xs font-normal">
-                    (House No: 55/C/1, Road No: 9/A, Dhanmondi, Dhaka - 1209)
+                    (House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209)
                   </span>
                 </p>
               </div>
@@ -1904,7 +1904,7 @@ export const GuestView: React.FC = () => {
                 <span>ISLAMIA GUEST HOUSE</span>
               </div>
               <p className="text-xs text-[#efe8d8]/60 max-w-sm leading-relaxed">
-                Dhanmondi Road 9/A, Dhaka. Homely luxury, family-friendly security, and peaceful accommodations.
+                Dhanmondi Road 9/A. Homely luxury, family-friendly security, and peaceful accommodations.
               </p>
             </div>
             <div className="flex flex-wrap gap-12 text-xs">
@@ -1927,8 +1927,8 @@ export const GuestView: React.FC = () => {
             </div>
           </div>
           <div className="pt-6 text-xs flex flex-col sm:flex-row justify-between items-center gap-4 text-[#efe8d8]/50">
-            <span>© 2026 Islamia Guest House, Dhanmondi, Dhaka. All rights reserved.</span>
-            <span>Privacy Policy · Terms of Service</span>
+            <span>© 2026 Islamia Guest House, Dhanmondi. All rights reserved.</span>
+            <span className="text-[#d7bd8a]/80 font-mono">Dedicated to Islamia Guest House</span>
           </div>
         </div>
       </footer>

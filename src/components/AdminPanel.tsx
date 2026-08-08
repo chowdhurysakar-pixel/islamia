@@ -100,7 +100,7 @@ export const AdminPanel: React.FC = () => {
 
   // Property Details State
   const [propertyHotline, setPropertyHotline] = useState<string>('01909-806960');
-  const [propertyAddress, setPropertyAddress] = useState<string>('House 38, Road 2, Dhanmondi, Dhaka 1205');
+  const [propertyAddress, setPropertyAddress] = useState<string>('House 38, Road 2, Dhanmondi 1205');
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
   // Update staff HR Approval status
@@ -324,7 +324,7 @@ export const AdminPanel: React.FC = () => {
                   autoFocus
                   value={gatePasscode}
                   onChange={(e) => setGatePasscode(e.target.value)}
-                  placeholder="Enter ADMIN2026"
+                  placeholder="Enter Admin Passcode"
                   className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs font-mono font-bold transition focus:outline-none placeholder:text-slate-400"
                 />
               </div>
@@ -373,7 +373,7 @@ export const AdminPanel: React.FC = () => {
             </h1>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-2 font-sans">
               <MapPin className="w-3.5 h-3.5 text-teal-400" />
-              <span>Islamia Guest House • House 38, Road 2, Dhanmondi, Dhaka 1205</span>
+              <span>Islamia Guest House • House 38, Road 2, Dhanmondi 1205</span>
             </p>
           </div>
 
@@ -594,7 +594,7 @@ export const AdminPanel: React.FC = () => {
                     <TrendingUp className="w-4 h-4 text-teal-600" />
                     <span>Earnings Distribution by Chamber Category</span>
                   </h3>
-                  <p className="text-xs text-slate-400">Gross income generated across room tiers in Dhaka Dhanmondi.</p>
+                  <p className="text-xs text-slate-400">Gross income generated across room tiers in Dhanmondi.</p>
                 </div>
                 <span className="text-xs font-mono font-bold text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200/50">
                   Total: ৳{metrics.totalEarnings.toLocaleString()}
@@ -706,7 +706,7 @@ export const AdminPanel: React.FC = () => {
                     value={editingPasscode}
                     onChange={(e) => setEditingPasscode(e.target.value.toUpperCase())}
                     className="px-3 py-2 bg-slate-950 border border-amber-500/50 text-amber-300 font-mono font-bold rounded-xl text-xs focus:outline-none uppercase"
-                    placeholder="e.g. ISLAMIA-STAFF-2026"
+                    placeholder="Enter New Passcode"
                   />
                   <button
                     type="submit"
@@ -970,7 +970,7 @@ export const AdminPanel: React.FC = () => {
                   <Receipt className="w-4 h-4 text-teal-600" />
                   <span>Master Reservation &amp; Billing Ledger</span>
                 </h3>
-                <p className="text-xs text-slate-400">Review all historical, active, and completed guest reservations in Dhaka.</p>
+                <p className="text-xs text-slate-400">Review all historical, active, and completed guest reservations in Dhanmondi.</p>
               </div>
 
               <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -1103,7 +1103,7 @@ export const AdminPanel: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Property Address (Dhanmondi Dhaka)
+                    Property Address (Dhanmondi)
                   </label>
                   <input
                     type="text"

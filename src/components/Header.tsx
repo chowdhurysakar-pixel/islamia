@@ -78,7 +78,7 @@ export const Header: React.FC = () => {
                 </span>
               </div>
               <span className="text-[10px] uppercase tracking-widest text-teal-600 font-mono font-bold mt-1">
-                Dhanmondi, Dhaka
+                Dhanmondi
                 {currentRole === 'guest' 
                   ? ' • Guest View' 
                   : opMode === 'admin'
@@ -177,7 +177,7 @@ export const Header: React.FC = () => {
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-              The Admin Panel is secured from Guests, regular Staff, and HR accounts. Enter the <strong>Admin Executive Passcode</strong> (e.g., <code className="text-teal-700 font-mono font-bold">ADMIN2026</code>) to proceed.
+              The Admin Panel is secured from Guests, regular Staff, and HR accounts. Enter the <strong>Admin Executive Passcode</strong> to proceed.
             </p>
 
             {adminPasscodeError && (
@@ -202,7 +202,7 @@ export const Header: React.FC = () => {
                     autoFocus
                     value={adminPasscodeInput}
                     onChange={(e) => setAdminPasscodeInput(e.target.value)}
-                    placeholder="Enter ADMIN2026"
+                    placeholder="Enter Admin Passcode"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs font-mono font-bold transition focus:outline-none placeholder:text-slate-400"
                   />
                 </div>

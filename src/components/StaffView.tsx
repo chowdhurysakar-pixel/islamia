@@ -256,12 +256,12 @@ export const StaffView: React.FC = () => {
         guestPhone: posCustomerPhone,
         nidNumber: posCustomerNid || 'Not Specified',
         upazila: posCustomerUpazila || 'Dhanmondi',
-        zila: posCustomerZila || 'Dhaka',
+        zila: posCustomerZila || 'Dhanmondi',
         checkIn: posCheckIn,
         checkOut: posCheckOut,
         totalAmount: finalBill,
         status: 'checked-in', // Front-desk checkins go directly as checked-in!
-        notes: `Checked in directly via front-desk guest registration desk at Dhanmondi, Dhaka.`,
+        notes: `Checked in directly via front-desk guest registration desk at Dhanmondi.`,
         additionalGuests: gList,
         referenceName: posReferenceName.trim() || '',
         kids: kList
@@ -278,7 +278,7 @@ export const StaffView: React.FC = () => {
         guestPhone: posCustomerPhone,
         nidNumber: posCustomerNid || 'Not Provided',
         upazila: posCustomerUpazila || 'Dhanmondi',
-        zila: posCustomerZila || 'Dhaka',
+        zila: posCustomerZila || 'Dhanmondi',
         checkIn: posCheckIn,
         checkOut: posCheckOut,
         totalAmount: finalBill,
@@ -847,7 +847,7 @@ export const StaffView: React.FC = () => {
                 <input
                   id="pos-guest-zila-input"
                   type="text"
-                  placeholder="e.g. Dhaka"
+                  placeholder="e.g. Dhanmondi"
                   required
                   value={posCustomerZila}
                   onChange={(e) => setPosCustomerZila(e.target.value)}

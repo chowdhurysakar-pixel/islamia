@@ -230,7 +230,7 @@ export const SecureGateway: React.FC = () => {
       const isKeyValid = VALID_ADMIN_PASSCODES.includes(cleanAdminKey);
 
       if (authMode === 'signup' && !isKeyValid) {
-        setError('Access Denied: Creating an Admin account requires a valid Admin Master Key (e.g. ADMIN2026).');
+        setError('Access Denied: Creating an Admin account requires a valid Admin Master Key.');
         return;
       }
 
@@ -241,7 +241,7 @@ export const SecureGateway: React.FC = () => {
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'admin');
 
         if (!existing && !isKeyValid) {
-          setError('Access Denied: Please enter the valid Admin Master Passcode (ADMIN2026) to log in as Admin.');
+          setError('Access Denied: Please enter a valid Admin Master Passcode to log in as Admin.');
           return;
         }
       }
@@ -251,7 +251,7 @@ export const SecureGateway: React.FC = () => {
       const isSecretValid = VALID_STAFF_PASSCODES.includes(cleanSecretPasscode);
       
       if (authMode === 'signup' && !isSecretValid) {
-        setError('Access Denied: Staff registration requires a valid Staff Secret Password (e.g. ISLAMIA-STAFF-2026).');
+        setError('Access Denied: Staff registration requires a valid Staff Secret Passcode.');
         return;
       }
 
@@ -261,7 +261,7 @@ export const SecureGateway: React.FC = () => {
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'staff');
         
         if (!existing || (!existing.hrApproved && existing.staffSecretKey !== cleanSecretPasscode)) {
-          setError('Access Denied: Staff members must enter the Staff Passcode (ISLAMIA-STAFF-2026) or be approved by HR.');
+          setError('Access Denied: Staff members must enter a valid Staff Passcode or be approved by HR.');
           return;
         }
       }
@@ -407,7 +407,7 @@ export const SecureGateway: React.FC = () => {
       <div className="relative z-10 w-full max-w-xl text-center mb-6 px-4">
         <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1 bg-white border border-slate-200 rounded-full shadow-xs mb-3">
           <Hotel className="w-4 h-4 text-teal-600" />
-          <span className="text-[11px] font-mono tracking-wider text-slate-700 uppercase font-bold">Dhaka Dhanmondi</span>
+          <span className="text-[11px] font-mono tracking-wider text-slate-700 uppercase font-bold">Dhanmondi</span>
         </div>
         <h1 className="text-3xl sm:text-4xl font-serif font-black text-slate-900 tracking-tight">
           Islamia Guest House
@@ -431,7 +431,7 @@ export const SecureGateway: React.FC = () => {
                 Reception Desk &amp; Access Control
               </h2>
               <p className="text-[10px] text-teal-200 font-mono">
-                Islamia Guest House • Dhaka Dhanmondi
+                Islamia Guest House • Dhanmondi
               </p>
             </div>
           </div>
@@ -630,7 +630,7 @@ export const SecureGateway: React.FC = () => {
                 <p className="text-xs text-slate-500">
                   {authMode === 'signin' 
                     ? 'Access Front Desk room allocation, booking checkout, and bill printing.'
-                    : 'Create a staff profile. Requires Staff Secret Passcode (ISLAMIA-STAFF-2026).'}
+                    : 'Create a staff profile. Authorized staff passcode key required.'}
                 </p>
               </div>
 
@@ -769,12 +769,12 @@ export const SecureGateway: React.FC = () => {
                       required
                       value={staffSecretPasscode}
                       onChange={(e) => setStaffSecretPasscode(e.target.value)}
-                      placeholder="Enter ISLAMIA-STAFF-2026"
+                      placeholder="Enter Staff Passcode Key"
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400 font-mono"
                     />
                   </div>
                   <p className="text-[10px] text-slate-500">
-                    * Default Staff Secret Passcode is <span className="text-teal-700 font-mono font-bold">ISLAMIA-STAFF-2026</span>
+                    * Authorized Staff Passcode Key required for registration &amp; sign in.
                   </p>
                 </div>
 
@@ -824,7 +824,7 @@ export const SecureGateway: React.FC = () => {
                 <p className="text-xs text-slate-500">
                   {authMode === 'signin' 
                     ? 'Access revenue reports, tariff manager, staff approval, and system settings.'
-                    : 'Create a new Admin Administrator account. Requires Admin Master Passcode (ADMIN2026).'}
+                    : 'Create a new Admin Administrator account. Executive Admin Master Key required.'}
                 </p>
               </div>
 
@@ -966,12 +966,12 @@ export const SecureGateway: React.FC = () => {
                       required
                       value={adminMasterKey}
                       onChange={(e) => setAdminMasterKey(e.target.value)}
-                      placeholder="Enter ADMIN2026"
+                      placeholder="Enter Admin Master Passcode"
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 text-slate-900 rounded-xl text-xs font-mono font-bold transition focus:outline-none placeholder:text-slate-400"
                     />
                   </div>
                   <p className="text-[10px] text-slate-500">
-                    * Admin creation and login requires Admin Master Key (<span className="text-amber-700 font-mono font-bold">ADMIN2026</span>)
+                    * Admin creation and login requires executive master security passcode.
                   </p>
                 </div>
 
@@ -1014,7 +1014,7 @@ export const SecureGateway: React.FC = () => {
           <span>Islamia Reception Security Gateway v4.8</span>
           <div className="flex items-center gap-1">
             <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-            <span>Dhaka Dhanmondi</span>
+            <span>Dhanmondi</span>
           </div>
         </div>
 

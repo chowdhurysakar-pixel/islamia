@@ -85,8 +85,8 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
   // Customizable Address & Contact Info States (for invoice style changing with address and phn number option)
   const [invoiceStyle, setInvoiceStyle] = useState<'classic' | 'modern' | 'minimal'>('classic');
   const [guestHouseName, setGuestHouseName] = useState<string>('ISLAMIA GUEST HOUSE');
-  const [guestHouseAddressBangla, setGuestHouseAddressBangla] = useState<string>('বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি, ঢাকা - ১২০৯');
-  const [guestHouseAddressEnglish, setGuestHouseAddressEnglish] = useState<string>('(House No: 55/C/1, Road No: 9/A, Dhanmondi, Dhaka - 1209)');
+  const [guestHouseAddressBangla, setGuestHouseAddressBangla] = useState<string>('বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি - ১২০৯');
+  const [guestHouseAddressEnglish, setGuestHouseAddressEnglish] = useState<string>('(House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209)');
   const [guestHouseLandmark, setGuestHouseLandmark] = useState<string>('ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন');
   const [phoneBkash, setPhoneBkash] = useState<string>('01832-841818');
   const [phoneCall, setPhoneCall] = useState<string>('01909-806960');
@@ -625,7 +625,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                     </h2>
                     {invoiceStyle !== 'minimal' && (
                       <p className="text-[9px] uppercase tracking-wider bg-slate-900 text-white px-2 py-0.5 rounded inline-block font-sans font-bold">
-                        Dhanmondi, Dhaka
+                        Dhanmondi
                       </p>
                     )}
                     <div className="text-[9px] text-slate-600 space-y-1 font-sans leading-tight mt-1 text-center">
@@ -710,7 +710,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                       <p>PHONE: {booking.guestPhone}</p>
                       {booking.referenceName && <p className="text-teal-700">REF BY: {booking.referenceName}</p>}
                       {booking.nidNumber && <p>NID/PASSPORT: {booking.nidNumber}</p>}
-                      <p>ORIGIN: {booking.upazila || 'Dhanmondi'}, {booking.zila || 'Dhaka'}</p>
+                      <p>ORIGIN: {booking.upazila || 'Dhanmondi'}, {booking.zila || 'Dhanmondi'}</p>
                       
                       {/* Additional Adult Passengers in POS */}
                       {booking.additionalGuests && booking.additionalGuests.length > 0 && (
@@ -1029,7 +1029,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                         <div>
                           <span className="text-[10px] text-slate-400 uppercase block font-mono">District (Origin)</span>
                           <span className="font-semibold text-slate-700 capitalize">
-                            {booking.upazila || 'Dhanmondi'}, {booking.zila || 'Dhaka'}
+                            {booking.upazila || 'Dhanmondi'}, {booking.zila || 'Dhanmondi'}
                           </span>
                         </div>
                         {booking.referenceName && (
@@ -1194,7 +1194,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                     <p className="font-bold text-slate-500 font-sans">Accommodation & Liability Terms</p>
                     <p>1. Check-out time is strictly 12:00 PM (Noon). Extension requests are subject to room availability.</p>
                     <p>2. Guests are kindly requested to verify all personal belongings and return the electronic key to the front desk receptionist.</p>
-                    <p>3. This is an official tax invoice generated in Dhaka, Bangladesh. Any disputes are governed under local tourism division rules.</p>
+                    <p>3. This is an official tax invoice generated in Dhanmondi, Bangladesh. Any disputes are governed under local tourism division rules.</p>
                   </div>
 
                 </div>

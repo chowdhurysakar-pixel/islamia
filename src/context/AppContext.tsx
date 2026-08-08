@@ -433,7 +433,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       const mockNames: Record<UserRole, string> = {
         admin: 'Sakar Chowdhury (HR Manager)',
-        staff: 'Dhaka Reception Desk Team',
+        staff: 'Dhanmondi Reception Desk Team',
         guest: 'Sakar Chowdhury (Guest)'
       };
       localLogin(selectedRole, mockEmails[selectedRole], mockNames[selectedRole]);
@@ -593,7 +593,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const subject = `Your Gmail Verification OTP - Islamia Guest House (${isSignUp ? 'Sign Up' : 'Sign In'})`;
     const body = `Dear User,
 
-To complete your secure authentication request at Islamia Guest House, Dhanmondi, Dhaka, please enter the following 6-digit verification One-Time Password (OTP):
+To complete your secure authentication request at Islamia Guest House, Dhanmondi, please enter the following 6-digit verification One-Time Password (OTP):
 
 =======================================================
 YOUR OTP VERIFICATION CODE: ${otpCode}
@@ -901,8 +901,8 @@ Total Invoice Amount: ৳ ${totalAmount}
 =======================================================
 
 House Address:
-বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি, ঢাকা - ১২০৯
-(House No: 55/C/1, Road No: 9/A, Dhanmondi, Dhaka - 1209)
+বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি - ১২০৯
+(House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209)
 Landmarks: ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন
 
 For any support or questions, please reach us on:
@@ -914,7 +914,7 @@ Enjoy your stay!
 
 Warm regards,
 Front Desk Management
-Islamia Guest House, Dhanmondi, Dhaka`;
+Islamia Guest House, Dhanmondi`;
 
     const mailtoUrl = `mailto:${encodeURIComponent(guestEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     

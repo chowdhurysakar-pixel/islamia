@@ -124,7 +124,7 @@ const MainLayout: React.FC = () => {
               <p className="text-xs text-slate-500 mt-0.5">
                 {opMode === 'admin'
                   ? 'Manage revenue analytics, approve staff access, configure chamber tariffs, and oversee guest bookings.'
-                  : 'Book rooms via Front Desk, manage guest invoices, and review local booking records in Dhaka Dhanmondi.'
+                  : 'Book rooms via Front Desk, manage guest invoices, and review local booking records in Dhanmondi.'
                 }
               </p>
             </div>
@@ -159,10 +159,10 @@ const MainLayout: React.FC = () => {
         <footer className="border-t border-slate-150 bg-white/70 py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-xs text-slate-500 font-medium">
-              &copy; 2026 Islamia Guest House Dhanmondi, Dhaka. Secure Front Desk &amp; billing manager.
+              &copy; 2026 Islamia Guest House Dhanmondi. Secure Front Desk &amp; billing manager.
             </p>
             <div className="text-xs text-slate-400 font-mono">
-              <span>Built with React + Vite + Tailwind CSS</span>
+              <span>Dedicated to Islamia Guest House</span>
             </div>
           </div>
         </footer>
