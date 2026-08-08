@@ -420,23 +420,6 @@ export const SecureGateway: React.FC = () => {
       {/* 3. Central Login Card Modal - Crisp White Background */}
       <div className="relative z-10 bg-white border border-slate-200/90 rounded-3xl w-full max-w-xl shadow-xl shadow-slate-200/80 flex flex-col overflow-hidden animate-scaleUp">
         
-        {/* Banner Header Inside Card */}
-        <div className="bg-gradient-to-r from-teal-800 to-slate-900 border-b border-teal-900 p-5 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/20 shadow-xs">
-              <Hotel className="w-5 h-5 text-teal-300" />
-            </div>
-            <div>
-              <h2 className="text-base font-serif font-bold text-white tracking-wide">
-                Reception Desk &amp; Access Control
-              </h2>
-              <p className="text-[10px] text-teal-200 font-mono">
-                Islamia Guest House • Dhanmondi
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* Tabbed Navigation - Clean Light Segmented Control */}
         <div className="bg-slate-100 p-1.5 flex border-b border-slate-200 gap-1">
           {/* Guest Tab */}
