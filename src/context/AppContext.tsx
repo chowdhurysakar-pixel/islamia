@@ -98,18 +98,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [rooms, setRooms] = useState<Room[]>(() => {
     try {
       const stored = localStorage.getItem('hotel_rooms');
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {
       console.warn("Failed loading initial stored rooms:", e);
     }
     return INITIAL_ROOMS;
   });
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_bookings');
+      if (stored !== null) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn("Failed loading initial stored bookings:", e);
+    }
+    return INITIAL_BOOKINGS;
+  });
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_services');
+      if (stored !== null) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn("Failed loading initial stored services:", e);
+    }
+    return INITIAL_SERVICES;
+  });
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_feedbacks');
+      if (stored !== null) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn("Failed loading initial stored feedbacks:", e);
+    }
+    return [];
+  });
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentRole, setCurrentRole] = useState<UserRole>('staff');
   const [opMode, setOpMode] = useState<'receptionist' | 'hr' | 'admin'>('receptionist');
@@ -122,9 +155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     let isConfigured = false;
     try {
-      if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'placeholder' && !firebaseConfig.apiKey.includes('MY_')) {
-        isConfigured = initFirebase(firebaseConfig);
-      }
+      isConfigured = initFirebase(firebaseConfig);
     } catch (e) {
       console.warn("Firebase config not available or incomplete. Falling back to Local Storage Sandbox.", e);
     }
@@ -207,12 +238,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.error("Failed saving rooms snapshot to localStorage:", e);
           }
         } else {
-          // If Firestore collection is empty, seed initial rooms into Firestore
-          INITIAL_ROOMS.forEach(async (room) => {
+          // If Firestore collection is empty:
+          // Check if localStorage already has stored rooms
+          const storedLocal = localStorage.getItem('hotel_rooms');
+          let roomsToSeed = INITIAL_ROOMS;
+          if (storedLocal !== null) {
+            try {
+              const parsed = JSON.parse(storedLocal);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                roomsToSeed = parsed;
+              }
+            } catch (e) {
+              console.warn("Failed parsing stored local rooms:", e);
+            }
+          }
+          // Set React state immediately so UI displays rooms
+          setRooms(roomsToSeed);
+
+          // Seed Firestore with roomsToSeed (preserves custom/added/edited chambers)
+          roomsToSeed.forEach(async (room) => {
             try {
               await setDoc(doc(db, 'rooms', room.id), room);
             } catch (e) {
-              console.warn("Failed to seed initial room:", e);
+              console.warn("Failed to seed room to Firestore:", e);
             }
           });
         }
@@ -340,11 +388,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Seeding trigger for empty live Firestore databases (requires staff/admin authentication)
   useEffect(() => {
-    if (isFirebaseActive && rooms.length === 0 && currentUser && (currentUser.role === 'staff' || currentUser.role === 'admin')) {
+    const storedLocalRooms = localStorage.getItem('hotel_rooms');
+    let roomsToSeed = INITIAL_ROOMS;
+    let hasLocalRooms = false;
+    if (storedLocalRooms !== null) {
+      try {
+        const parsed = JSON.parse(storedLocalRooms);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          roomsToSeed = parsed;
+          hasLocalRooms = true;
+        }
+      } catch (e) {
+        console.warn("Error reading stored local rooms for seeding:", e);
+      }
+    }
+
+    if (isFirebaseActive && rooms.length === 0 && !hasLocalRooms && currentUser && (currentUser.role === 'staff' || currentUser.role === 'admin')) {
       const seedDatabase = async () => {
         try {
           console.log("Seeding Firestore database with initial records...");
-          for (const room of INITIAL_ROOMS) {
+          for (const room of roomsToSeed) {
             await setDoc(doc(db, 'rooms', room.id), room);
           }
           for (const booking of INITIAL_BOOKINGS) {
@@ -422,7 +485,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync to local storage for instant browser persistence (e.g. Vercel hosting)
   useEffect(() => {
-    if (rooms && rooms.length > 0) {
+    if (rooms) {
       localStorage.setItem('hotel_rooms', JSON.stringify(rooms));
     }
   }, [rooms]);

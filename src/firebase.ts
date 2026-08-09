@@ -41,7 +41,7 @@ try {
   console.warn("Firebase not initialized yet. Running in high-fidelity Sandbox Sandbox Mode.", e);
 }
 
-export function initFirebase(config: FirebaseConfig) {
+export function initFirebase(config?: FirebaseConfig) {
   // Load and check from Vite environment variables first
   const metaEnv = (import.meta as any).env || {};
   const envConfig: FirebaseConfig = {
@@ -51,12 +51,12 @@ export function initFirebase(config: FirebaseConfig) {
     storageBucket: (metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "").trim(),
     messagingSenderId: (metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim(),
     appId: (metaEnv.VITE_FIREBASE_APP_ID || "").trim(),
-    firestoreDatabaseId: (metaEnv.VITE_FIREBASE_FIRESTORE_DATABASE_ID || config?.firestoreDatabaseId || "(default)").trim()
+    firestoreDatabaseId: (metaEnv.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "").trim()
   };
 
   const finalConfig = (envConfig.apiKey && envConfig.apiKey !== 'placeholder' && !envConfig.apiKey.includes('MY_'))
     ? envConfig
-    : config;
+    : (config || {} as FirebaseConfig);
 
   if (finalConfig && finalConfig.apiKey && finalConfig.apiKey !== 'placeholder' && !finalConfig.apiKey.includes('MY_')) {
     try {
@@ -65,7 +65,19 @@ export function initFirebase(config: FirebaseConfig) {
       } else {
         firebaseApp = getApp();
       }
-      dbInstance = getFirestore(firebaseApp, finalConfig.firestoreDatabaseId || '(default)');
+
+      const requestedDbId = finalConfig.firestoreDatabaseId || config?.firestoreDatabaseId;
+      try {
+        if (requestedDbId && requestedDbId !== '(default)') {
+          dbInstance = getFirestore(firebaseApp, requestedDbId);
+        } else {
+          dbInstance = getFirestore(firebaseApp);
+        }
+      } catch (dbErr) {
+        console.warn("Falling back to default Firestore database instance:", dbErr);
+        dbInstance = getFirestore(firebaseApp);
+      }
+
       authInstance = getAuth(firebaseApp);
       isFirebaseAvailable = true;
       console.log("Firebase Successfully Connected using live credentials!", finalConfig.projectId);
