@@ -25,6 +25,7 @@ export const AdminPanel: React.FC = () => {
     addRoom, 
     updateRoomStatus, 
     editRoomDetails,
+    deleteRoom,
     updateBookingStatus,
     opMode,
     setOpMode,
@@ -945,12 +946,25 @@ export const AdminPanel: React.FC = () => {
                         </select>
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => editRoomDetails(room.id, { description: `${room.description} (Inspected)` })}
-                          className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline"
-                        >
-                          Inspection Log
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => editRoomDetails(room.id, { description: `${room.description} (Inspected)` })}
+                            className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline"
+                          >
+                            Inspection Log
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to remove Chamber #${room.number}?`)) {
+                                deleteRoom(room.id);
+                              }
+                            }}
+                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Remove Chamber"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -77,6 +77,7 @@ interface AppContextType {
   addRoom: (room: Omit<Room, 'id'>) => Promise<void>;
   updateRoomStatus: (roomId: string, status: RoomStatus) => Promise<void>;
   editRoomDetails: (roomId: string, updates: Partial<Room>) => Promise<void>;
+  deleteRoom: (roomId: string) => Promise<void>;
   // Booking Actions
   createBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => Promise<string>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
@@ -94,7 +95,18 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [rooms, setRooms] = useState<Room[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_rooms');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn("Failed loading initial stored rooms:", e);
+    }
+    return INITIAL_ROOMS;
+  });
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
@@ -903,6 +915,30 @@ Islamia Guest House Dhanmondi System`;
     }
   };
 
+  const deleteRoom = async (roomId: string) => {
+    const target = rooms.find(r => r.id === roomId);
+    const updatedRooms = rooms.filter(r => r.id !== roomId);
+    setRooms(updatedRooms);
+    try {
+      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
+    } catch (e) {
+      console.error("Failed deleting room from localStorage:", e);
+    }
+
+    if (isFirebaseActive && db) {
+      try {
+        await deleteDoc(doc(db, 'rooms', roomId));
+      } catch (error) {
+        console.warn("Firestore room deletion error:", error);
+      }
+    }
+
+    showToast({
+      type: 'info',
+      message: `🗑️ Chamber #${target?.number || roomId} removed successfully.`
+    });
+  };
+
   // Toast notifications & Automated Email drafted actions
   const showToast = (toast: ToastInfo) => {
     setActiveToast(toast);
@@ -1161,6 +1197,7 @@ Islamia Guest House, Dhanmondi`;
       addRoom,
       updateRoomStatus,
       editRoomDetails,
+      deleteRoom,
       createBooking,
       updateBookingStatus,
       addBookingNotes,
