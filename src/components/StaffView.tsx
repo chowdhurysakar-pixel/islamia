@@ -2150,7 +2150,7 @@ export const StaffView: React.FC = () => {
                 )}
               </div>
 
-              {/* Secure Tip for testers */}
+              {/* Secure Tip */}
               <div className="bg-amber-50/50 rounded-2xl border border-amber-100 p-3.5 text-[11px] text-amber-800 leading-normal">
                 <p className="font-bold flex items-center gap-1.5 text-amber-900">
                   <ShieldAlert className="w-3.5 h-3.5" />
@@ -2159,9 +2159,6 @@ export const StaffView: React.FC = () => {
                 <p className="mt-1 text-slate-600">
                   To prevent unauthorized Front Desk receptionists from editing marketing info & guest archives, a security passcode is required.
                 </p>
-                <div className="mt-2 text-[10px] bg-amber-100/60 font-mono py-1 px-2.5 rounded border border-amber-200/40 text-amber-900 inline-block">
-                  Developer Simulator Key: <span className="font-bold">7788</span> or <span className="font-bold">1234</span>
-                </div>
               </div>
 
               {/* Action Buttons */}
