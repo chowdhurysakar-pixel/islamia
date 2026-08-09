@@ -226,14 +226,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 3. Realtime collection sync with full onSnapshot listeners & error handlers
       const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
         if (!snapshot.empty) {
-          const roomsList: Room[] = [];
+          const firestoreRooms: Room[] = [];
           snapshot.forEach((docSnap) => {
-            roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
+            firestoreRooms.push({ id: docSnap.id, ...docSnap.data() } as Room);
           });
-          roomsList.sort((a, b) => Number(a.number) - Number(b.number));
-          setRooms(roomsList);
+
+          // Preserve any locally added/edited rooms that haven't synced to Firestore yet
+          let mergedRooms = [...firestoreRooms];
           try {
-            localStorage.setItem('hotel_rooms', JSON.stringify(roomsList));
+            const storedLocal = localStorage.getItem('hotel_rooms');
+            if (storedLocal) {
+              const localList: Room[] = JSON.parse(storedLocal);
+              if (Array.isArray(localList)) {
+                const extraLocalRooms = localList.filter(lr => !firestoreRooms.some(fr => fr.id === lr.id));
+                if (extraLocalRooms.length > 0) {
+                  mergedRooms = [...mergedRooms, ...extraLocalRooms];
+                  // Attempt sync of local rooms to Firestore
+                  extraLocalRooms.forEach(lr => {
+                    setDoc(doc(db, 'rooms', lr.id), sanitizeFirestoreData(lr)).catch(() => {});
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("Failed merging local rooms with Firestore snapshot:", e);
+          }
+
+          mergedRooms.sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0) || a.number.localeCompare(b.number));
+          setRooms(mergedRooms);
+          try {
+            localStorage.setItem('hotel_rooms', JSON.stringify(mergedRooms));
           } catch (e) {
             console.error("Failed saving rooms snapshot to localStorage:", e);
           }
@@ -909,23 +931,29 @@ Islamia Guest House Dhanmondi System`;
 
   // Room Actions
   const addRoom = async (roomData: Omit<Room, 'id'>) => {
-    const numericIds = rooms.map(r => Number(r.id) || Number(r.number) || 0);
-    const maxVal = numericIds.length > 0 ? Math.max(...numericIds) : 100;
-    const newId = (maxVal >= 100 ? maxVal + 1 : 101).toString();
+    const rawNumber = (roomData.number || '').toString().trim();
+    const cleanNumber = rawNumber.replace(/[^a-zA-Z0-9_\-]/g, '_');
+
+    // Create clean unique ID for Firestore & local storage
+    const baseId = cleanNumber && cleanNumber.length <= 30 ? cleanNumber : `room_${Date.now()}`;
+    const isTaken = rooms.some(r => r.id === baseId);
+    const newId = isTaken ? `${baseId}_${Math.random().toString(36).substring(2, 6)}` : baseId;
 
     const newRoom: Room = {
       id: newId,
-      number: roomData.number || newId,
+      number: rawNumber || newId,
       type: roomData.type || 'single',
-      price: roomData.price || 1500,
-      status: roomData.status || 'available',
-      capacity: roomData.capacity || 2,
+      price: Number(roomData.price) > 0 ? Number(roomData.price) : 1500,
+      status: (roomData.status as RoomStatus) || 'available',
+      capacity: Number(roomData.capacity) > 0 ? Number(roomData.capacity) : 2,
       description: roomData.description || `${roomData.type ? roomData.type.toUpperCase() : 'Guest'} Chamber at Islamia Guest House`,
       image: roomData.image || (roomData as any).imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
-      amenities: roomData.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
+      amenities: Array.isArray(roomData.amenities) && roomData.amenities.length > 0 ? roomData.amenities : ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
     };
 
-    const updatedRooms = [...rooms.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number));
+    const updatedRooms = [...rooms.filter(r => r.id !== newId), newRoom].sort((a, b) => 
+      (Number(a.number) || 0) - (Number(b.number) || 0) || a.number.localeCompare(b.number)
+    );
     setRooms(updatedRooms);
     try {
       localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
