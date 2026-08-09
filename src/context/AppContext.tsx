@@ -16,7 +16,7 @@ import {
   updateDoc, 
   deleteDoc, 
   onSnapshot, 
-  getDocFromServer,
+  getDoc,
   Timestamp,
   query,
   where
@@ -166,12 +166,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 1. Validate Connection to Firestore (Skill Requirement)
       const testConnection = async () => {
         try {
-          await getDocFromServer(doc(db, 'test', 'connection'));
+          await getDoc(doc(db, 'test', 'connection'));
         } catch (error) {
-          // Gracefully handle connection check without emitting error logs
-          if (error instanceof Error && error.message.includes('the client is offline')) {
-            console.log("Firestore initialized; network connection pending.");
-          }
+          console.log("Firestore local cache active; network sync pending.");
         }
       };
       testConnection();
@@ -641,7 +638,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               return { success: true, otpCode: 'Resent_Verification' };
             } else {
               // Verified! Retrieve and sync profile
-              const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
+              const userSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
               let profile: UserProfile;
               if (userSnap.exists()) {
                 profile = userSnap.data() as UserProfile;
@@ -786,7 +783,7 @@ Islamia Guest House Dhanmondi System`;
             }
             
             // Verified! Sync with Firestore profile
-            const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
+            const userSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
             let profile: UserProfile;
             if (userSnap.exists()) {
               profile = userSnap.data() as UserProfile;

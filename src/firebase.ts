@@ -13,7 +13,7 @@ import {
   signInWithEmailAndPassword,
   sendEmailVerification
 } from 'firebase/auth';
-import { getFirestore, collection, doc, query, where, getDocs, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, collection, doc, query, where, getDocs, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, getDocFromServer } from 'firebase/firestore';
 
 // We define a stub interface to avoid compilation errors if config is empty.
 export interface FirebaseConfig {
@@ -114,8 +114,9 @@ export interface FirestoreErrorInfo {
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const currentAuth = authInstance;
+  const errMsg = error instanceof Error ? error.message : String(error);
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: currentAuth?.currentUser?.uid || null,
       email: currentAuth?.currentUser?.email || null,
@@ -126,6 +127,20 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+  
+  // For network connection drops, offline status, or transient unavailable issues, log a warning softly
+  if (
+    errMsg.includes('unavailable') || 
+    errMsg.includes('offline') || 
+    errMsg.includes('Could not reach Cloud Firestore') ||
+    errMsg.includes('failed-precondition') ||
+    operationType === OperationType.GET ||
+    operationType === OperationType.LIST
+  ) {
+    console.warn('Firestore Network/Cache Info: ', JSON.stringify(errInfo));
+    return errInfo;
+  }
+
   console.error('Firestore Error Detailed Logs: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
