@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Shield, Send } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
 import lalbaghFortImg from '../assets/images/lalbagh_fort_dhaka_1785812405532.jpg';
@@ -54,9 +54,6 @@ export const GuestView: React.FC = () => {
     createServiceRequest,
     submitFeedback
   } = useApp();
-
-  // Guest View mode state ('website' or 'guest_only_page')
-  const [currentGuestPageView, setCurrentGuestPageView] = useState<'website' | 'guest_only_page'>('website');
 
   // Guest Search state
   const [roomTypeFilter, setRoomTypeFilter] = useState<RoomType | 'all'>('all');
@@ -392,25 +389,7 @@ export const GuestView: React.FC = () => {
           </div>
           <div className="flex flex-wrap gap-3.5 items-center text-[11px]">
             <span className="opacity-80 text-[#0e2b33]">🌐 English / বাংলা</span>
-            
-            {/* Guest Only Page Switcher Button */}
-            <button
-              onClick={() => setCurrentGuestPageView(currentGuestPageView === 'guest_only_page' ? 'website' : 'guest_only_page')}
-              className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm ${
-                currentGuestPageView === 'guest_only_page'
-                  ? 'bg-[#af8a52] text-white ring-2 ring-[#af8a52]/40'
-                  : 'bg-[#e8e0d2] text-[#0e2b33] hover:bg-[#af8a52]/20'
-              }`}
-            >
-              <User className="w-3 h-3 text-[#af8a52]" />
-              <span>{currentGuestPageView === 'guest_only_page' ? '✓ Guest Only Page' : 'Guest Only Page →'}</span>
-            </button>
-
-            <a 
-              href="#my-stays-section" 
-              onClick={() => setCurrentGuestPageView('guest_only_page')}
-              className="hover:text-[#905e38] font-medium text-[#0e2b33]"
-            >
+            <a href="#my-stays-section" className="hover:text-[#905e38] font-medium text-[#0e2b33]">
               My Stays ({myBookings.length})
             </a>
             <span className="bg-[#af8a52] text-white px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider shadow-sm">
@@ -443,11 +422,7 @@ export const GuestView: React.FC = () => {
       <nav className="bg-white border-b border-slate-200/80 py-3.5 px-4 sm:px-8 sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/95">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           {/* Brand Logo & Name */}
-          <a 
-            href="#" 
-            onClick={(e) => { e.preventDefault(); setCurrentGuestPageView('website'); }}
-            className="flex items-center gap-2.5 group"
-          >
+          <a href="#" className="flex items-center gap-2.5 group">
             <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition">
               ◆
             </span>
@@ -462,33 +437,12 @@ export const GuestView: React.FC = () => {
           </a>
 
           {/* Desktop Links */}
-          <ul className="hidden lg:flex gap-6 text-[11px] tracking-widest text-[#0e2b33] uppercase font-bold items-center">
-            <li>
-              <button
-                onClick={() => setCurrentGuestPageView('website')}
-                className={`transition px-2.5 py-1 rounded cursor-pointer ${currentGuestPageView === 'website' ? 'text-[#af8a52] border-b-2 border-[#af8a52]' : 'hover:text-[#af8a52]'}`}
-              >
-                Website
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => setCurrentGuestPageView('guest_only_page')}
-                className={`transition px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 cursor-pointer ${
-                  currentGuestPageView === 'guest_only_page'
-                    ? 'bg-[#0e2b33] text-white font-extrabold shadow-sm'
-                    : 'bg-[#af8a52]/10 text-[#af8a52] hover:bg-[#af8a52]/20'
-                }`}
-              >
-                <User className="w-3.5 h-3.5" />
-                <span>Guest Only Page</span>
-              </button>
-            </li>
-            <li><a href="#destinations" onClick={() => setCurrentGuestPageView('website')} className="hover:text-[#af8a52] transition">Chambers</a></li>
-            <li><a href="#philosophy" onClick={() => setCurrentGuestPageView('website')} className="hover:text-[#af8a52] transition">Philosophy</a></li>
-            <li><a href="#events" onClick={() => setCurrentGuestPageView('website')} className="hover:text-[#af8a52] transition">Experience</a></li>
-            <li><a href="#guest-reviews-section" onClick={() => setCurrentGuestPageView('website')} className="hover:text-[#af8a52] transition">Reviews</a></li>
-            <li><a href="#contact-footer" onClick={() => setCurrentGuestPageView('website')} className="hover:text-[#af8a52] transition">Location</a></li>
+          <ul className="hidden lg:flex gap-8 text-[11px] tracking-widest text-[#0e2b33] uppercase font-bold">
+            <li><a href="#destinations" className="hover:text-[#af8a52] transition">Chambers</a></li>
+            <li><a href="#philosophy" className="hover:text-[#af8a52] transition">Philosophy</a></li>
+            <li><a href="#events" className="hover:text-[#af8a52] transition">Experience</a></li>
+            <li><a href="#guest-reviews-section" className="hover:text-[#af8a52] transition">Reviews</a></li>
+            <li><a href="#contact-footer" className="hover:text-[#af8a52] transition">Location</a></li>
           </ul>
 
           {/* Header Action Items: Quick Call + Hamburger Menu (NO Join for Free option) */}
@@ -564,373 +518,7 @@ export const GuestView: React.FC = () => {
         </div>
       </div>
 
-      {currentGuestPageView === 'guest_only_page' ? (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fadeIn">
-          {/* Header Banner for Guest Only Page */}
-          <div className="bg-gradient-to-r from-[#0e2b33] via-[#163f4b] to-[#0e2b33] text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-[#af8a52]/30 relative overflow-hidden">
-            <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-              <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#af8a52]/20 border border-[#af8a52]/40 rounded-full text-[11px] font-mono font-bold text-[#d7bd8a] uppercase tracking-wider">
-                  <Shield className="w-3.5 h-3.5" />
-                  <span>Verified Guest Portal • Islamia Guest House Dhanmondi</span>
-                </div>
-                <h1 className="text-2xl sm:text-4xl font-serif font-bold text-white tracking-tight">
-                  Guest-Only Member Page
-                </h1>
-                <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
-                  Dedicated guest access center. Manage room reservations, request room service, download invoices, submit reviews, and access guest hotline support.
-                </p>
-              </div>
-
-              <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/15 text-left shrink-0 min-w-[220px]">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-slate-300 font-bold">Active Guest Account</p>
-                <p className="text-sm font-bold text-white font-serif">{currentUser?.name || 'Guest Visitor'}</p>
-                <p className="text-xs text-slate-300 font-mono">{currentUser?.email || 'guest@islamiaguesthouse.com'}</p>
-                <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-[11px]">
-                  <span className="text-[#d7bd8a] font-bold">Role: Guest</span>
-                  <span className="bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded-full text-[10px]">Restricted View</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Notice Banner */}
-          <div className="p-4 bg-[#efe8d8] border border-[#af8a52]/30 rounded-2xl flex items-start sm:items-center gap-3 text-xs text-[#0e2b33]">
-            <Info className="w-5 h-5 text-[#af8a52] shrink-0 mt-0.5 sm:mt-0" />
-            <div className="flex-1">
-              <strong>Guest View Boundary:</strong> As a Guest, your access is strictly restricted to this Guest Page and chamber booking catalogs. Staff and Admin control desks require authorized passcode verification.
-            </div>
-            <button
-              onClick={() => setCurrentGuestPageView('website')}
-              className="text-xs font-bold text-[#af8a52] hover:underline shrink-0"
-            >
-              Browse Full Website →
-            </button>
-          </div>
-
-          {/* Grid Layout for Guest Only Page */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* Left Column: My Bookings & Service Requests */}
-            <div className="lg:col-span-8 space-y-6">
-              
-              {/* My Reservations Card */}
-              <div id="my-stays-section" className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
-                <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                  <div className="flex items-center gap-2.5">
-                    <div className="p-2.5 bg-[#af8a52]/10 text-[#af8a52] rounded-xl">
-                      <Receipt className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-serif font-bold text-[#0e2b33]">
-                        My Chamber Reservations ({myBookings.length})
-                      </h2>
-                      <p className="text-xs text-slate-500">Your current and past stay records at Islamia Guest House</p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setCurrentGuestPageView('website')}
-                    className="px-3 py-1.5 bg-[#0e2b33] hover:bg-[#af8a52] text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Reserve Room</span>
-                  </button>
-                </div>
-
-                {myBookings.length === 0 ? (
-                  <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
-                    <p className="text-xs text-slate-500">You do not have any room bookings registered yet.</p>
-                    <button
-                      onClick={() => setCurrentGuestPageView('website')}
-                      className="px-4 py-2 bg-[#905e38] text-white text-xs font-bold rounded-xl hover:bg-[#784d2d] transition cursor-pointer inline-flex items-center gap-1.5"
-                    >
-                      Browse Chambers &amp; Reserve →
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {myBookings.map((b) => {
-                      const room = rooms.find(r => r.id === b.roomId);
-                      return (
-                        <div key={b.id} className="p-4 bg-slate-50 hover:bg-slate-100/80 rounded-2xl border border-slate-200 transition flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-mono font-bold text-xs text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                                #{b.id}
-                              </span>
-                              <span className="text-xs font-bold text-[#0e2b33]">
-                                Chamber {b.roomNumber || room?.number || 'N/A'} ({b.roomType?.toUpperCase() || room?.type?.toUpperCase() || 'Standard'})
-                              </span>
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                                b.status === 'checked-in' ? 'bg-emerald-100 text-emerald-800' :
-                                b.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                                'bg-slate-200 text-slate-700'
-                              }`}>
-                                {b.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-500 font-mono">
-                              📅 {b.checkIn} → {b.checkOut} • Guest: {b.guestName}
-                            </p>
-                            <p className="text-xs font-bold text-[#af8a52]">
-                              Total Invoice Amount: ৳ {b.totalAmount}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-2 self-end sm:self-center">
-                            <button
-                              onClick={() => {
-                                setInvoiceBooking(b);
-                                setAutoPrintInvoice(false);
-                                setShowBillModal(true);
-                              }}
-                              className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-bold rounded-xl transition flex items-center gap-1 cursor-pointer shadow-xs"
-                            >
-                              <Printer className="w-3.5 h-3.5 text-[#af8a52]" />
-                              <span>View Invoice</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedServiceBooking(b);
-                                setServiceType('room-service');
-                              }}
-                              className="px-3 py-1.5 bg-[#0e2b33] hover:bg-[#af8a52] text-white text-xs font-bold rounded-xl transition flex items-center gap-1 cursor-pointer shadow-xs"
-                            >
-                              <BellDot className="w-3.5 h-3.5 text-[#d7bd8a]" />
-                              <span>Request Service</span>
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Room Service & Incident Request Desk */}
-              <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-                  <div className="p-2.5 bg-teal-500/10 text-teal-600 rounded-xl">
-                    <HeartHandshake className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-serif font-bold text-[#0e2b33]">
-                      Guest Room Service &amp; Maintenance Requests
-                    </h2>
-                    <p className="text-xs text-slate-500">Request housekeeping, room amenities, laundry, or maintenance during your stay</p>
-                  </div>
-                </div>
-
-                <form onSubmit={handleServiceSubmit} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">Select Booking / Room *</label>
-                      <select
-                        required
-                        value={selectedServiceBooking?.id || ''}
-                        onChange={(e) => {
-                          const found = myBookings.find(b => b.id === e.target.value);
-                          setSelectedServiceBooking(found || null);
-                        }}
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl text-xs transition focus:outline-none cursor-pointer"
-                      >
-                        <option value="">-- Choose Assigned Room --</option>
-                        {myBookings.map(b => (
-                          <option key={b.id} value={b.id}>
-                            Chamber {b.roomNumber || 'Assigned'} (Booking #{b.id})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">Service Category *</label>
-                      <select
-                        value={serviceType}
-                        onChange={(e) => setServiceType(e.target.value as ServiceRequestType)}
-                        className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl text-xs transition focus:outline-none cursor-pointer"
-                      >
-                        <option value="housekeeping">Housekeeping &amp; Towels</option>
-                        <option value="room-service">Food &amp; Dining Room Service</option>
-                        <option value="maintenance">Maintenance &amp; AC Repair</option>
-                        <option value="concierge">Front Desk Concierge Help</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">Special Request Instructions *</label>
-                    <textarea
-                      required
-                      rows={2}
-                      value={serviceDetails}
-                      onChange={(e) => setServiceDetails(e.target.value)}
-                      placeholder="e.g. Please bring extra mineral water bottles and clean towels to Chamber 102."
-                      className="w-full p-3 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                    />
-                  </div>
-
-                  {serviceSuccess && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>Request submitted! Front Desk team notified.</span>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={!selectedServiceBooking || !serviceDetails.trim()}
-                    className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-sm flex items-center justify-center gap-2"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Submit Guest Service Request</span>
-                  </button>
-                </form>
-              </div>
-
-              {/* Guest Feedback & Review Corner */}
-              <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
-                <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-                  <div className="p-2.5 bg-amber-500/10 text-amber-600 rounded-xl">
-                    <Star className="w-5 h-5 fill-amber-400" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-serif font-bold text-[#0e2b33]">
-                      Guest Reviews &amp; Rating Corner
-                    </h2>
-                    <p className="text-xs text-slate-500">Rate your experience at Islamia Guest House Dhanmondi</p>
-                  </div>
-                </div>
-
-                <form onSubmit={handleFeedbackSubmit} className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-700">Rating:</span>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <button
-                          key={star}
-                          type="button"
-                          onClick={() => setUserRating(star)}
-                          className="p-1 hover:scale-110 transition cursor-pointer"
-                        >
-                          <Star className={`w-5 h-5 ${star <= userRating ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`} />
-                        </button>
-                      ))}
-                    </div>
-                    <span className="text-xs font-bold text-[#af8a52] font-mono">({userRating}/5 Stars)</span>
-                  </div>
-
-                  <textarea
-                    rows={2}
-                    value={userComment}
-                    onChange={(e) => setUserComment(e.target.value)}
-                    placeholder="Share your stay feedback or compliments..."
-                    className="w-full p-3 bg-slate-50 border border-slate-200 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={submittingFeedback || !userComment.trim()}
-                    className="py-2 px-5 bg-[#0e2b33] hover:bg-[#af8a52] text-white text-xs font-bold rounded-xl transition cursor-pointer"
-                  >
-                    {submittingFeedback ? 'Submitting...' : 'Post Guest Review'}
-                  </button>
-                </form>
-              </div>
-
-            </div>
-
-            {/* Right Column: Guest Hotline & Offers */}
-            <div className="lg:col-span-4 space-y-6">
-              
-              {/* Card 1: Guest Desk Hotline */}
-              <div className="bg-[#0e2b33] text-white p-6 rounded-3xl border border-[#af8a52]/30 shadow-lg space-y-4">
-                <h3 className="text-sm font-serif font-bold text-[#d7bd8a] uppercase tracking-wider flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-[#d7bd8a]" />
-                  <span>24/7 Guest Desk Hotline</span>
-                </h3>
-
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Need instant room assistance or late check-in coordination? Contact our Dhanmondi desk directly.
-                </p>
-
-                <div className="space-y-2 pt-2">
-                  <a
-                    href="tel:01909806960"
-                    className="w-full py-2.5 px-3 bg-white/10 hover:bg-white/20 text-white font-mono font-bold text-xs rounded-xl flex items-center justify-between transition border border-white/10"
-                  >
-                    <span>☏ Phone Call: 01909-806960</span>
-                    <CallLogo className="w-3.5 h-3.5" />
-                  </a>
-
-                  <a
-                    href="https://wa.me/8801799148408"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-2.5 px-3 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 font-mono font-bold text-xs rounded-xl flex items-center justify-between transition border border-emerald-500/30"
-                  >
-                    <span>Chat on WhatsApp</span>
-                    <WhatsappLogo className="w-4 h-4" />
-                  </a>
-
-                  <div className="p-3 bg-[#081b21] rounded-xl border border-pink-500/30 flex items-center justify-between text-xs">
-                    <span className="text-slate-300 font-mono">bKash Payment Hotline:</span>
-                    <span className="font-mono font-bold text-pink-400">01832-841818</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Exclusive Guest Perks */}
-              <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-3">
-                <h3 className="text-sm font-serif font-bold text-[#0e2b33] flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-[#af8a52]" />
-                  <span>Guest Only Perks &amp; Offers</span>
-                </h3>
-
-                <ul className="space-y-2.5 text-xs text-slate-600">
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-600 font-bold">✓</span>
-                    <span><strong>10% bKash Cash Back:</strong> Receive 10% instant bKash bonus when booking 2 or more nights.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-600 font-bold">✓</span>
-                    <span><strong>Free Lake Welcome Tea:</strong> Complimentary tea voucher at Dhanmondi Lake waterfront for checked-in guests.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-600 font-bold">✓</span>
-                    <span><strong>High-Speed Wi-Fi:</strong> Free unlimited high-speed fiber internet in all chambers.</span>
-                  </li>
-                </ul>
-              </div>
-
-              {/* Card 3: Location Map Link */}
-              <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-3">
-                <h3 className="text-sm font-serif font-bold text-[#0e2b33] flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-[#af8a52]" />
-                  <span>Guest House Location</span>
-                </h3>
-                <p className="text-xs text-slate-600 leading-relaxed font-sans">
-                  বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি - ১২০৯ (ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে)
-                </p>
-                <a
-                  href="https://maps.app.goo.gl/e3o656i1uDh3QXHV8"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-2.5 bg-[#af8a52] hover:bg-[#905e38] text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>Open Location in Google Maps</span>
-                </a>
-              </div>
-
-            </div>
-
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* 1. Luxury Hero Banner Image with Display Serif Title Overlay */}
+      {/* 1. Luxury Hero Banner Image with Display Serif Title Overlay */}
       <section 
         className="relative h-[380px] sm:h-[460px] md:h-[520px] bg-cover bg-center flex items-center justify-center overflow-hidden" 
         style={{ 
@@ -2324,8 +1912,6 @@ export const GuestView: React.FC = () => {
 
         </div>
       </div>
-      </>
-      )}
 
       {/* 6. Luxury Footer */}
       <footer className="bg-[#081b21] text-[#f8f4ec]/70 py-12 px-6 border-t border-[#0e2b33]">
