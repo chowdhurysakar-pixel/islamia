@@ -7,12 +7,18 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Shield, User, Clock, ShieldCheck, Lock, X, Key, AlertCircle } from 'lucide-react';
 
+const VALID_STAFF_PASSCODES = ['ISLAMIA-STAFF-2026', 'STAFF789', 'ISLAMIA-DESK-55', 'ISLAMIA2026', '123456', 'STAFF-SECRET', 'STAFF123'];
 const VALID_ADMIN_PASSCODES = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026', 'STAFF789'];
 
 export const Header: React.FC = () => {
   const { currentRole, toggleRole, currentUser, opMode, setOpMode, showToast } = useApp();
   const [time, setTime] = useState<string>('');
   
+  // Staff Passcode Modal
+  const [showStaffPasscodeModal, setShowStaffPasscodeModal] = useState<boolean>(false);
+  const [staffPasscodeInput, setStaffPasscodeInput] = useState<string>('');
+  const [staffPasscodeError, setStaffPasscodeError] = useState<string>('');
+
   // Admin Passcode Modal
   const [showAdminPasscodeModal, setShowAdminPasscodeModal] = useState<boolean>(false);
   const [adminPasscodeInput, setAdminPasscodeInput] = useState<string>('');
@@ -28,6 +34,20 @@ export const Header: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  const handleStaffAccessClick = () => {
+    const isAlreadyStaffUser = currentUser?.role === 'staff' || currentUser?.role === 'admin';
+    const isSessionUnlocked = sessionStorage.getItem('staff_authorized') === 'true' || sessionStorage.getItem('admin_authorized') === 'true';
+
+    if (isAlreadyStaffUser || isSessionUnlocked) {
+      if (currentRole === 'guest') toggleRole();
+      setOpMode('receptionist');
+    } else {
+      setStaffPasscodeInput('');
+      setStaffPasscodeError('');
+      setShowStaffPasscodeModal(true);
+    }
+  };
+
   const handleAdminAccessClick = () => {
     const isAlreadyAdminUser = currentUser?.role === 'admin';
     const isSessionUnlocked = sessionStorage.getItem('admin_authorized') === 'true';
@@ -39,6 +59,25 @@ export const Header: React.FC = () => {
       setAdminPasscodeInput('');
       setAdminPasscodeError('');
       setShowAdminPasscodeModal(true);
+    }
+  };
+
+  const handleVerifyStaffPasscode = (e: React.FormEvent) => {
+    e.preventDefault();
+    setStaffPasscodeError('');
+    const cleanCode = staffPasscodeInput.trim().toUpperCase();
+
+    if (VALID_STAFF_PASSCODES.includes(cleanCode)) {
+      sessionStorage.setItem('staff_authorized', 'true');
+      setShowStaffPasscodeModal(false);
+      if (currentRole === 'guest') toggleRole();
+      setOpMode('receptionist');
+      showToast({
+        type: 'success',
+        message: '🔓 Front Desk & Staff Access unlocked successfully.'
+      });
+    } else {
+      setStaffPasscodeError('Access Denied: Invalid Staff Passcode. Guest accounts cannot access Front Desk or Staff controls without staff authorization.');
     }
   };
 
@@ -116,40 +155,118 @@ export const Header: React.FC = () => {
                   <span className="hidden sm:inline">Guest</span>
                 </button>
 
-                <button
-                  id="role-switch-staff-btn"
-                  onClick={() => {
-                    if (currentRole === 'guest') toggleRole();
-                    setOpMode('receptionist');
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 cursor-pointer ${
-                    currentRole === 'staff' && opMode !== 'admin'
-                      ? 'bg-slate-850 text-white shadow-sm'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  <Shield className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Front Desk / Staff</span>
-                </button>
+                {currentRole !== 'guest' && (
+                  <>
+                    <button
+                      id="role-switch-staff-btn"
+                      onClick={handleStaffAccessClick}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 cursor-pointer ${
+                        currentRole === 'staff' && opMode !== 'admin'
+                          ? 'bg-slate-850 text-white shadow-sm'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      <Shield className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Front Desk / Staff</span>
+                    </button>
 
-                <button
-                  id="role-switch-admin-btn"
-                  onClick={handleAdminAccessClick}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 cursor-pointer ${
-                    currentRole === 'staff' && opMode === 'admin'
-                      ? 'bg-teal-600 text-white shadow-sm font-bold'
-                      : 'text-slate-500 hover:text-teal-700'
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                  <span>Admin Panel</span>
-                </button>
+                    <button
+                      id="role-switch-admin-btn"
+                      onClick={handleAdminAccessClick}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-300 cursor-pointer ${
+                        currentRole === 'staff' && opMode === 'admin'
+                          ? 'bg-teal-600 text-white shadow-sm font-bold'
+                          : 'text-slate-500 hover:text-teal-700'
+                      }`}
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
+                      <span>Admin Panel</span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             
           </div>
         </div>
       </header>
+
+      {/* Staff Passcode Gate Modal */}
+      {showStaffPasscodeModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 relative">
+            <button
+              onClick={() => setShowStaffPasscodeModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-full bg-slate-100 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-teal-50 text-teal-700 rounded-2xl border border-teal-100">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-serif font-bold text-slate-800">
+                  Front Desk &amp; Staff Lock
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Restricted Access • Staff Authorization Required
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              Front Desk and Staff controls are locked for Guests. Enter the <strong>Staff Passcode</strong> (e.g. STAFF789 or ISLAMIA2026) to proceed.
+            </p>
+
+            {staffPasscodeError && (
+              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                <span className="leading-snug">{staffPasscodeError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyStaffPasscode} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Staff Passcode
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Key className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="password"
+                    required
+                    autoFocus
+                    value={staffPasscodeInput}
+                    onChange={(e) => setStaffPasscodeInput(e.target.value)}
+                    placeholder="Enter Staff Passcode"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs font-mono font-bold transition focus:outline-none placeholder:text-slate-400"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowStaffPasscodeModal(false)}
+                  className="flex-1 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-slate-850 hover:bg-slate-900 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+                >
+                  Unlock Front Desk
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Admin Passcode Gate Modal */}
       {showAdminPasscodeModal && (

@@ -22,7 +22,6 @@ export const AdminPanel: React.FC = () => {
     bookings, 
     serviceRequests, 
     feedbacks,
-    currentUser,
     addRoom, 
     updateRoomStatus, 
     editRoomDetails,
@@ -99,16 +98,6 @@ export const AdminPanel: React.FC = () => {
 
   // Selected Booking Invoice Modal State
   const [selectedInvoiceBooking, setSelectedInvoiceBooking] = useState<Booking | null>(null);
-
-  // Clear search inputs and selected invoice modals on logout or role change
-  React.useEffect(() => {
-    if (!currentUser || currentUser.role !== 'admin') {
-      setStaffSearch('');
-      setChamberSearch('');
-      setReservationSearch('');
-      setSelectedInvoiceBooking(null);
-    }
-  }, [currentUser]);
 
   // Property Details State
   const [propertyHotline, setPropertyHotline] = useState<string>('01909-806960');
@@ -345,6 +334,7 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
+  const { currentUser } = useApp();
   const [panelUnlocked, setPanelUnlocked] = useState<boolean>(() => {
     return currentUser?.role === 'admin' || sessionStorage.getItem('admin_authorized') === 'true';
   });
