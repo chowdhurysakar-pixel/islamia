@@ -8,6 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
+import { SecureGateway } from './SecureGateway';
 import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
@@ -62,6 +63,7 @@ export const GuestView: React.FC = () => {
   const [childrenCount, setChildrenCount] = useState<number>(0);
   const [showGuestPicker, setShowGuestPicker] = useState<boolean>(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [showStaffLoginModal, setShowStaffLoginModal] = useState<boolean>(false);
   const guestPickerRef = React.useRef<HTMLDivElement>(null);
 
   // Close guest picker on click outside
@@ -408,9 +410,9 @@ export const GuestView: React.FC = () => {
               </div>
             )}
             <button
-              onClick={() => toggleRole()}
+              onClick={() => setShowStaffLoginModal(true)}
               className="bg-[#0e2b33] hover:bg-[#905e38] text-white px-2.5 py-1 rounded text-[10px] font-bold transition-all shadow-sm cursor-pointer"
-              title="Sign In to Staff Portal"
+              title="Sign In to Staff / Admin Portal"
             >
               Sign In →
             </button>
@@ -478,7 +480,7 @@ export const GuestView: React.FC = () => {
               Philosophy &amp; Service
             </a>
             <a href="#events" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
-              Experience &amp; Dining
+              Experience
             </a>
             <a href="#guest-reviews-section" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
               Guest Reviews
@@ -489,11 +491,10 @@ export const GuestView: React.FC = () => {
             <a href="#my-stays-section" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded bg-slate-50 text-[#af8a52] font-bold">
               My Stays ({myBookings.length})
             </a>
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500 lowercase">Staff / Admin Portal</span>
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
               <button
-                onClick={() => { setMobileMenuOpen(false); toggleRole(); }}
-                className="bg-[#0e2b33] text-white px-3 py-1.5 rounded-md text-[11px] font-bold hover:bg-[#af8a52] transition"
+                onClick={() => { setMobileMenuOpen(false); setShowStaffLoginModal(true); }}
+                className="bg-[#0e2b33] text-white px-3 py-1.5 rounded-md text-[11px] font-bold hover:bg-[#af8a52] transition cursor-pointer"
               >
                 Sign In →
               </button>
@@ -1961,6 +1962,18 @@ export const GuestView: React.FC = () => {
           onClose={() => setShowBillModal(false)}
           autoPrint={autoPrintInvoice}
         />
+      )}
+
+      {/* Staff & Admin Login Gateway Modal Overlay */}
+      {showStaffLoginModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="relative w-full max-w-xl my-auto">
+            <SecureGateway 
+              onClose={() => setShowStaffLoginModal(false)} 
+              defaultTab="staff"
+            />
+          </div>
+        </div>
       )}
 
     </div>
