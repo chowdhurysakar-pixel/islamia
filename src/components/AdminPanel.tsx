@@ -13,7 +13,7 @@ import {
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
   Printer, Receipt, Settings, DollarSign, UserCheck, UserX, Lock, 
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
-  ChevronRight, BarChart3, PieChart
+  ChevronRight, BarChart3, PieChart, Download
 } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
@@ -250,6 +250,87 @@ export const AdminPanel: React.FC = () => {
     showToast({
       type: 'success',
       message: `৳ Nightly tariff updated to ৳${editingPrice.toLocaleString()}/night`
+    });
+  };
+
+  // Export guest logs to CSV format for offline record keeping
+  const exportGuestLogsToCSV = (dataToExport: Booking[], filenamePrefix = 'Master_Guest_Reservation_Ledger') => {
+    if (!dataToExport || dataToExport.length === 0) {
+      showToast({
+        type: 'warning',
+        message: '⚠️ No guest records available to export.'
+      });
+      return;
+    }
+
+    const headers = [
+      'Booking ID',
+      'Guest Name',
+      'Phone Number',
+      'Email Address',
+      'NID Number',
+      'Chamber Number',
+      'Room Type',
+      'Check In Date',
+      'Check Out Date',
+      'Booking Status',
+      'District (Zila)',
+      'Sub-District (Upazila)',
+      'Reference Name',
+      'Additional Guests',
+      'Kids',
+      'Total Amount (BDT)',
+      'Created Date',
+      'Notes & Incidents'
+    ];
+
+    const escapeCSV = (val: string | number | undefined | null) => {
+      if (val === undefined || val === null) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const csvRows = dataToExport.map(b => {
+      const extraGuestsStr = b.additionalGuests?.map(g => `${g.name}${g.phone ? ' (' + g.phone + ')' : ''}`).join('; ') || 'None';
+      const kidsStr = b.kids?.map(k => `${k.name}${k.age ? ' (' + k.age + 'y)' : ''}`).join('; ') || 'None';
+
+      return [
+        escapeCSV(b.id),
+        escapeCSV(b.guestName),
+        escapeCSV(b.guestPhone),
+        escapeCSV(b.guestEmail || ''),
+        escapeCSV(b.nidNumber || ''),
+        escapeCSV(b.roomNumber || b.roomId),
+        escapeCSV(b.roomType || ''),
+        escapeCSV(b.checkIn),
+        escapeCSV(b.checkOut),
+        escapeCSV(b.status),
+        escapeCSV(b.zila || ''),
+        escapeCSV(b.upazila || ''),
+        escapeCSV(b.referenceName || ''),
+        escapeCSV(extraGuestsStr),
+        escapeCSV(kidsStr),
+        escapeCSV(b.totalAmount || 0),
+        escapeCSV(b.createdAt ? new Date(b.createdAt).toLocaleString() : ''),
+        escapeCSV(b.notes || '')
+      ].join(',');
+    });
+
+    const csvData = '\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.href = url;
+    link.setAttribute('download', `${filenamePrefix}_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast({
+      type: 'success',
+      message: `📥 Exported ${dataToExport.length} reservation records to CSV file successfully!`
     });
   };
 
@@ -956,6 +1037,10 @@ export const AdminPanel: React.FC = () => {
                           <button
                             onClick={() => {
                               if (window.confirm(`Are you sure you want to remove Chamber #${room.number}?`)) {
+                                showToast({
+                                  type: 'info',
+                                  message: `🗑️ Chamber #${room.number} deleted successfully!`
+                                });
                                 deleteRoom(room.id);
                               }
                             }}
@@ -988,7 +1073,18 @@ export const AdminPanel: React.FC = () => {
                 <p className="text-xs text-slate-400">Review all historical, active, and completed guest reservations in Dhanmondi.</p>
               </div>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+                <button
+                  type="button"
+                  id="admin-export-csv-btn"
+                  onClick={() => exportGuestLogsToCSV(filteredBookings, 'Master_Guest_Reservation_Ledger')}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                  title="Export master reservation ledger to CSV for offline record keeping"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-100" />
+                  <span>Export to CSV</span>
+                </button>
+
                 <select
                   value={reservationStatusFilter}
                   onChange={(e) => setReservationStatusFilter(e.target.value as BookingStatus | 'all')}

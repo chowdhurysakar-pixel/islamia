@@ -10,6 +10,11 @@ import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
+import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
+import lalbaghFortImg from '../assets/images/lalbagh_fort_dhaka_1785812405532.jpg';
+import ahsanManzilImg from '../assets/images/ahsan_manzil_dhaka_1785813447557.jpg';
+import taraMasjidImg from '../assets/images/tara_masjid_dhaka_1785813463413.jpg';
+import dhanmondiLakeImg from '../assets/images/dhanmondi_lake_dhaka_1785812418285.jpg';
 
 // Custom contact icon/badge components
 const BkashLogo: React.FC<{ className?: string }> = ({ className = "w-3.5 h-3.5" }) => (
@@ -365,37 +370,37 @@ export const GuestView: React.FC = () => {
     <div className="min-h-screen bg-[#f8f4ec] text-[#20242a] w-full">
       
       {/* 0. Utility Bar */}
-      <div className="bg-[#081b21] text-[#efe8d8] text-xs py-2.5 px-4">
+      <div className="bg-[#f4efe6] border-b border-[#e5dcce] text-[#0e2b33] text-xs py-2.5 px-4">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
           <div className="flex gap-6 items-center">
-            <a href="tel:01909806960" className="hover:text-[#d7bd8a] flex items-center gap-1.5 font-mono">
-              <Phone className="w-3 h-3 text-[#af8a52]" />
+            <a href="tel:01909806960" className="hover:text-[#905e38] flex items-center gap-1.5 font-mono text-[#0e2b33] font-medium">
+              <Phone className="w-3 h-3 text-[#905e38]" />
               <span>☏ 01909-806960</span>
             </a>
             <a 
               href="https://wa.me/8801799148408?text=Hello%20Islamia%20Guest%20House,%20I%20would%20like%20to%20inquire%20about%20room%20availability." 
               target="_blank" 
               rel="noopener noreferrer" 
-              className="hover:text-[#d7bd8a] flex items-center gap-1.5"
+              className="hover:text-[#905e38] flex items-center gap-1.5 text-[#0e2b33] font-medium"
             >
               <WhatsappLogo className="w-3.5 h-3.5" />
               <span>Chat on WhatsApp</span>
             </a>
           </div>
           <div className="flex flex-wrap gap-3.5 items-center text-[11px]">
-            <span className="opacity-80">🌐 English / বাংলা</span>
-            <a href="#my-stays-section" className="hover:text-[#d7bd8a] font-medium">
+            <span className="opacity-80 text-[#0e2b33]">🌐 English / বাংলা</span>
+            <a href="#my-stays-section" className="hover:text-[#905e38] font-medium text-[#0e2b33]">
               My Stays ({myBookings.length})
             </a>
-            <span className="bg-[#af8a52] text-[#081b21] px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider">
+            <span className="bg-[#af8a52] text-white px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider shadow-sm">
               bKash: 01832-841818
             </span>
             {currentUser && (
-              <div className="flex items-center gap-1.5 bg-[#0e2b33] px-2 py-0.5 rounded text-[10px] border border-[#af8a52]/30">
-                <span className="text-[#d7bd8a] font-bold">{currentUser.name}</span>
+              <div className="flex items-center gap-1.5 bg-[#e8e0d2] px-2 py-0.5 rounded text-[10px] border border-[#af8a52]/30 text-[#0e2b33]">
+                <span className="text-[#0e2b33] font-bold">{currentUser.name}</span>
                 <button 
                   onClick={logout}
-                  className="text-slate-400 hover:text-white text-[9px] underline ml-1"
+                  className="text-slate-500 hover:text-slate-800 text-[9px] underline ml-1"
                   title="Sign Out"
                 >
                   Exit
@@ -404,7 +409,7 @@ export const GuestView: React.FC = () => {
             )}
             <button
               onClick={() => toggleRole()}
-              className="bg-[#af8a52] hover:bg-[#d7bd8a] text-[#081b21] px-2.5 py-1 rounded text-[10px] font-bold transition-all shadow-sm"
+              className="bg-[#0e2b33] hover:bg-[#905e38] text-white px-2.5 py-1 rounded text-[10px] font-bold transition-all shadow-sm cursor-pointer"
               title="Sign In to Staff Portal"
             >
               Sign In →
@@ -521,8 +526,8 @@ export const GuestView: React.FC = () => {
           backgroundImage: "url('https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=1920&q=80')" 
         }}
       >
-        {/* Dark luxury gradient overlay for typography readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/30" />
+        {/* Light luxury gradient overlay for typography readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
         {/* Hero Title Overlay - White Display Serif matching screenshot */}
         <div className="relative z-10 text-center px-4 max-w-3xl -mt-12 sm:-mt-16">
@@ -835,9 +840,12 @@ export const GuestView: React.FC = () => {
           <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div className="relative group overflow-hidden rounded shadow-lg h-44">
               <img 
-                src="/src/assets/images/national_parliament_dhaka_1785812392106.jpg" 
+                src={nationalParliamentImg} 
                 alt="National Parliament House (Jatiya Sangsad Bhaban)" 
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?auto=format&fit=crop&w=800&q=80";
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
@@ -846,9 +854,12 @@ export const GuestView: React.FC = () => {
             </div>
             <div className="relative group overflow-hidden rounded shadow-lg h-44">
               <img 
-                src="/src/assets/images/lalbagh_fort_dhaka_1785812405532.jpg" 
+                src={lalbaghFortImg} 
                 alt="Lalbagh Fort (Lalbagh Kella)" 
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1608958435020-e827101ef2b8?auto=format&fit=crop&w=800&q=80";
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
@@ -857,9 +868,12 @@ export const GuestView: React.FC = () => {
             </div>
             <div className="relative group overflow-hidden rounded shadow-lg h-44">
               <img 
-                src="/src/assets/images/ahsan_manzil_dhaka_1785813447557.jpg" 
+                src={ahsanManzilImg} 
                 alt="Ahsan Manzil Pink Palace" 
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80";
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
@@ -868,9 +882,12 @@ export const GuestView: React.FC = () => {
             </div>
             <div className="relative group overflow-hidden rounded shadow-lg h-44">
               <img 
-                src="/src/assets/images/tara_masjid_dhaka_1785813463413.jpg" 
+                src={taraMasjidImg} 
                 alt="Tara Masjid Star Mosque" 
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&w=800&q=80";
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
@@ -879,9 +896,12 @@ export const GuestView: React.FC = () => {
             </div>
             <div className="col-span-2 sm:col-span-2 relative group overflow-hidden rounded shadow-lg h-44">
               <img 
-                src="/src/assets/images/dhanmondi_lake_dhaka_1785812418285.jpg" 
+                src={dhanmondiLakeImg} 
                 alt="Dhanmondi Lake Park" 
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80";
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">

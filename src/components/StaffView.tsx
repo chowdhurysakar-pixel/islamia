@@ -12,7 +12,7 @@ import {
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
   Plus, ChevronRight, Receipt, Printer, UserCheck, MapPin, 
-  CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2
+  CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2, Download, FileSpreadsheet
 } from 'lucide-react';
 
 export const StaffView: React.FC = () => {
@@ -423,6 +423,87 @@ export const StaffView: React.FC = () => {
       serviceFee: subtotal > 0 ? serviceFee : 0,
       grandTotal: total
     };
+  };
+
+  // Export guest logs to CSV format for offline record keeping
+  const exportGuestLogsToCSV = (dataToExport: Booking[], filenamePrefix = 'HR_Historical_Guest_Archives') => {
+    if (!dataToExport || dataToExport.length === 0) {
+      showToast({
+        type: 'warning',
+        message: '⚠️ No guest records available to export.'
+      });
+      return;
+    }
+
+    const headers = [
+      'Booking ID',
+      'Guest Name',
+      'Phone Number',
+      'Email Address',
+      'NID Number',
+      'Chamber Number',
+      'Room Type',
+      'Check In Date',
+      'Check Out Date',
+      'Booking Status',
+      'District (Zila)',
+      'Sub-District (Upazila)',
+      'Reference Name',
+      'Additional Guests',
+      'Kids',
+      'Total Amount (BDT)',
+      'Created Date',
+      'Notes & Incidents'
+    ];
+
+    const escapeCSV = (val: string | number | undefined | null) => {
+      if (val === undefined || val === null) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const csvRows = dataToExport.map(b => {
+      const extraGuestsStr = b.additionalGuests?.map(g => `${g.name}${g.phone ? ' (' + g.phone + ')' : ''}`).join('; ') || 'None';
+      const kidsStr = b.kids?.map(k => `${k.name}${k.age ? ' (' + k.age + 'y)' : ''}`).join('; ') || 'None';
+
+      return [
+        escapeCSV(b.id),
+        escapeCSV(b.guestName),
+        escapeCSV(b.guestPhone),
+        escapeCSV(b.guestEmail || ''),
+        escapeCSV(b.nidNumber || ''),
+        escapeCSV(b.roomNumber || b.roomId),
+        escapeCSV(b.roomType || ''),
+        escapeCSV(b.checkIn),
+        escapeCSV(b.checkOut),
+        escapeCSV(b.status),
+        escapeCSV(b.zila || ''),
+        escapeCSV(b.upazila || ''),
+        escapeCSV(b.referenceName || ''),
+        escapeCSV(extraGuestsStr),
+        escapeCSV(kidsStr),
+        escapeCSV(b.totalAmount || 0),
+        escapeCSV(b.createdAt ? new Date(b.createdAt).toLocaleString() : ''),
+        escapeCSV(b.notes || '')
+      ].join(',');
+    });
+
+    const csvData = '\uFEFF' + [headers.join(','), ...csvRows].join('\n');
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const dateStr = new Date().toISOString().split('T')[0];
+    link.href = url;
+    link.setAttribute('download', `${filenamePrefix}_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    showToast({
+      type: 'success',
+      message: `📥 Exported ${dataToExport.length} guest logs to CSV file successfully!`
+    });
   };
 
   return (
@@ -1228,30 +1309,43 @@ export const StaffView: React.FC = () => {
               {guestHistoryBookings.length > 0 ? (
                 <div className="space-y-5">
                   
-                  {/* Stats summary of guest history */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-slate-900/50 border border-slate-800 p-4 rounded-2xl">
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-mono text-slate-500 uppercase block">Verified Guest Name</span>
-                      <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                        <User className="w-4 h-4 text-teal-400" />
-                        {guestHistoryBookings[guestHistoryBookings.length - 1].guestName}
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-mono text-slate-500 uppercase block">Total Stays Tracked</span>
-                      <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                        <History className="w-4 h-4 text-teal-400" />
-                        {guestHistoryBookings.length} Times
-                      </span>
+                  {/* Stats summary of guest history with CSV Export */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/50 border border-slate-800 p-4 rounded-2xl">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-mono text-slate-500 uppercase block">Verified Guest Name</span>
+                        <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                          <User className="w-4 h-4 text-teal-400" />
+                          {guestHistoryBookings[guestHistoryBookings.length - 1].guestName}
+                        </span>
+                      </div>
+                      
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-mono text-slate-500 uppercase block">Total Stays Tracked</span>
+                        <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                          <History className="w-4 h-4 text-teal-400" />
+                          {guestHistoryBookings.length} Times
+                        </span>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <span className="text-[10px] font-mono text-slate-500 uppercase block">Lifetime Billed Revenue</span>
+                        <span className="text-sm font-bold text-teal-400 font-mono">
+                          ৳{guestHistoryBookings.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0).toLocaleString()} BDT
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="space-y-0.5">
-                      <span className="text-[10px] font-mono text-slate-500 uppercase block">Lifetime Billed Revenue</span>
-                      <span className="text-sm font-bold text-teal-400 font-mono">
-                        ৳{guestHistoryBookings.reduce((acc, curr) => acc + (curr.totalAmount || 0), 0).toLocaleString()} BDT
-                      </span>
-                    </div>
+                    <button
+                      type="button"
+                      id="export-single-guest-history-csv-btn"
+                      onClick={() => exportGuestLogsToCSV(guestHistoryBookings, `Guest_History_${guestHistoryBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Logs'}`)}
+                      className="px-3.5 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
+                      title="Download guest stay timeline to CSV"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Export Timeline to CSV</span>
+                    </button>
                   </div>
 
                   {/* Chronological Vertical Timeline */}
@@ -1386,9 +1480,20 @@ export const StaffView: React.FC = () => {
                 </p>
               </div>
 
-              {/* Status Select Filter to make managing easier */}
-              {opMode !== 'hr' && (
-                <div className="flex items-center gap-2">
+              {/* Controls & Export to CSV button */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  id="hr-export-csv-btn"
+                  onClick={() => exportGuestLogsToCSV(filteredBookings, opMode === 'hr' ? 'HR_Historical_Guest_Archives' : 'FrontDesk_Reception_Logs')}
+                  className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                  title="Export guest logs to CSV file for offline record keeping"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-100" />
+                  <span>Export to CSV</span>
+                </button>
+
+                {opMode !== 'hr' && (
                   <select
                     id="staff-booking-status-filter"
                     value={bookingStatusFilter}
@@ -1401,8 +1506,8 @@ export const StaffView: React.FC = () => {
                     <option value="checked-in">Checked In</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* Live Search Search Bar */}
@@ -1693,7 +1798,14 @@ export const StaffView: React.FC = () => {
               </div>
               <button
                 id="close-status-manager-btn"
-                onClick={() => setSelectedRoomToManage(null)}
+                onClick={() => {
+                  const num = selectedRoomToManage.number;
+                  setSelectedRoomToManage(null);
+                  showToast({
+                    type: 'info',
+                    message: `ℹ️ Chamber #${num} settings closed.`
+                  });
+                }}
                 className="text-slate-400 hover:text-slate-600 p-1 bg-white border border-slate-200 rounded-lg shadow-sm"
               >
                 <X className="w-4 h-4" />
@@ -2040,8 +2152,14 @@ export const StaffView: React.FC = () => {
                 type="button"
                 onClick={async () => {
                   if (window.confirm(`Are you sure you want to delete Chamber #${selectedRoomToManage.number}?`)) {
-                    await deleteRoom(selectedRoomToManage.id);
+                    const chamberNum = selectedRoomToManage.number;
+                    const roomId = selectedRoomToManage.id;
                     setSelectedRoomToManage(null);
+                    showToast({
+                      type: 'info',
+                      message: `🗑️ Chamber #${chamberNum} deleted successfully from inventory!`
+                    });
+                    await deleteRoom(roomId);
                   }
                 }}
                 className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
@@ -2054,7 +2172,14 @@ export const StaffView: React.FC = () => {
                 <button
                   id="cancel-status-manager-btn"
                   type="button"
-                  onClick={() => setSelectedRoomToManage(null)}
+                  onClick={() => {
+                    const chamberNum = selectedRoomToManage.number;
+                    setSelectedRoomToManage(null);
+                    showToast({
+                      type: 'info',
+                      message: `ℹ️ Chamber #${chamberNum} modifications cancelled.`
+                    });
+                  }}
                   className="px-4 py-2 border border-slate-250 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Cancel
@@ -2064,7 +2189,17 @@ export const StaffView: React.FC = () => {
                   type="button"
                   onClick={async () => {
                     const finalPrice = Number(editRoomPrice) || 0;
-                    await editRoomDetails(selectedRoomToManage.id, {
+                    const chamberNum = editRoomNumber || selectedRoomToManage.number;
+                    const roomId = selectedRoomToManage.id;
+
+                    // Instantly notify & close modal for optimal responsiveness
+                    showToast({
+                      type: 'success',
+                      message: `✅ Chamber #${chamberNum} saved with tariff ৳${finalPrice.toLocaleString()}/night!`
+                    });
+                    setSelectedRoomToManage(null);
+
+                    await editRoomDetails(roomId, {
                       number: editRoomNumber,
                       price: finalPrice,
                       type: editRoomType,
@@ -2075,11 +2210,6 @@ export const StaffView: React.FC = () => {
                       images: editRoomImages,
                       image: editRoomImages[0] || selectedRoomToManage.image
                     });
-                    showToast({
-                      type: 'success',
-                      message: `✅ Chamber #${editRoomNumber} saved with tariff ৳${finalPrice.toLocaleString()}/night!`
-                    });
-                    setSelectedRoomToManage(null);
                   }}
                   className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
                 >

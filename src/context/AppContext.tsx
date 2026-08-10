@@ -968,6 +968,8 @@ Islamia Guest House Dhanmondi System`;
   };
 
   const updateRoomStatus = async (roomId: string, status: RoomStatus) => {
+    const existingRoom = rooms.find(r => r.id === roomId);
+    const updatedRoom = existingRoom ? { ...existingRoom, status } : { id: roomId, status };
     const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, status } : r);
     setRooms(updatedRooms);
     try {
@@ -978,7 +980,7 @@ Islamia Guest House Dhanmondi System`;
 
     if (isFirebaseActive && db) {
       try {
-        await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData({ status }));
+        await setDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(updatedRoom), { merge: true });
       } catch (error) {
         console.warn("Firestore room status update error:", error);
       }
@@ -986,6 +988,8 @@ Islamia Guest House Dhanmondi System`;
   };
 
   const editRoomDetails = async (roomId: string, updates: Partial<Room>) => {
+    const existingRoom = rooms.find(r => r.id === roomId);
+    const mergedRoom = existingRoom ? { ...existingRoom, ...updates } : { id: roomId, ...updates };
     const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
     setRooms(updatedRooms);
     try {
@@ -996,7 +1000,7 @@ Islamia Guest House Dhanmondi System`;
 
     if (isFirebaseActive && db) {
       try {
-        await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(updates));
+        await setDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(mergedRoom), { merge: true });
       } catch (error) {
         console.warn("Firestore room details edit error:", error);
       }
