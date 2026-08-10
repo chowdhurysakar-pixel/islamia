@@ -11,7 +11,7 @@ import {
   ArrowRight, Loader2, Lock, CheckCircle2, 
   Sparkles, AlertCircle, LogIn, Bell, Compass, 
   UserCheck, Send, Eye, EyeOff, ShieldCheck, Phone,
-  UserPlus, KeyRound, X
+  UserPlus, KeyRound
 } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { 
@@ -25,16 +25,11 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 const VALID_STAFF_PASSCODES = ['ISLAMIA-STAFF-2026', 'STAFF789', 'ISLAMIA-DESK-55', 'ISLAMIA2026', '123456', 'STAFF-SECRET', 'STAFF123'];
 const VALID_ADMIN_PASSCODES = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026'];
 
-interface SecureGatewayProps {
-  onClose?: () => void;
-  defaultTab?: 'guest' | 'staff' | 'admin';
-}
-
-export const SecureGateway: React.FC<SecureGatewayProps> = ({ onClose, defaultTab }) => {
+export const SecureGateway: React.FC = () => {
   const { isFirebaseActive, localLogin, createServiceRequest, showToast, setOpMode } = useApp();
   
   // Tab control: 'guest' | 'staff' | 'admin'
-  const [activeRoleTab, setActiveRoleTab] = useState<'guest' | 'staff' | 'admin'>(defaultTab || 'guest');
+  const [activeRoleTab, setActiveRoleTab] = useState<'guest' | 'staff' | 'admin'>('guest');
   
   // Nested forms mode (for staff & admin)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -111,7 +106,6 @@ export const SecureGateway: React.FC<SecureGatewayProps> = ({ onClose, defaultTa
         type: 'success',
         message: `🛎️ Welcome, ${trimmedName}! Proceeded to Guest view.`
       });
-      if (onClose) onClose();
     } catch (err: any) {
       setError(err.message || 'An error occurred during guest registration.');
     } finally {
@@ -301,7 +295,6 @@ export const SecureGateway: React.FC<SecureGatewayProps> = ({ onClose, defaultTa
               type: 'success',
               message: `🔑 ${role === 'admin' ? 'Admin' : 'Staff'} account created successfully! Logged in as ${name}.`
             });
-            if (onClose) onClose();
           }
         } else {
           const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
@@ -333,7 +326,6 @@ export const SecureGateway: React.FC<SecureGatewayProps> = ({ onClose, defaultTa
               type: 'success',
               message: `👋 Welcome back, ${loggedInName}!`
             });
-            if (onClose) onClose();
           }
         }
       } catch (err: any) {
@@ -382,7 +374,6 @@ export const SecureGateway: React.FC<SecureGatewayProps> = ({ onClose, defaultTa
             type: 'success',
             message: `🔑 ${role === 'admin' ? 'Admin' : 'Staff'} account created! Welcome, ${name}.`
           });
-          if (onClose) onClose();
         } else {
           const found = usersList.find(u => u.email === emailLower);
           const resolvedName = found ? found.name : (isAdmin ? 'Admin Administrator' : 'Front Desk Specialist');
@@ -395,7 +386,6 @@ export const SecureGateway: React.FC<SecureGatewayProps> = ({ onClose, defaultTa
             type: 'success',
             message: `👋 Welcome back, ${resolvedName}!`
           });
-          if (onClose) onClose();
         }
       } catch (err: any) {
         setError('Authentication failed.');
@@ -406,39 +396,29 @@ export const SecureGateway: React.FC<SecureGatewayProps> = ({ onClose, defaultTa
   };
 
   return (
-    <div className={`flex flex-col justify-center items-center relative overflow-hidden font-sans ${onClose ? 'py-4 px-2 w-full max-w-xl mx-auto' : 'min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8'}`}>
+    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
       
       {/* 1. Subtle Background Accent - Clean White Theme */}
-      {!onClose && <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-teal-50/80 via-slate-50/50 to-slate-50 pointer-events-none" />}
-      {!onClose && <div className="absolute top-12 left-1/3 w-96 h-96 bg-emerald-100/50 rounded-full blur-3xl pointer-events-none" />}
-      {!onClose && <div className="absolute top-24 right-1/4 w-80 h-80 bg-teal-100/40 rounded-full blur-3xl pointer-events-none" />}
+      <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-teal-50/80 via-slate-50/50 to-slate-50 pointer-events-none" />
+      <div className="absolute top-12 left-1/3 w-96 h-96 bg-emerald-100/50 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-24 right-1/4 w-80 h-80 bg-teal-100/40 rounded-full blur-3xl pointer-events-none" />
 
       {/* 2. Brand Header Title */}
-      <div className="relative z-10 w-full max-w-xl text-center mb-4 px-4">
-        <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1 bg-white border border-slate-200 rounded-full shadow-xs mb-2">
+      <div className="relative z-10 w-full max-w-xl text-center mb-6 px-4">
+        <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1 bg-white border border-slate-200 rounded-full shadow-xs mb-3">
           <Hotel className="w-4 h-4 text-teal-600" />
           <span className="text-[11px] font-mono tracking-wider text-slate-700 uppercase font-bold">Dhanmondi</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl font-serif font-black text-slate-900 tracking-tight">
+        <h1 className="text-3xl sm:text-4xl font-serif font-black text-slate-900 tracking-tight">
           Islamia Guest House
         </h1>
-        <p className="text-xs text-slate-600 mt-1 font-medium max-w-md mx-auto leading-relaxed">
-          Security &amp; Authentication Gateway
+        <p className="text-xs sm:text-sm text-slate-600 mt-1.5 font-medium max-w-md mx-auto leading-relaxed">
+          Welcome to Islamia Reception & Security Gateway. Select your role below to proceed.
         </p>
       </div>
 
       {/* 3. Central Login Card Modal - Crisp White Background */}
-      <div className="relative z-10 bg-white border border-slate-200/90 rounded-3xl w-full max-w-xl shadow-2xl flex flex-col overflow-hidden animate-scaleUp">
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-3 right-3 z-30 p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition cursor-pointer"
-            title="Close & Return to Guest View"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        )}
+      <div className="relative z-10 bg-white border border-slate-200/90 rounded-3xl w-full max-w-xl shadow-xl shadow-slate-200/80 flex flex-col overflow-hidden animate-scaleUp">
         
         {/* Tabbed Navigation - Clean Light Segmented Control */}
         <div className="bg-slate-100 p-1.5 flex border-b border-slate-200 gap-1">
