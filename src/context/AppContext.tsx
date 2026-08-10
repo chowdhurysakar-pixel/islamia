@@ -502,21 +502,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, isFirebaseActive]);
 
-  // Sync to local storage for instant browser persistence (e.g. Vercel hosting)
+  // Sync to local storage for instant lifetime persistence
   useEffect(() => {
-    if (rooms) {
+    if (rooms && rooms.length > 0) {
       localStorage.setItem('hotel_rooms', JSON.stringify(rooms));
     }
   }, [rooms]);
 
   useEffect(() => {
-    if (bookings) {
+    if (bookings && bookings.length > 0) {
       localStorage.setItem('hotel_bookings', JSON.stringify(bookings));
     }
   }, [bookings]);
 
   useEffect(() => {
-    if (serviceRequests) {
+    if (serviceRequests && serviceRequests.length > 0) {
       localStorage.setItem('hotel_services', JSON.stringify(serviceRequests));
     }
   }, [serviceRequests]);
@@ -559,20 +559,60 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentRole(role);
     localStorage.setItem('hotel_current_user', JSON.stringify(fakeProfile));
     localStorage.setItem('hotel_current_role', role);
+
+    // If logging in as staff/admin, restore lifetime guest records & reception logs from storage
+    if (role === 'staff' || role === 'admin') {
+      const stored = localStorage.getItem('hotel_bookings');
+      if (stored) {
+        try {
+          setBookings(JSON.parse(stored));
+        } catch (e) {
+          setBookings(INITIAL_BOOKINGS);
+        }
+      } else {
+        setBookings(INITIAL_BOOKINGS);
+        localStorage.setItem('hotel_bookings', JSON.stringify(INITIAL_BOOKINGS));
+      }
+
+      const storedServ = localStorage.getItem('hotel_services');
+      if (storedServ) {
+        try {
+          setServiceRequests(JSON.parse(storedServ));
+        } catch (e) {
+          setServiceRequests(INITIAL_SERVICES);
+        }
+      } else {
+        setServiceRequests(INITIAL_SERVICES);
+        localStorage.setItem('hotel_services', JSON.stringify(INITIAL_SERVICES));
+      }
+    }
   };
 
   const logout = async () => {
+    // 1. Clear session storage authorization gates
+    try {
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn("sessionStorage clear notice:", e);
+    }
+
+    // 2. Clear user session while preserving lifetime database logs in storage
+    localStorage.removeItem('hotel_current_user');
+    localStorage.removeItem('pending_google_role');
+    localStorage.setItem('hotel_current_role', 'guest');
+
+    // 3. Reset active user state (Access Control: requires authentication to view logs)
+    setCurrentUser(null);
+    setCurrentRole('guest');
+    setOpMode('receptionist');
+
+    // 4. Firebase SignOut if active
     if (isFirebaseActive && auth) {
       try {
         await signOut(auth);
       } catch (error) {
         console.error("Signout failed:", error);
       }
-    } else {
-      setCurrentUser(null);
-      setCurrentRole('guest');
-      localStorage.removeItem('hotel_current_user');
-      localStorage.setItem('hotel_current_role', 'guest');
     }
   };
 

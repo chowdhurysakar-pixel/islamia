@@ -20,6 +20,7 @@ export const StaffView: React.FC = () => {
     rooms, 
     bookings, 
     serviceRequests, 
+    currentUser,
     addRoom, 
     updateRoomStatus, 
     editRoomDetails,
@@ -135,6 +136,27 @@ export const StaffView: React.FC = () => {
       setNewImage('');
     }
   }, [selectedRoomToManage]);
+
+  // Auto-clear guest information form inputs, search fields, and modals on logout or user role switch
+  React.useEffect(() => {
+    if (!currentUser || (currentUser.role !== 'staff' && currentUser.role !== 'admin')) {
+      setBookingSearch('');
+      setGuestHistoryPhoneSearch('');
+      setSelectedHistoryGuestPhone('');
+      setPosCustomerName('');
+      setPosCustomerPhone('');
+      setPosCustomerNid('');
+      setPosCustomerUpazila('');
+      setPosCustomerZila('');
+      setPosCustomBill('');
+      setReceptionistGuests([]);
+      setReceptionistKids([]);
+      setPosReferenceName('');
+      setShowBillModal(false);
+      setInvoiceBooking(null);
+      setSelectedRoomToManage(null);
+    }
+  }, [currentUser]);
 
   // Stats Analytics Calculations
   const stats = useMemo(() => {
