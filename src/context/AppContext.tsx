@@ -90,11 +90,6 @@ interface AppContextType {
   submitFeedback: (rating: number, comment: string) => Promise<void>;
   opMode: 'receptionist' | 'hr' | 'admin';
   setOpMode: (mode: 'receptionist' | 'hr' | 'admin') => void;
-  // Gateway Modal Control
-  isLoginModalOpen: boolean;
-  loginModalInitialTab: 'guest' | 'staff' | 'admin';
-  openLoginModal: (tab?: 'guest' | 'staff' | 'admin') => void;
-  closeLoginModal: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -155,17 +150,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
   const [otps, setOtps] = useState<Record<string, string>>({});
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
-  const [loginModalInitialTab, setLoginModalInitialTab] = useState<'guest' | 'staff' | 'admin'>('guest');
-
-  const openLoginModal = (tab: 'guest' | 'staff' | 'admin' = 'guest') => {
-    setLoginModalInitialTab(tab);
-    setIsLoginModalOpen(true);
-  };
-
-  const closeLoginModal = () => {
-    setIsLoginModalOpen(false);
-  };
 
   // Initialize and run connection tests
   useEffect(() => {
@@ -1313,11 +1297,7 @@ Islamia Guest House, Dhanmondi`;
       updateServiceRequestStatus,
       submitFeedback,
       opMode,
-      setOpMode,
-      isLoginModalOpen,
-      loginModalInitialTab,
-      openLoginModal,
-      closeLoginModal
+      setOpMode
     }}>
       {children}
     </AppContext.Provider>
