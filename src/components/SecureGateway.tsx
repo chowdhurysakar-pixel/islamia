@@ -69,41 +69,7 @@ export const SecureGateway: React.FC = () => {
   const [receptionistAlerted, setReceptionistAlerted] = useState(false);
 
   // Clear notices and states when switching tabs
- const handleGuestProceed = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setError('');
-  setSuccess('');
-
-  const trimmedName = guestName.trim();
-  const trimmedEmail = guestEmail.trim().toLowerCase();
-
-  if (!trimmedName) {
-    setError('Please provide your Full Name to proceed.');
-    return;
-  }
-  if (!trimmedEmail || !trimmedEmail.includes('@')) {
-    setError('Please enter a valid email address.');
-    return;
-  }
-
-  setIsLoading(true);
-  try {
-    // 1. Log in locally as guest
-    localLogin('guest', trimmedEmail, trimmedName);
-    
-    // 2. Explicitly switch mode to guest view
-    setOpMode('guest'); 
-    
-    showToast({
-      type: 'success',
-      message: `🛎️ Welcome, ${trimmedName}! Proceeded to Guest view.`
-    });
-  } catch (err: any) {
-    setError(err.message || 'An error occurred during guest registration.');
-  } finally {
-    setIsLoading(false);
-  }
-};
+  const handleTabChange = (role: 'guest' | 'staff' | 'admin') => {
     setActiveRoleTab(role);
     setError('');
     setSuccess('');
@@ -124,18 +90,19 @@ export const SecureGateway: React.FC = () => {
       setError('Please provide your Full Name to proceed.');
       return;
     }
-    if (!trimmedEmail) {
-      setError('Please enter your Email Address.');
-      return;
-    }
-    if (!trimmedEmail.includes('@') || trimmedEmail.length < 5) {
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
       setError('Please enter a valid email address.');
       return;
     }
 
     setIsLoading(true);
     try {
+      // 1. Log in locally as guest
       localLogin('guest', trimmedEmail, trimmedName);
+      
+      // 2. Explicitly switch mode to guest view
+      setOpMode('guest'); 
+      
       showToast({
         type: 'success',
         message: `🛎️ Welcome, ${trimmedName}! Proceeded to Guest view.`
@@ -259,7 +226,6 @@ export const SecureGateway: React.FC = () => {
 
     // Security Verification:
     if (isAdmin) {
-      // Creating or logging into an Admin account requires the Admin Master Key (e.g. ADMIN2026)
       const cleanAdminKey = adminMasterKey.trim().toUpperCase();
       const isKeyValid = VALID_ADMIN_PASSCODES.includes(cleanAdminKey);
 
@@ -269,7 +235,6 @@ export const SecureGateway: React.FC = () => {
       }
 
       if (authMode === 'signin' && !isKeyValid) {
-        // Also check if existing stored admin user
         const storedUsers = localStorage.getItem('hotel_registered_users');
         const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'admin');
@@ -280,7 +245,6 @@ export const SecureGateway: React.FC = () => {
         }
       }
     } else {
-      // Staff Security Gate
       const cleanSecretPasscode = staffSecretPasscode.trim().toUpperCase();
       const isSecretValid = VALID_STAFF_PASSCODES.includes(cleanSecretPasscode);
       
@@ -432,12 +396,12 @@ export const SecureGateway: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
       
-      {/* 1. Subtle Background Accent - Clean White Theme */}
+      {/* Background Accent */}
       <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-teal-50/80 via-slate-50/50 to-slate-50 pointer-events-none" />
       <div className="absolute top-12 left-1/3 w-96 h-96 bg-emerald-100/50 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-24 right-1/4 w-80 h-80 bg-teal-100/40 rounded-full blur-3xl pointer-events-none" />
 
-      {/* 2. Brand Header Title */}
+      {/* Brand Header Title */}
       <div className="relative z-10 w-full max-w-xl text-center mb-6 px-4">
         <div className="inline-flex items-center justify-center gap-2 px-3.5 py-1 bg-white border border-slate-200 rounded-full shadow-xs mb-3">
           <Hotel className="w-4 h-4 text-teal-600" />
@@ -451,13 +415,14 @@ export const SecureGateway: React.FC = () => {
         </p>
       </div>
 
-      {/* 3. Central Login Card Modal - Crisp White Background */}
+      {/* Central Login Card Modal */}
       <div className="relative z-10 bg-white border border-slate-200/90 rounded-3xl w-full max-w-xl shadow-xl shadow-slate-200/80 flex flex-col overflow-hidden animate-scaleUp">
         
-        {/* Tabbed Navigation - Clean Light Segmented Control */}
+        {/* Tabbed Navigation */}
         <div className="bg-slate-100 p-1.5 flex border-b border-slate-200 gap-1">
           {/* Guest Tab */}
           <button
+            type="button"
             onClick={() => handleTabChange('guest')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition-all rounded-xl cursor-pointer ${
               activeRoleTab === 'guest'
@@ -471,6 +436,7 @@ export const SecureGateway: React.FC = () => {
 
           {/* Staff Tab */}
           <button
+            type="button"
             onClick={() => handleTabChange('staff')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition-all rounded-xl cursor-pointer ${
               activeRoleTab === 'staff'
@@ -484,6 +450,7 @@ export const SecureGateway: React.FC = () => {
 
           {/* Admin / HR Tab */}
           <button
+            type="button"
             onClick={() => handleTabChange('admin')}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold transition-all rounded-xl cursor-pointer ${
               activeRoleTab === 'admin'
@@ -637,27 +604,50 @@ export const SecureGateway: React.FC = () => {
             </div>
           )}
 
-          {/* ----------------- TAB B: STAFF LOGIN / SIGNUP FORM ----------------- */}
-          {activeRoleTab === 'staff' && (
+          {/* ----------------- TAB B & C: STAFF / ADMIN AUTH FORM ----------------- */}
+          {(activeRoleTab === 'staff' || activeRoleTab === 'admin') && (
             <div className="space-y-4">
               <div className="text-center space-y-1">
                 <h3 className="text-sm font-bold text-slate-800">
-                  {authMode === 'signin' ? 'Staff Portal Sign In' : 'Register New Staff Profile'}
+                  {activeRoleTab === 'admin' 
+                    ? (authMode === 'signin' ? 'HR & Admin Portal Sign In' : 'Register New Admin Account')
+                    : (authMode === 'signin' ? 'Staff Portal Sign In' : 'Register New Staff Profile')
+                  }
                 </h3>
                 <p className="text-xs text-slate-500">
                   {authMode === 'signin' 
-                    ? 'Access Front Desk room allocation, booking checkout, and bill printing.'
-                    : 'Create a staff profile. Authorized staff passcode key required.'}
+                    ? 'Enter your credentials to access management controls.'
+                    : 'Create an authorized profile. Passcode key required.'}
                 </p>
               </div>
 
+              {/* Mode Toggle Switch */}
+              <div className="flex justify-center bg-slate-100 p-1 rounded-xl max-w-xs mx-auto text-xs">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('signin')}
+                  className={`flex-1 py-1.5 font-semibold rounded-lg transition ${
+                    authMode === 'signin' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Sign In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('signup')}
+                  className={`flex-1 py-1.5 font-semibold rounded-lg transition ${
+                    authMode === 'signup' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  Register
+                </button>
+              </div>
+
               <form onSubmit={handleSecureAuth} className="space-y-3.5">
-                {/* Staff Full Name (Signup Only) */}
+                {/* Full Name (Signup Only) */}
                 {authMode === 'signup' && (
                   <div className="space-y-1.5 animate-fadeIn">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Full Name *
-                    </label>
+                    <label className="block text-xs font-semibold text-slate-700">Full Name *</label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                         <User className="w-4 h-4" />
@@ -665,71 +655,47 @@ export const SecureGateway: React.FC = () => {
                       <input
                         type="text"
                         required
-                        value={staffName}
-                        onChange={(e) => setStaffName(e.target.value)}
-                        placeholder="e.g. Frontdesk Staff Name"
+                        value={activeRoleTab === 'admin' ? adminName : staffName}
+                        onChange={(e) => activeRoleTab === 'admin' ? setAdminName(e.target.value) : setStaffName(e.target.value)}
+                        placeholder="e.g. Executive Officer"
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
                       />
                     </div>
                   </div>
                 )}
 
-                {/* Email and Phone */}
-                {authMode === 'signup' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Corporate Email *
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="email"
-                          required
-                          value={staffEmail}
-                          onChange={(e) => setStaffEmail(e.target.value)}
-                          placeholder="staff@islamiaguesthouse.com"
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                        />
-                      </div>
+                {/* Email Address */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">Corporate Email *</label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Mail className="w-4 h-4" />
                     </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Phone Number *
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                          <Phone className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="tel"
-                          required
-                          value={staffPhone}
-                          onChange={(e) => setStaffPhone(e.target.value)}
-                          placeholder="01909-806960"
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                        />
-                      </div>
-                    </div>
+                    <input
+                      type="email"
+                      required
+                      value={activeRoleTab === 'admin' ? adminEmail : staffEmail}
+                      onChange={(e) => activeRoleTab === 'admin' ? setAdminEmail(e.target.value) : setStaffEmail(e.target.value)}
+                      placeholder="user@islamiaguesthouse.com"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
+                    />
                   </div>
-                ) : (
+                </div>
+
+                {/* Phone (Signup Only) */}
+                {authMode === 'signup' && (
                   <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Staff Corporate Email *
-                    </label>
+                    <label className="block text-xs font-semibold text-slate-700">Phone Number *</label>
                     <div className="relative">
                       <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                        <Mail className="w-4 h-4" />
+                        <Phone className="w-4 h-4" />
                       </div>
                       <input
-                        type="email"
+                        type="tel"
                         required
-                        value={staffEmail}
-                        onChange={(e) => setStaffEmail(e.target.value)}
-                        placeholder="staff@islamiaguesthouse.com"
+                        value={activeRoleTab === 'admin' ? adminPhone : staffPhone}
+                        onChange={(e) => activeRoleTab === 'admin' ? setAdminPhone(e.target.value) : setStaffPhone(e.target.value)}
+                        placeholder="01909-806960"
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
                       />
                     </div>
@@ -738,9 +704,18 @@ export const SecureGateway: React.FC = () => {
 
                 {/* Password */}
                 <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Password *
-                  </label>
+                  <div className="flex justify-between items-center">
+                    <label className="block text-xs font-semibold text-slate-700">Password *</label>
+                    {authMode === 'signin' && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenForgotPassword(activeRoleTab === 'admin' ? adminEmail : staffEmail)}
+                        className="text-[11px] font-semibold text-teal-600 hover:text-teal-800 transition cursor-pointer"
+                      >
+                        Forgot Password?
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                       <Key className="w-4 h-4" />
@@ -748,385 +723,132 @@ export const SecureGateway: React.FC = () => {
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
-                      value={staffPassword}
-                      onChange={(e) => setStaffPassword(e.target.value)}
+                      value={activeRoleTab === 'admin' ? adminPassword : staffPassword}
+                      onChange={(e) => activeRoleTab === 'admin' ? setAdminPassword(e.target.value) : setStaffPassword(e.target.value)}
                       placeholder="••••••••"
                       className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <div className="flex justify-end pt-0.5">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenForgotPassword(staffEmail)}
-                      className="text-[11px] text-teal-600 hover:text-teal-700 transition underline decoration-teal-300 cursor-pointer font-medium"
-                    >
-                      Forgot Password?
-                    </button>
-                  </div>
                 </div>
 
-                {/* Staff ID Secret Passcode */}
-                <div className="space-y-1.5 pt-1">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Staff Passcode Key *
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <ShieldCheck className="w-4 h-4 text-teal-600" />
-                    </div>
-                    <input
-                      type="password"
-                      required
-                      value={staffSecretPasscode}
-                      onChange={(e) => setStaffSecretPasscode(e.target.value)}
-                      placeholder="Enter Staff Passcode Key"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400 font-mono"
-                    />
-                  </div>
-                  <p className="text-[10px] text-slate-500">
-                    * Authorized Staff Passcode Key required for registration &amp; sign in.
-                  </p>
-                </div>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition shadow-md shadow-teal-600/20 cursor-pointer pt-3"
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-white" />
-                  ) : (
-                    <>
-                      <LogIn className="w-4 h-4 text-white" />
-                      <span>{authMode === 'signin' ? 'Sign In as Staff' : 'Register New Staff Profile'}</span>
-                    </>
-                  )}
-                </button>
-
-                {/* Toggle Mode */}
-                <div className="text-center pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
-                    className="text-[11px] text-slate-600 hover:text-teal-700 transition underline cursor-pointer"
-                  >
-                    {authMode === 'signin' 
-                      ? 'Need a staff profile? Register account here' 
-                      : 'Already registered? Sign In here'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {/* ----------------- TAB C: ADMIN / HR PORTAL ----------------- */}
-          {activeRoleTab === 'admin' && (
-            <div className="space-y-4">
-              <div className="text-center space-y-1">
-                <div className="inline-flex items-center gap-1.5 px-3 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[10px] font-bold font-mono">
-                  <Lock className="w-3 h-3 text-amber-600" />
-                  <span>EXECUTIVE LEVEL</span>
-                </div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  {authMode === 'signin' ? 'Sign In as Executive Admin / HR' : 'Create Admin Account'}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  {authMode === 'signin' 
-                    ? 'Access revenue reports, tariff manager, staff approval, and system settings.'
-                    : 'Create a new Admin Administrator account. Executive Admin Master Key required.'}
-                </p>
-              </div>
-
-              <form onSubmit={handleSecureAuth} className="space-y-3.5">
-                {/* Admin Full Name (Signup Only) */}
-                {authMode === 'signup' && (
-                  <div className="space-y-1.5 animate-fadeIn">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Full Name *
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                        <User className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="text"
-                        required
-                        value={adminName}
-                        onChange={(e) => setAdminName(e.target.value)}
-                        placeholder="e.g. Sakar Chowdhury (Admin)"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Admin Email & Phone */}
-                {authMode === 'signup' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Admin Corporate Email *
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                          <Mail className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="email"
-                          required
-                          value={adminEmail}
-                          onChange={(e) => setAdminEmail(e.target.value)}
-                          placeholder="admin@islamiaguesthouse.com"
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Phone Number *
-                      </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                          <Phone className="w-4 h-4" />
-                        </div>
-                        <input
-                          type="tel"
-                          required
-                          value={adminPhone}
-                          onChange={(e) => setAdminPhone(e.target.value)}
-                          placeholder="01832-841818"
-                          className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Admin Corporate Email *
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                        <Mail className="w-4 h-4" />
-                      </div>
-                      <input
-                        type="email"
-                        required
-                        value={adminEmail}
-                        onChange={(e) => setAdminEmail(e.target.value)}
-                        placeholder="admin@islamiaguesthouse.com"
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Admin Password */}
+                {/* Passcode / Master Key */}
                 <div className="space-y-1.5">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Password *
+                    {activeRoleTab === 'admin' ? 'Admin Master Key *' : 'Staff Passcode Key *'}
                   </label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <Key className="w-4 h-4" />
-                    </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  <div className="flex justify-end pt-0.5">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenForgotPassword(adminEmail)}
-                      className="text-[11px] text-amber-700 hover:text-amber-800 transition underline decoration-amber-300 cursor-pointer font-medium"
-                    >
-                      Forgot Password?
-                    </button>
-                  </div>
-                </div>
-
-                {/* Admin Master Passcode Key */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex justify-between items-center">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Admin Master Passcode *
-                    </label>
-                    <span className="text-[10px] text-amber-700 font-mono font-bold">Admin Security Gate</span>
-                  </div>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <KeyRound className="w-4 h-4 text-amber-600" />
+                      <KeyRound className="w-4 h-4" />
                     </div>
                     <input
                       type="password"
                       required
-                      value={adminMasterKey}
-                      onChange={(e) => setAdminMasterKey(e.target.value)}
-                      placeholder="Enter Admin Master Passcode"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-amber-500 text-slate-900 rounded-xl text-xs font-mono font-bold transition focus:outline-none placeholder:text-slate-400"
+                      value={activeRoleTab === 'admin' ? adminMasterKey : staffSecretPasscode}
+                      onChange={(e) => activeRoleTab === 'admin' ? setAdminMasterKey(e.target.value) : setStaffSecretPasscode(e.target.value)}
+                      placeholder={activeRoleTab === 'admin' ? 'e.g. ADMIN2026' : 'e.g. STAFF123'}
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none uppercase placeholder:text-slate-400"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500">
-                    * Admin creation and login requires executive master security passcode.
-                  </p>
                 </div>
 
-                {/* Submit button */}
+                {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition shadow-md shadow-amber-600/20 cursor-pointer"
+                  className={`w-full flex items-center justify-center gap-2 py-3 px-4 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer mt-2 ${
+                    activeRoleTab === 'admin' 
+                      ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20' 
+                      : 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'
+                  }`}
                 >
                   {isLoading ? (
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
                   ) : (
                     <>
-                      <ShieldCheck className="w-4 h-4 text-white" />
-                      <span>{authMode === 'signin' ? 'Sign In as Admin' : 'Create Admin Account'}</span>
+                      <LogIn className="w-4 h-4" />
+                      <span>{authMode === 'signin' ? 'Sign In to Portal' : 'Create Account'}</span>
                     </>
                   )}
                 </button>
-
-                {/* Toggle Mode */}
-                <div className="text-center pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode(authMode === 'signin' ? 'signup' : 'signin')}
-                    className="text-[11px] text-slate-600 hover:text-amber-700 transition underline cursor-pointer"
-                  >
-                    {authMode === 'signin' 
-                      ? 'Want to create a new Admin account? Register here' 
-                      : 'Already have an Admin account? Sign In here'}
-                  </button>
-                </div>
               </form>
             </div>
           )}
 
         </div>
-
-        {/* Modal Footer */}
-        <div className="bg-slate-50 px-6 py-3 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center text-[10px] text-slate-500 font-mono gap-1">
-          <span>Islamia Reception Security Gateway v4.8</span>
-          <div className="flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-            <span>Dhanmondi</span>
-          </div>
-        </div>
-
       </div>
 
-      {/* Forgot Password Modal Dialog */}
+      {/* Forgot Password Modal */}
       {showForgotPasswordModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 relative">
-            <button
-              type="button"
-              onClick={() => setShowForgotPasswordModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center cursor-pointer text-xs font-bold"
-            >
-              ✕
-            </button>
-
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-3">
-              <div className="p-2.5 bg-teal-50 text-teal-600 rounded-2xl border border-teal-100">
-                <Key className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-800">Reset Password</h3>
-                <p className="text-xs text-slate-500">Receive a password reset link by email.</p>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-teal-600" />
+                Reset Password
+              </h3>
+              <button
+                onClick={() => setShowForgotPasswordModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
             </div>
 
             {forgotError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
                 <span>{forgotError}</span>
               </div>
             )}
 
-            {forgotStatus ? (
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs text-emerald-900 space-y-3">
-                <div className="flex items-center gap-2 font-bold text-emerald-800">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>Password Reset Link Sent</span>
-                </div>
-                <p className="leading-relaxed">{forgotStatus}</p>
+            {forgotStatus && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                <span>{forgotStatus}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleForgotPasswordSubmit} className="space-y-3">
+              <p className="text-xs text-slate-600">
+                Enter your registered corporate email below and we will send password reset instructions.
+              </p>
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-slate-700">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="your.email@islamiaguesthouse.com"
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowForgotPasswordModal(false)}
-                  className="w-full py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition cursor-pointer"
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
                 >
-                  Return to Gateway
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  {forgotLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  <span>Send Request</span>
                 </button>
               </div>
-            ) : (
-              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Registered Email Address *
-                  </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <Mail className="w-4 h-4" />
-                    </div>
-                    <input
-                      type="email"
-                      required
-                      value={forgotEmail}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="e.g. user@islamiaguesthouse.com"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowForgotPasswordModal(false)}
-                    className="flex-1 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={forgotLoading}
-                    className="flex-1 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
-                  >
-                    {forgotLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 text-white" />
-                        <span>Send Reset Link</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            )}
+            </form>
           </div>
         </div>
       )}
