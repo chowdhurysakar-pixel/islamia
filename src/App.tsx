@@ -148,7 +148,7 @@ const MainLayout: React.FC = () => {
                     <span className="text-[9px] text-slate-400 font-mono block leading-none mt-0.5 capitalize">
   {currentUser.role !== 'guest' 
     ? currentUser.role 
-    : (opMode === 'admin' ? 'HR / Admin' : opMode === 'hr' ? 'HR Manager' : 'Staff')}
+    : (opMode === 'admin' ? 'Admin' : opMode === 'hr' ? 'HR Manager' : 'Staff')}
 </span>
                   </div>
                   <button
