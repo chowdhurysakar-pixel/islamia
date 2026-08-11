@@ -69,7 +69,41 @@ export const SecureGateway: React.FC = () => {
   const [receptionistAlerted, setReceptionistAlerted] = useState(false);
 
   // Clear notices and states when switching tabs
-  const handleTabChange = (role: 'guest' | 'staff' | 'admin') => {
+ const handleGuestProceed = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError('');
+  setSuccess('');
+
+  const trimmedName = guestName.trim();
+  const trimmedEmail = guestEmail.trim().toLowerCase();
+
+  if (!trimmedName) {
+    setError('Please provide your Full Name to proceed.');
+    return;
+  }
+  if (!trimmedEmail || !trimmedEmail.includes('@')) {
+    setError('Please enter a valid email address.');
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    // 1. Log in locally as guest
+    localLogin('guest', trimmedEmail, trimmedName);
+    
+    // 2. Explicitly switch mode to guest view
+    setOpMode('guest'); 
+    
+    showToast({
+      type: 'success',
+      message: `🛎️ Welcome, ${trimmedName}! Proceeded to Guest view.`
+    });
+  } catch (err: any) {
+    setError(err.message || 'An error occurred during guest registration.');
+  } finally {
+    setIsLoading(false);
+  }
+};
     setActiveRoleTab(role);
     setError('');
     setSuccess('');
