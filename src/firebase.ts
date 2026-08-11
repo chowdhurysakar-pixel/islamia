@@ -144,5 +144,5 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error Detailed Logs: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
+initFirebase();
 export { firebaseApp, dbInstance as db, authInstance as auth, isFirebaseAvailable };
