@@ -3,15 +3,14 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { GuestView } from './components/GuestView';
 import { StaffView } from './components/StaffView';
 import { AdminPanel } from './components/AdminPanel';
 import { SecureGateway } from './components/SecureGateway';
-import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink } from 'lucide-react';
-import { UserRole } from './types';
+import { Loader2, Mail, CheckCircle, ExternalLink, X, LogOut } from 'lucide-react';
 
 const ToastNotification: React.FC = () => {
   const { activeToast, dismissToast } = useApp();
@@ -90,8 +89,15 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // Staff or Admin View
-  if (currentRole === 'staff' || currentRole === 'admin') {
+  // ✅ সমাধান লজিক: currentRole অথবা currentUser.role যেকোনোটি staff বা admin হলে স্টাফ পোর্টালে পাঠাবে
+  const isStaffOrAdmin = 
+    currentRole === 'staff' || 
+    currentRole === 'admin' || 
+    currentUser?.role === 'staff' || 
+    currentUser?.role === 'admin';
+
+  if (isStaffOrAdmin) {
+    // লগইন না থাকলে সিকিউর গেটওয়ে (লগইন স্ক্রিন) দেখাবে
     if (!currentUser) {
       return (
         <>
@@ -101,6 +107,7 @@ const MainLayout: React.FC = () => {
       );
     }
 
+    // লগইন থাকলে স্টাফ/এডমিন ভিউ রেন্ডার করবে
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col">
         {/* Header with Role Simulation Switcher */}
@@ -171,7 +178,7 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // Guest View: Render full luxury hotel website directly
+  // Guest View: সাধারণ গেস্টদের জন্য গেস্ট ভিউ রেন্ডার করবে
   return (
     <div className="min-h-screen bg-[#f8f4ec] w-full">
       <GuestView />
