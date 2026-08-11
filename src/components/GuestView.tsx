@@ -223,7 +223,7 @@ export const GuestView: React.FC = () => {
       setUserRating(5);
     } catch (err) {
       console.error(err);
-    } finally {
+    } font-bold {
       setSubmittingFeedback(false);
     }
   };
