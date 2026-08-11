@@ -1,5 +1,10 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
 import { doc, getDoc, collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase'; // Adjust relative path if needed
 
@@ -18,7 +23,15 @@ interface AppContextType {
   userProfile: UserProfile | null;
   currentRole: UserRole;
   loading: boolean;
-  // Added safe array states with [] defaults to prevent .filter() white screen errors
+  
+  // Navigation & Gateway Modal State (Fixes "m is not a function")
+  opMode: string;
+  setOpMode: (mode: string) => void;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  logout: () => Promise<void>;
+
+  // Data Arrays
   bookings: any[];
   rooms: any[];
   usersList: UserProfile[];
@@ -32,10 +45,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentRole, setCurrentRole] = useState<UserRole>('guest');
   const [loading, setLoading] = useState<boolean>(true);
 
-  // Initialize all arrays with [] to guarantee .filter() never operates on undefined
+  // App Navigation & Modal States
+  const [opMode, setOpMode] = useState<string>('guest');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+
+  // Safe Array Defaults
   const [bookings, setBookings] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<UserProfile[]>([]);
+
+  // Sign out handler
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setUserProfile(null);
+      setCurrentRole('guest');
+      setOpMode('guest');
+      setIsAuthModalOpen(false);
+    } catch (err) {
+      console.error("Error signing out:", err);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -83,17 +114,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, []);
 
-  // Real-time Firestore subscriptions with empty array fallback
+  // Real-time Firestore subscriptions with fallback handlers
   useEffect(() => {
-    const unsubBookings = onSnapshot(collection(db, 'bookings'), 
-      (snapshot) => setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
-      () => setBookings([])
-    );
+    let unsubBookings = () => {};
+    let unsubRooms = () => {};
 
-    const unsubRooms = onSnapshot(collection(db, 'rooms'), 
-      (snapshot) => setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
-      () => setRooms([])
-    );
+    try {
+      unsubBookings = onSnapshot(
+        collection(db, 'bookings'), 
+        (snapshot) => setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+        (err) => {
+          console.warn("Bookings listener fallback:", err.message);
+          setBookings([]);
+        }
+      );
+
+      unsubRooms = onSnapshot(
+        collection(db, 'rooms'), 
+        (snapshot) => setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+        (err) => {
+          console.warn("Rooms listener fallback:", err.message);
+          setRooms([]);
+        }
+      );
+    } catch (e) {
+      console.warn("Firestore collection listeners failed to initialize:", e);
+    }
 
     return () => {
       unsubBookings();
@@ -108,6 +154,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userProfile, 
         currentRole, 
         loading, 
+        opMode,
+        setOpMode,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        logout,
         bookings, 
         rooms, 
         usersList 
