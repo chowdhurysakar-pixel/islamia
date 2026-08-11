@@ -145,7 +145,11 @@ const MainLayout: React.FC = () => {
                   </div>
                   <div className="text-left hidden sm:block">
                     <span className="text-[11px] font-semibold text-slate-800 block leading-none">{currentUser.name}</span>
-                    <span className="text-[9px] text-slate-400 font-mono block leading-none mt-0.5 capitalize">{currentUser.role}</span>
+                    <span className="text-[9px] text-slate-400 font-mono block leading-none mt-0.5 capitalize">
+  {currentUser.role !== 'guest' 
+    ? currentUser.role 
+    : (opMode === 'admin' ? 'HR / Admin' : opMode === 'hr' ? 'HR Manager' : 'Staff')}
+</span>
                   </div>
                   <button
                     id="auth-logout-btn"
