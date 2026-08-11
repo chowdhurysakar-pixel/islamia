@@ -144,12 +144,13 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error Detailed Logs: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-initFirebase();
- apiKey: "AIzaSyBDhtnThyEJOeZYs4GPnQgaK1mgAcSVLcI",
+initFirebase({
+  apiKey: "AIzaSyBDhtnThyEJOeZYs4GPnQgaK1mgAcSVLcI",
   authDomain: "gen-lang-client-0139585657.firebaseapp.com",
   projectId: "gen-lang-client-0139585657",
   storageBucket: "gen-lang-client-0139585657.firebasestorage.app",
   messagingSenderId: "24979260879",
   appId: "1:24979260879:web:66e8da41201bda29d3beba"
-};
+});
+
 export { firebaseApp, dbInstance as db, authInstance as auth, isFirebaseAvailable };
