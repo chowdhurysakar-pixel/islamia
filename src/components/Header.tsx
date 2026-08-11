@@ -21,13 +21,18 @@ export const Header: React.FC = () => {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Trigger Sign In: Switch mode to 'gateway' or open auth modal
-  const handleSignIn = () => {
-    if (setIsAuthModalOpen) {
-      setIsAuthModalOpen(true);
+  // Safe Sign-In handler to prevent "is not a function" errors
+  const handleSignIn = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
     }
-    if (setOpMode) {
+
+    if (typeof setOpMode === 'function') {
       setOpMode('gateway');
+    }
+    
+    if (typeof setIsAuthModalOpen === 'function') {
+      setIsAuthModalOpen(true);
     }
   };
 
@@ -75,17 +80,17 @@ export const Header: React.FC = () => {
             bKash: 01832-841818
           </div>
 
-          {/* SIGN IN BUTTON */}
+          {/* SIGN IN / SIGN OUT BUTTON */}
           {user ? (
             <div className="flex items-center gap-2">
               <span className="hidden md:inline text-xs font-semibold text-slate-700 flex items-center gap-1">
                 <User className="w-3.5 h-3.5 text-teal-700" />
-                {user.name}
+                {user.displayName || user.email || 'User'}
               </span>
               <button
                 type="button"
-                onClick={logout}
-                className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1 rounded-md text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5 z-50 active:scale-95"
+                onClick={() => typeof logout === 'function' && logout()}
+                className="bg-slate-800 hover:bg-slate-900 text-white px-3 py-1 rounded-md text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5 z-50 active:scale-95 pointer-events-auto"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>Sign Out</span>
@@ -95,7 +100,7 @@ export const Header: React.FC = () => {
             <button
               type="button"
               onClick={handleSignIn}
-              className="bg-[#1E293B] hover:bg-teal-900 text-white px-3.5 py-1 rounded-md text-xs font-bold transition-all duration-150 shadow-xs cursor-pointer flex items-center gap-1.5 z-50 active:scale-95"
+              className="bg-[#1E293B] hover:bg-teal-900 text-white px-3.5 py-1 rounded-md text-xs font-bold transition-all duration-150 shadow-xs cursor-pointer flex items-center gap-1.5 z-50 active:scale-95 pointer-events-auto"
             >
               <span>Sign In &rarr;</span>
               <LogIn className="w-3.5 h-3.5 text-teal-400" />
@@ -109,7 +114,7 @@ export const Header: React.FC = () => {
         
         {/* Brand Logo */}
         <div 
-          onClick={() => setOpMode && setOpMode('guest')}
+          onClick={() => typeof setOpMode === 'function' && setOpMode('guest')}
           className="flex items-center gap-3 cursor-pointer group"
         >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#C8956A] to-amber-700 flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
@@ -167,7 +172,7 @@ export const Header: React.FC = () => {
         </a>
       </div>
 
-      {/* 4. Mobile Menu */}
+      {/* 4. Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div className="lg:hidden bg-white border-b border-slate-200 px-6 py-4 space-y-3 font-semibold text-sm text-slate-700 shadow-xl relative z-40">
           <a href="#chambers" onClick={() => setIsMobileMenuOpen(false)} className="block py-1.5 hover:text-teal-700">Chambers</a>
@@ -180,9 +185,9 @@ export const Header: React.FC = () => {
             {!user && (
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
                   setIsMobileMenuOpen(false);
-                  handleSignIn();
+                  handleSignIn(e);
                 }}
                 className="w-full py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
               >
