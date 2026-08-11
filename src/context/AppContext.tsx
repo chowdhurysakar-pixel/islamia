@@ -1,69 +1,165 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User as FirebaseUser, signOut } from 'firebase/auth';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
-export interface Booking {
-  id: string;
-  guestName?: string;
-  roomNumber?: string;
-  status?: string;
-  createdAt?: string;
-  [key: string]: any;
+export type UserRole = 'admin' | 'staff' | 'guest';
+
+export interface UserProfile {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  role: UserRole;
+  hrApproved?: boolean;
 }
 
 interface AppContextType {
   user: FirebaseUser | null;
-  bookings: Booking[];
+  userProfile: UserProfile | null;
+  currentRole: UserRole;
   loading: boolean;
+  
+  // Navigation & Gateway Modal State
+  opMode: string;
+  setOpMode: (mode: string) => void;
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
   logout: () => Promise<void>;
+
+  // Data Arrays
+  bookings: any[];
+  rooms: any[];
+  usersList: UserProfile[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [currentRole, setCurrentRole] = useState<UserRole>('guest');
   const [loading, setLoading] = useState<boolean>(true);
 
-  // ১. ইউজার লগইন স্টেট লিসেনার
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setLoading(false);
-    });
-    return () => unsubscribeAuth();
-  }, []);
+  // App Navigation & Modal States
+  const [opMode, setOpMode] = useState<string>('guest');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
 
-  // ২. রিয়েল-টাইম ফায়ারস্টোর লিসেনার (onSnapshot)
-  useEffect(() => {
-    const bookingsRef = collection(db, 'bookings');
+  // Safe Arrays
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [rooms, setRooms] = useState<any[]>([]);
+  const [usersList, setUsersList] = useState<UserProfile[]>([]);
 
-    // ডাটাবেজে কোনো পরিবর্তন হলে রিফ্রেস ছাড়াই স্ক্রিন আপডেট হবে
-    const unsubscribeBookings = onSnapshot(
-      bookingsRef,
-      (snapshot) => {
-        const bookingsData: Booking[] = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setBookings(bookingsData);
-      },
-      (error) => {
-        console.error("Real-time bookings fetch error:", error);
-      }
-    );
-
-    return () => unsubscribeBookings();
-  }, []);
-
+  // Sign out handler
   const logout = async () => {
-    await signOut(auth);
-    setUser(null);
+    try {
+      await signOut(auth);
+      setUser(null);
+      setUserProfile(null);
+      setCurrentRole('guest');
+      setOpMode('guest');
+      setIsAuthModalOpen(false);
+    } catch (err) {
+      console.error("Error signing out:", err);
+    }
   };
 
+  // Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      setLoading(true);
+
+      if (fbUser) {
+        setUser(fbUser);
+
+        try {
+          const userDocSnap = await getDoc(doc(db, 'users', fbUser.uid));
+          let chosenRole: UserRole = 'guest';
+
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data() as UserProfile;
+            
+            if (data.role === 'guest' || data.hrApproved === true) {
+              chosenRole = data.role;
+            }
+
+            setUserProfile({
+              ...data,
+              uid: fbUser.uid,
+              email: fbUser.email,
+              displayName: fbUser.displayName,
+              role: chosenRole,
+            });
+          } else {
+            setUserProfile(null);
+          }
+
+          setCurrentRole(chosenRole);
+        } catch (error) {
+          console.error("Error fetching user role from Firestore:", error);
+          setCurrentRole('guest');
+        }
+      } else {
+        setUser(null);
+        setUserProfile(null);
+        setCurrentRole('guest');
+      }
+
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time Firestore subscriptions (Bookings & Rooms)
+  useEffect(() => {
+    let unsubBookings = () => {};
+    let unsubRooms = () => {};
+
+    try {
+      unsubBookings = onSnapshot(
+        collection(db, 'bookings'), 
+        (snapshot) => setBookings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+        (err) => {
+          console.warn("Bookings listener fallback:", err.message);
+          setBookings([]);
+        }
+      );
+
+      unsubRooms = onSnapshot(
+        collection(db, 'rooms'), 
+        (snapshot) => setRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
+        (err) => {
+          console.warn("Rooms listener fallback:", err.message);
+          setRooms([]);
+        }
+      );
+    } catch (e) {
+      console.warn("Firestore collection listeners failed:", e);
+    }
+
+    return () => {
+      unsubBookings();
+      unsubRooms();
+    };
+  }, []);
+
   return (
-    <AppContext.Provider value={{ user, bookings, loading, logout }}>
+    <AppContext.Provider 
+      value={{ 
+        user, 
+        userProfile, 
+        currentRole, 
+        loading, 
+        opMode,
+        setOpMode,
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        logout,
+        bookings, 
+        rooms, 
+        usersList 
+      }}
+    >
       {children}
     </AppContext.Provider>
   );
