@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
@@ -112,6 +112,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
   const [otps, setOtps] = useState<Record<string, string>>({});
 
+  const hasSeededRoomsRef = useRef(false);
+  const hasSeededBookingsRef = useRef(false);
+  const hasSeededServicesRef = useRef(false);
+
   // Initialize and run connection tests
   useEffect(() => {
     let isConfigured = false;
@@ -131,7 +135,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           await getDocFromServer(doc(db, 'test', 'connection'));
         } catch (error) {
-          // Gracefully handle connection check without emitting error logs
           if (error instanceof Error && error.message.includes('the client is offline')) {
             console.log("Firestore initialized; network connection pending.");
           }
@@ -144,7 +147,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (fbUser) {
           const emailLower = fbUser.email?.toLowerCase() || '';
           
-          // Verify if they have completed email verification (only for email/password, as Google/other OAuth is verified)
           if (!fbUser.emailVerified) {
             setCurrentUser(null);
             setCurrentRole('guest');
@@ -152,14 +154,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
           }
           
-          // Retrieve pending selected role, or guess based on email / default
           let chosenRole: UserRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || (localStorage.getItem('pending_google_role') as UserRole) || 'guest';
           if (!['admin', 'staff', 'guest'].includes(chosenRole)) {
             chosenRole = (emailLower.includes('admin') || emailLower.includes('hr')) ? 'admin'
                        : (emailLower.includes('staff') || emailLower.includes('reception')) ? 'staff'
                        : 'guest';
           }
-          // Clear it now that it is consumed
           localStorage.removeItem('pending_google_role');
           localStorage.removeItem(`pending_role_${emailLower}`);
 
@@ -175,20 +175,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setCurrentUser(profile);
           setCurrentRole(chosenRole);
           
-          // Sync profile to database
           setDoc(doc(db, 'users', fbUser.uid), profile).catch(e => {
             console.error("Failed to sync user profile to Firestore:", e);
           });
         } else {
           setCurrentUser(null);
-          setCurrentRole('guest'); // No auth defaults to guest simulator
+          setCurrentRole('guest');
         }
         setIsLoading(false);
       });
 
-      // 3. Realtime collection sync with full onSnapshot listeners & error handlers
+      // 3. Realtime rooms collection sync with single-source-of-truth onSnapshot listener
       const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
         if (!snapshot.empty) {
+          hasSeededRoomsRef.current = true;
           const roomsList: Room[] = [];
           snapshot.forEach((docSnap) => {
             roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
@@ -201,17 +201,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.error("Failed saving rooms snapshot to localStorage:", e);
           }
         } else {
-          // If Firestore collection is empty, seed initial rooms into Firestore
-          INITIAL_ROOMS.forEach(async (room) => {
+          // If Firestore rooms collection is completely empty, seed initial rooms ONCE into Firestore
+          if (!hasSeededRoomsRef.current) {
+            hasSeededRoomsRef.current = true;
+            console.log("Firestore rooms collection is empty. Seeding initial rooms...");
+            INITIAL_ROOMS.forEach(async (room) => {
+              try {
+                await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
+              } catch (e) {
+                console.warn("Failed to seed initial room:", e);
+              }
+            });
+          } else {
+            setRooms([]);
             try {
-              await setDoc(doc(db, 'rooms', room.id), room);
+              localStorage.setItem('hotel_rooms', JSON.stringify([]));
             } catch (e) {
-              console.warn("Failed to seed initial room:", e);
+              console.error("Failed saving empty rooms to localStorage:", e);
             }
-          });
+          }
         }
       }, (error) => {
-        console.warn("Firestore rooms listener warning:", error);
+        handleFirestoreError(error, OperationType.GET, 'rooms');
       });
 
       const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
@@ -289,7 +300,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFeedbacks(initialFeedbacks);
       }
 
-      // Initialize seed registered users list for simulation testing
       const storedRegistered = localStorage.getItem('hotel_registered_users');
       if (!storedRegistered) {
         const defaultRegistered: UserProfile[] = [
@@ -318,13 +328,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (storedRole) {
         setCurrentRole(storedRole as UserRole);
       } else {
-        setCurrentRole('guest'); // Default is guest until logged in
+        setCurrentRole('guest');
       }
 
       if (storedUser) {
         setCurrentUser(JSON.parse(storedUser));
       } else {
-        // Everybody starts logged out! No default simulated user is auto-set
         setCurrentUser(null);
       }
 
@@ -332,31 +341,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isFirebaseActive]);
 
-  // Seeding trigger for empty live Firestore databases (requires staff/admin authentication)
-  useEffect(() => {
-    if (isFirebaseActive && rooms.length === 0 && currentUser && (currentUser.role === 'staff' || currentUser.role === 'admin')) {
-      const seedDatabase = async () => {
-        try {
-          console.log("Seeding Firestore database with initial records...");
-          for (const room of INITIAL_ROOMS) {
-            await setDoc(doc(db, 'rooms', room.id), room);
-          }
-          for (const booking of INITIAL_BOOKINGS) {
-            await setDoc(doc(db, 'bookings', booking.id), booking);
-          }
-          for (const service of INITIAL_SERVICES) {
-            await setDoc(doc(db, 'serviceRequests', service.id), service);
-          }
-          console.log("Firestore database seeded successfully!");
-        } catch (e) {
-          console.error("Firestore seeding failed:", e);
-        }
-      };
-      seedDatabase();
-    }
-  }, [rooms, currentUser, isFirebaseActive]);
-
-  // Authenticated Firestore Subscriptions
+  // Authenticated Firestore Subscriptions for Bookings & Service Requests
   useEffect(() => {
     if (!isFirebaseActive || !db || !auth) return;
 
@@ -367,22 +352,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (currentUser.role === 'staff' || currentUser.role === 'admin') {
         // Staff/Admin gets all bookings
         unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-          const bookingsList: Booking[] = [];
-          snapshot.forEach((docSnap) => {
-            bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
-          });
-          setBookings(bookingsList);
+          if (!snapshot.empty) {
+            hasSeededBookingsRef.current = true;
+            const bookingsList: Booking[] = [];
+            snapshot.forEach((docSnap) => {
+              bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+            });
+            setBookings(bookingsList);
+          } else {
+            if (!hasSeededBookingsRef.current) {
+              hasSeededBookingsRef.current = true;
+              INITIAL_BOOKINGS.forEach(async (b) => {
+                try {
+                  await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
+                } catch (e) {
+                  console.warn("Failed to seed initial booking:", e);
+                }
+              });
+            } else {
+              setBookings([]);
+            }
+          }
         }, (error) => {
           handleFirestoreError(error, OperationType.GET, 'bookings');
         });
 
         // Staff/Admin gets all service requests
         unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
-          const requestsList: ServiceRequest[] = [];
-          snapshot.forEach((docSnap) => {
-            requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
-          });
-          setServiceRequests(requestsList);
+          if (!snapshot.empty) {
+            hasSeededServicesRef.current = true;
+            const requestsList: ServiceRequest[] = [];
+            snapshot.forEach((docSnap) => {
+              requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
+            });
+            setServiceRequests(requestsList);
+          } else {
+            if (!hasSeededServicesRef.current) {
+              hasSeededServicesRef.current = true;
+              INITIAL_SERVICES.forEach(async (s) => {
+                try {
+                  await setDoc(doc(db, 'serviceRequests', s.id), sanitizeFirestoreData(s));
+                } catch (e) {
+                  console.warn("Failed to seed initial service request:", e);
+                }
+              });
+            } else {
+              setServiceRequests([]);
+            }
+          }
         }, (error) => {
           handleFirestoreError(error, OperationType.GET, 'serviceRequests');
         });
@@ -399,11 +416,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           handleFirestoreError(error, OperationType.GET, 'bookings');
         });
 
-        // Guests don't need service requests lists (set to empty)
         setServiceRequests([]);
       }
     } else {
-      // Not logged in: clear state
       setBookings([]);
       setServiceRequests([]);
     }
@@ -414,24 +429,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, isFirebaseActive]);
 
-  // Sync to local storage for instant browser persistence (e.g. Vercel hosting)
+  // Offline local storage caching helper
   useEffect(() => {
-    if (rooms && rooms.length > 0) {
+    if (!isFirebaseActive && rooms && rooms.length > 0) {
       localStorage.setItem('hotel_rooms', JSON.stringify(rooms));
     }
-  }, [rooms]);
+  }, [rooms, isFirebaseActive]);
 
   useEffect(() => {
-    if (bookings) {
+    if (!isFirebaseActive && bookings) {
       localStorage.setItem('hotel_bookings', JSON.stringify(bookings));
     }
-  }, [bookings]);
+  }, [bookings, isFirebaseActive]);
 
   useEffect(() => {
-    if (serviceRequests) {
+    if (!isFirebaseActive && serviceRequests) {
       localStorage.setItem('hotel_services', JSON.stringify(serviceRequests));
     }
-  }, [serviceRequests]);
+  }, [serviceRequests, isFirebaseActive]);
 
   // Auth Functions
   const loginWithGoogle = async (role?: UserRole) => {
@@ -445,7 +460,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Google authentication notice:", error);
       }
     } else {
-      // Local Google Login toggle simulation with precise roles requested by user
       const mockEmails: Record<UserRole, string> = {
         admin: 'hr.manager@islamiaguesthouse.com',
         staff: 'frontdesk.receptionist@islamiaguesthouse.com',
@@ -504,17 +518,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { success: false, error: 'Name and role are required for sign up.' };
         }
         try {
-          // Store pending role and name for user creation sync
           localStorage.setItem(`pending_role_${emailLower}`, role);
           localStorage.setItem(`pending_name_${emailLower}`, name.trim());
 
-          // Create the user on Firebase Auth
           const userCredential = await createUserWithEmailAndPassword(auth, emailLower, password);
           
           if (userCredential.user) {
-            // Set displayName on Firebase User profile
             await updateProfile(userCredential.user, { displayName: name.trim() });
-            // Send real email verification
             await sendEmailVerification(userCredential.user);
             
             showToast({
@@ -536,12 +546,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return { success: false, error: errMsg };
         }
       } else {
-        // Sign In Flow
         try {
           const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
           if (userCredential.user) {
             if (!userCredential.user.emailVerified) {
-              // Not verified yet, let's resend the email verification link
               await sendEmailVerification(userCredential.user);
               showToast({
                 type: 'info',
@@ -549,7 +557,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               });
               return { success: true, otpCode: 'Resent_Verification' };
             } else {
-              // Verified! Retrieve and sync profile
               const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
               let profile: UserProfile;
               if (userSnap.exists()) {
@@ -588,7 +595,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (!isSignUp) {
-      // Check if user is registered
       const registered = localStorage.getItem('hotel_registered_users');
       const users: UserProfile[] = registered ? JSON.parse(registered) : [];
       const found = users.find(u => u.email.toLowerCase() === emailLower);
@@ -596,7 +602,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { success: false, error: 'This Gmail address is not registered yet. Please sign up first!' };
       }
     } else {
-      // Check if user already exists
       const registered = localStorage.getItem('hotel_registered_users');
       const users: UserProfile[] = registered ? JSON.parse(registered) : [];
       const found = users.find(u => u.email.toLowerCase() === emailLower);
@@ -605,11 +610,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    // Generate 6 digit numeric code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     setOtps(prev => ({ ...prev, [emailLower]: otpCode }));
 
-    // Show a simulation toast / email action draft
     const subject = `Your Gmail Verification OTP - Islamia Guest House (${isSignUp ? 'Sign Up' : 'Sign In'})`;
     const body = `Dear User,
 
@@ -627,7 +630,6 @@ Islamia Guest House Dhanmondi System`;
 
     const mailtoUrl = `mailto:${encodeURIComponent(emailLower)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-    // Update state & trigger toast
     showToast({
       type: 'info',
       message: `🔐 Verification OTP [${otpCode}] sent to ${emailLower}! Click below to view the secure draft.`,
@@ -649,14 +651,12 @@ Islamia Guest House Dhanmondi System`;
     if (isFirebaseActive && auth) {
       try {
         if (auth.currentUser) {
-          // Force reload user to get latest emailVerified status from Firebase
           await auth.currentUser.reload();
           
           if (!auth.currentUser.emailVerified) {
             return { success: false, error: 'Your email address is not verified yet. Please check your Gmail inbox and click the verification link from Firebase, then click verify again.' };
           }
 
-          // Verified! Retrieve pending info and register user in Firestore
           const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || role || 'guest';
           const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || name || 'Guest User';
 
@@ -667,14 +667,11 @@ Islamia Guest House Dhanmondi System`;
             role: pendingRole
           };
 
-          // Explicitly save user profile to Firestore
           await setDoc(doc(db, 'users', newUser.uid), newUser);
 
-          // Sync local state
           setCurrentUser(newUser);
           setCurrentRole(pendingRole);
 
-          // Clean up pending localStorage keys
           localStorage.removeItem(`pending_role_${emailLower}`);
           localStorage.removeItem(`pending_name_${emailLower}`);
 
@@ -685,7 +682,6 @@ Islamia Guest House Dhanmondi System`;
 
           return { success: true };
         } else {
-          // No active user in session, try authentication using deterministic password
           const password = 'IslamiaSecure_' + emailLower.replace(/[^a-zA-Z0-9]/g, '') + '_2026!';
           const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
           if (userCredential.user) {
@@ -694,7 +690,6 @@ Islamia Guest House Dhanmondi System`;
               return { success: false, error: 'Your email address is not verified yet. Please check your Gmail inbox and click the verification link from Firebase, then click verify again.' };
             }
             
-            // Verified! Sync with Firestore profile
             const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
             let profile: UserProfile;
             if (userSnap.exists()) {
@@ -713,7 +708,6 @@ Islamia Guest House Dhanmondi System`;
             setCurrentUser(profile);
             setCurrentRole(profile.role);
             
-            // Clean up pending localStorage keys
             localStorage.removeItem(`pending_role_${emailLower}`);
             localStorage.removeItem(`pending_name_${emailLower}`);
 
@@ -737,7 +731,6 @@ Islamia Guest House Dhanmondi System`;
       return { success: false, error: 'Invalid or expired OTP code. Please try again.' };
     }
 
-    // OTP verified successfully!
     if (isSignUp) {
       if (!name || !role) {
         return { success: false, error: 'Name and role are required for sign up.' };
@@ -750,19 +743,16 @@ Islamia Guest House Dhanmondi System`;
         role
       };
 
-      // Save user profile to registered list
       const registered = localStorage.getItem('hotel_registered_users');
       const users: UserProfile[] = registered ? JSON.parse(registered) : [];
       users.push(newUser);
       localStorage.setItem('hotel_registered_users', JSON.stringify(users));
 
-      // Log the user in
       setCurrentUser(newUser);
       setCurrentRole(role);
       localStorage.setItem('hotel_current_user', JSON.stringify(newUser));
       localStorage.setItem('hotel_current_role', role);
 
-      // In Firebase mode, write user to firestore
       if (isFirebaseActive && db) {
         try {
           await setDoc(doc(db, 'users', newUser.uid), newUser);
@@ -777,7 +767,6 @@ Islamia Guest House Dhanmondi System`;
       });
 
     } else {
-      // Sign In
       const registered = localStorage.getItem('hotel_registered_users');
       const users: UserProfile[] = registered ? JSON.parse(registered) : [];
       const user = users.find(u => u.email.toLowerCase() === emailLower);
@@ -786,7 +775,6 @@ Islamia Guest House Dhanmondi System`;
         return { success: false, error: 'User registration record not found. Please sign up.' };
       }
 
-      // Log the user in
       setCurrentUser(user);
       setCurrentRole(user.role);
       localStorage.setItem('hotel_current_user', JSON.stringify(user));
@@ -798,7 +786,6 @@ Islamia Guest House Dhanmondi System`;
       });
     }
 
-    // Clean up OTP
     setOtps(prev => {
       const copy = { ...prev };
       delete copy[emailLower];
@@ -813,7 +800,6 @@ Islamia Guest House Dhanmondi System`;
     setCurrentRole(nextRole);
     if (!isFirebaseActive) {
       localStorage.setItem('hotel_current_role', nextRole);
-      // Automatically adjust current simulated profile
       if (nextRole === 'staff') {
         const staffProfile: UserProfile = {
           uid: 'local-staff-1',
@@ -856,66 +842,77 @@ Islamia Guest House Dhanmondi System`;
       amenities: roomData.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
     };
 
-    const updatedRooms = [...rooms.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number));
-    setRooms(updatedRooms);
-    try {
-      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
-    } catch (e) {
-      console.error("Failed saving new room to localStorage:", e);
-    }
-
     if (isFirebaseActive && db) {
       try {
         await setDoc(doc(db, 'rooms', newId), sanitizeFirestoreData(newRoom));
+        // State is updated by onSnapshot listener automatically
       } catch (error) {
-        console.warn("Firestore room write error:", error);
+        handleFirestoreError(error, OperationType.WRITE, `rooms/${newId}`);
+      }
+    } else {
+      const updatedRooms = [...rooms.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number));
+      setRooms(updatedRooms);
+      try {
+        localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
+      } catch (e) {
+        console.error("Failed saving new room to localStorage:", e);
       }
     }
   };
 
   const updateRoomStatus = async (roomId: string, status: RoomStatus) => {
-    const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, status } : r);
-    setRooms(updatedRooms);
-    try {
-      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
-    } catch (e) {
-      console.error("Failed saving updated room status to localStorage:", e);
-    }
-
     if (isFirebaseActive && db) {
       try {
         await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData({ status }));
+        // State is updated by onSnapshot listener automatically
       } catch (error) {
-        console.warn("Firestore room status update error:", error);
+        handleFirestoreError(error, OperationType.WRITE, `rooms/${roomId}`);
+      }
+    } else {
+      const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, status } : r);
+      setRooms(updatedRooms);
+      try {
+        localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
+      } catch (e) {
+        console.error("Failed saving updated room status to localStorage:", e);
       }
     }
   };
 
   const editRoomDetails = async (roomId: string, updates: Partial<Room>) => {
-    const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
-    setRooms(updatedRooms);
-    try {
-      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
-    } catch (e) {
-      console.error("Failed saving edited room details to localStorage:", e);
-    }
-
     if (isFirebaseActive && db) {
       try {
         await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(updates));
+        // State is updated by onSnapshot listener automatically
       } catch (error) {
-        console.warn("Firestore room details edit error:", error);
+        handleFirestoreError(error, OperationType.WRITE, `rooms/${roomId}`);
+      }
+    } else {
+      const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
+      setRooms(updatedRooms);
+      try {
+        localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
+      } catch (e) {
+        console.error("Failed saving edited room details to localStorage:", e);
       }
     }
   };
 
   const deleteRoom = async (roomId: string) => {
-    setRooms(prev => prev.filter(r => r.id !== roomId));
     if (isFirebaseActive && db) {
       try {
         await deleteDoc(doc(db, 'rooms', roomId));
+        // State is updated by onSnapshot listener automatically
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `rooms/${roomId}`);
+      }
+    } else {
+      const updatedRooms = rooms.filter(r => r.id !== roomId);
+      setRooms(updatedRooms);
+      try {
+        localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
       } catch (e) {
-        console.warn("Firestore delete room error:", e);
+        console.error("Failed deleting room from localStorage:", e);
       }
     }
   };
@@ -974,7 +971,6 @@ Islamia Guest House, Dhanmondi`;
 
     const mailtoUrl = `mailto:${encodeURIComponent(guestEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
-    // Automatically try to open the email draft
     try {
       window.location.href = mailtoUrl;
     } catch (err) {
@@ -1002,16 +998,7 @@ Islamia Guest House, Dhanmondi`;
       createdAt: new Date().toISOString()
     };
 
-    // Always update React local state optimistically
-    setBookings(prev => [newBooking, ...prev.filter(b => b.id !== bookingId)]);
-
     const todayStr = new Date().toISOString().split('T')[0];
-    if ((bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
-      setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
-    }
-    if (bookingData.status === 'checked-in') {
-      triggerEmailDraft(newBooking);
-    }
 
     if (isFirebaseActive && db) {
       const bookingPath = `bookings/${bookingId}`;
@@ -1023,26 +1010,22 @@ Islamia Guest House, Dhanmondi`;
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, bookingPath);
       }
+    } else {
+      setBookings(prev => [newBooking, ...prev.filter(b => b.id !== bookingId)]);
+      if ((bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
+        setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
+      }
     }
+
+    if (bookingData.status === 'checked-in') {
+      triggerEmailDraft(newBooking);
+    }
+
     return bookingId;
   };
 
   const updateBookingStatus = async (bookingId: string, status: BookingStatus) => {
     const targetBooking = bookings.find(b => b.id === bookingId);
-
-    // Always update local React state optimistically so UI updates instantly
-    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
-
-    if (targetBooking) {
-      if (status === 'checked-in') {
-        setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
-        triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
-      } else if (status === 'checked-out') {
-        setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
-      } else if (status === 'cancelled') {
-        setRooms(prev => prev.map(r => r.id === targetBooking.roomId && r.status === 'occupied' ? { ...r, status: 'available' } : r));
-      }
-    }
 
     if (isFirebaseActive && db) {
       const bookingPath = `bookings/${bookingId}`;
@@ -1052,6 +1035,7 @@ Islamia Guest House, Dhanmondi`;
         if (targetBooking) {
           if (status === 'checked-in') {
             await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'occupied' }));
+            triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
           } else if (status === 'checked-out') {
             await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'cleaning' }));
           } else if (status === 'cancelled') {
@@ -1063,6 +1047,18 @@ Islamia Guest House, Dhanmondi`;
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.WRITE, bookingPath);
+      }
+    } else {
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
+      if (targetBooking) {
+        if (status === 'checked-in') {
+          setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
+          triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
+        } else if (status === 'checked-out') {
+          setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
+        } else if (status === 'cancelled') {
+          setRooms(prev => prev.map(r => r.id === targetBooking.roomId && r.status === 'occupied' ? { ...r, status: 'available' } : r));
+        }
       }
     }
   };
@@ -1081,24 +1077,26 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const deleteBooking = async (bookingId: string) => {
-    setBookings(prev => prev.filter(b => b.id !== bookingId));
     if (isFirebaseActive && db) {
       try {
         await deleteDoc(doc(db, 'bookings', bookingId));
       } catch (e) {
         console.warn("Firestore delete booking error:", e);
       }
+    } else {
+      setBookings(prev => prev.filter(b => b.id !== bookingId));
     }
   };
 
   const updateBookingPayment = async (bookingId: string, paymentStatus: string, paidAmount: number, paymentMethod?: string) => {
-    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b));
     if (isFirebaseActive && db) {
       try {
         await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData({ paymentStatus, paidAmount, paymentMethod }));
       } catch (e) {
         console.warn("Firestore update booking payment warning:", e);
       }
+    } else {
+      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b));
     }
   };
 
