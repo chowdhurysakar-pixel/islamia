@@ -209,394 +209,49 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
       <style>{printStyles}</style>
 
       {/* Main Container */}
-      <div className="bg-slate-50 rounded-3xl border border-slate-200 shadow-2xl max-w-5xl w-full flex flex-col lg:flex-row overflow-hidden my-8 h-[90vh] lg:h-[85vh]">
+      <div className="bg-slate-50 rounded-3xl border border-slate-200 shadow-2xl max-w-4xl w-full flex flex-col overflow-hidden my-6 max-h-[90vh]">
         
-        {/* LEFT COLUMN: CONTROL & ADJUSTMENT TOOLBAR PANEL */}
-        <div className="lg:w-96 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-6 flex flex-col justify-between overflow-y-auto no-print">
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="bg-teal-50 p-2 rounded-xl border border-teal-100">
-                  <Receipt className="w-5 h-5 text-teal-600 animate-pulse" />
-                </div>
-                <div>
-                  <h3 className="font-serif text-base font-bold text-slate-800">Invoice Settings</h3>
-                  <p className="text-[10px] text-slate-400 font-mono">Customize thermal & laser outputs</p>
-                </div>
-              </div>
-              <button 
-                onClick={onClose}
-                className="lg:hidden p-1.5 border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        {/* NON-PRINTABLE TOP TOOLBAR */}
+        <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between no-print shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="bg-teal-50 p-2 rounded-xl border border-teal-100">
+              <Receipt className="w-5 h-5 text-teal-600" />
             </div>
-
-            <div className="h-px bg-slate-100" />
-
-            {/* Config options */}
-            <div className="space-y-4">
-              {/* Paper Format */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
-                  Paper Slip Layout
-                </label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { id: 'thermal-80', label: '80mm POS', desc: 'Standard slip' },
-                    { id: 'thermal-58', label: '58mm POS', desc: 'Mini receipt' },
-                    { id: 'standard', label: 'A4 Page', desc: 'Laser invoice' }
-                  ].map((f) => (
-                    <button
-                      key={f.id}
-                      onClick={() => setFormat(f.id as PaperFormat)}
-                      className={`p-2.5 rounded-xl border text-left transition-all relative overflow-hidden ${
-                        format === f.id 
-                          ? 'border-teal-600 bg-teal-50/50 text-teal-900 ring-1 ring-teal-600' 
-                          : 'border-slate-200 hover:border-slate-350 text-slate-700 bg-white'
-                      }`}
-                    >
-                      <span className="font-semibold text-xs block truncate">{f.label}</span>
-                      <span className="text-[8px] text-slate-400 font-mono block mt-0.5">{f.desc}</span>
-                      {format === f.id && (
-                        <div className="absolute right-1 top-1 bg-teal-600 text-white rounded-full p-0.5 scale-75">
-                          <Check className="w-2.5 h-2.5 stroke-[3]" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Font Size Adjust */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
-                  Receipt Font Scale
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'xs', label: 'Compact' },
-                    { id: 'sm', label: 'Regular' },
-                    { id: 'base', label: 'Large' }
-                  ].map((sz) => (
-                    <button
-                      key={sz.id}
-                      onClick={() => setFontSize(sz.id as FontSize)}
-                      className={`py-1.5 px-3 rounded-lg border text-xs font-semibold text-center transition-all ${
-                        fontSize === sz.id 
-                          ? 'bg-slate-900 border-slate-900 text-white' 
-                          : 'bg-white border-slate-250 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {sz.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Cashier input */}
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
-                  Cashier / Terminal Name
-                </label>
-                <input
-                  type="text"
-                  value={cashierName}
-                  onChange={(e) => setCashierName(e.target.value)}
-                  className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white transition-all focus:ring-1 focus:ring-teal-500"
-                  placeholder="e.g. Front Desk Terminal 1"
-                />
-              </div>
-
-              {/* Guest Previous Invoices Selector */}
-              {guestAlternateBookings.length > 0 && (
-                <div className="space-y-2 pt-3 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
-                      Guest Invoice History ({guestAlternateBookings.length})
-                    </label>
-                    <span className="text-[9px] font-extrabold text-teal-600 font-mono bg-teal-50 px-1.5 py-0.5 rounded">Past Stays</span>
-                  </div>
-                  <p className="text-[9px] text-slate-400 leading-tight">
-                    Select a prior booking for <strong>{booking.guestName}</strong> to display and print:
-                  </p>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
-                    {guestAlternateBookings.map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => {
-                          const rMatch = rooms.find(r => r.id === b.roomId);
-                          const hydrated = {
-                            ...b,
-                            roomNumber: b.roomNumber || rMatch?.number || b.roomId,
-                            roomType: b.roomType || rMatch?.type || 'Standard Suite'
-                          };
-                          setBooking(hydrated);
-                        }}
-                        className="w-full text-left p-2 rounded-xl border border-slate-200 hover:border-slate-800 bg-slate-50/50 hover:bg-slate-50 transition text-[10px] flex justify-between items-center group"
-                      >
-                        <div className="truncate flex-1 min-w-0 pr-2">
-                          <p className="font-bold text-slate-800 truncate group-hover:text-teal-700">Room {b.roomNumber || b.roomId}</p>
-                          <p className="text-[8px] text-slate-400 font-mono mt-0.5">Dates: {b.checkIn} to {b.checkOut}</p>
-                        </div>
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full uppercase font-extrabold shrink-0 ${
-                          b.status === 'checked-out' ? 'bg-slate-100 text-slate-600' :
-                          b.status === 'checked-in' ? 'bg-emerald-100 text-emerald-800' :
-                          b.status === 'confirmed' ? 'bg-indigo-100 text-indigo-800' :
-                          'bg-rose-100 text-rose-800'
-                        }`}>
-                          {b.status}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Toggle Utilities */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
-                  Visual Features
-                </label>
-
-                {/* Barcode toggle */}
-                <div className="flex justify-between items-center bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-150">
-                  <div>
-                    <span className="text-xs font-semibold text-slate-700 block">Print Barcode</span>
-                    <p className="text-[9px] text-slate-400 font-mono">Unique code for automated scans</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowBarcode(!showBarcode)}
-                    className="text-slate-500 hover:text-slate-800 transition"
-                  >
-                    {showBarcode ? (
-                      <ToggleRight className="w-8 h-8 text-teal-600 stroke-[1.5]" />
-                    ) : (
-                      <ToggleLeft className="w-8 h-8 text-slate-400 stroke-[1.5]" />
-                    )}
-                  </button>
-                </div>
-
-                {/* QR Code toggle */}
-                <div className="flex justify-between items-center bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-150">
-                  <div>
-                    <span className="text-xs font-semibold text-slate-700 block">Verification QR Code</span>
-                    <p className="text-[9px] text-slate-400 font-mono">Encodes suite verify links</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowQrCode(!showQrCode)}
-                    className="text-slate-500 hover:text-slate-800 transition"
-                  >
-                    {showQrCode ? (
-                      <ToggleRight className="w-8 h-8 text-teal-600 stroke-[1.5]" />
-                    ) : (
-                      <ToggleLeft className="w-8 h-8 text-slate-400 stroke-[1.5]" />
-                    )}
-                  </button>
-                </div>
-
-                {/* Stamp toggle */}
-                <div className="flex justify-between items-center bg-slate-50 px-3 py-2.5 rounded-xl border border-slate-150">
-                  <div>
-                    <span className="text-xs font-semibold text-slate-700 block">Islamia Official Stamp</span>
-                    <p className="text-[9px] text-slate-400 font-mono">Paid badge & check-out signature</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowStamp(!showStamp)}
-                    className="text-slate-500 hover:text-slate-800 transition"
-                  >
-                    {showStamp ? (
-                      <ToggleRight className="w-8 h-8 text-teal-600 stroke-[1.5]" />
-                    ) : (
-                      <ToggleLeft className="w-8 h-8 text-slate-400 stroke-[1.5]" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Invoice Style, Address & Phone Settings */}
-              <div className="space-y-3.5 pt-3 border-t border-slate-100">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-mono">
-                  Invoice Style & Branding
-                </label>
-
-                {/* Style Preset Selector */}
-                <div className="space-y-1">
-                  <span className="text-[10px] font-semibold text-slate-500 block font-mono">STYLE PRESET</span>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {[
-                      { id: 'classic', label: 'Classic' },
-                      { id: 'modern', label: 'Modern' },
-                      { id: 'minimal', label: 'Minimalist' }
-                    ].map((st) => (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => setInvoiceStyle(st.id as 'classic' | 'modern' | 'minimal')}
-                        className={`py-1.5 px-1 rounded-lg border text-[10.5px] font-semibold text-center transition-all ${
-                          invoiceStyle === st.id 
-                            ? 'bg-teal-600 border-teal-600 text-white shadow-xs' 
-                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        {st.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Address and Phone toggles */}
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddressOnInvoice(!showAddressOnInvoice)}
-                    className={`py-1.5 px-2 rounded-xl border text-[10.5px] font-bold text-center flex items-center justify-center gap-1.5 transition-all ${
-                      showAddressOnInvoice 
-                        ? 'bg-teal-50 border-teal-200 text-teal-800' 
-                        : 'bg-slate-50 border-slate-150 text-slate-400'
-                    }`}
-                  >
-                    <MapPin className="w-3.5 h-3.5 shrink-0" />
-                    <span>{showAddressOnInvoice ? 'Address: ON' : 'Address: OFF'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowPhoneOnInvoice(!showPhoneOnInvoice)}
-                    className={`py-1.5 px-2 rounded-xl border text-[10.5px] font-bold text-center flex items-center justify-center gap-1.5 transition-all ${
-                      showPhoneOnInvoice 
-                        ? 'bg-teal-50 border-teal-200 text-teal-800' 
-                        : 'bg-slate-50 border-slate-150 text-slate-400'
-                    }`}
-                  >
-                    <Phone className="w-3.5 h-3.5 shrink-0" />
-                    <span>{showPhoneOnInvoice ? 'Phones: ON' : 'Phones: OFF'}</span>
-                  </button>
-                </div>
-
-                {/* Direct Invoice Contact & Address Fields */}
-                <div className="border border-slate-200 rounded-2xl p-3.5 bg-slate-50 space-y-3">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-mono">
-                    Output Invoice Details
-                  </span>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase block font-mono">Guest House Name</label>
-                    <input
-                      type="text"
-                      value={guestHouseName}
-                      onChange={(e) => setGuestHouseName(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-sans font-semibold"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase block font-mono">Address (Bangla)</label>
-                    <textarea
-                      rows={1}
-                      value={guestHouseAddressBangla}
-                      onChange={(e) => setGuestHouseAddressBangla(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-sans leading-tight"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase block font-mono">Address (English)</label>
-                    <textarea
-                      rows={1}
-                      value={guestHouseAddressEnglish}
-                      onChange={(e) => setGuestHouseAddressEnglish(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-sans leading-tight"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase block font-mono">Landmark Info</label>
-                    <input
-                      type="text"
-                      value={guestHouseLandmark}
-                      onChange={(e) => setGuestHouseLandmark(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block font-mono">Call Hotline</label>
-                      <input
-                        type="text"
-                        value={phoneCall}
-                        onChange={(e) => setPhoneCall(e.target.value)}
-                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-mono"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block font-mono">bKash Number</label>
-                      <input
-                        type="text"
-                        value={phoneBkash}
-                        onChange={(e) => setPhoneBkash(e.target.value)}
-                        className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase block font-mono">WhatsApp Number</label>
-                    <input
-                      type="text"
-                      value={phoneWhatsapp}
-                      onChange={(e) => setPhoneWhatsapp(e.target.value)}
-                      className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-teal-500/20 focus:border-teal-500 transition-all font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="pt-6 border-t border-slate-100 space-y-2 mt-4 lg:mt-0">
-            <button
-              id="re-print-btn"
-              onClick={() => window.print()}
-              className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-md shadow-teal-600/10 active:scale-[0.98]"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Send to Print Spooler</span>
-            </button>
-            <button
-              onClick={onClose}
-              className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition text-center"
-            >
-              Back to Operations
-            </button>
-            
-            {/* Quick Helper Tip */}
-            <div className="bg-amber-50/50 rounded-xl p-3 border border-amber-200/50 flex items-start gap-2 text-[10px] text-amber-800">
-              <Info className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-              <p className="leading-tight">
-                <strong>Printer Tip:</strong> In your browser print window, select <em>"Save as PDF"</em> or your active Thermal Printer. Disable <em>Headers and Footers</em> in "More Settings" for a perfect clean edge.
+            <div>
+              <h3 className="font-serif text-base font-bold text-slate-800">
+                Official Accommodation Invoice
+              </h3>
+              <p className="text-[11px] text-slate-400 font-mono">
+                Invoice #IGH-{booking.id} • {booking.guestName}
               </p>
             </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              id="re-print-btn"
+              onClick={() => window.print()}
+              className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-md shadow-teal-600/10 active:scale-[0.98] cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print Invoice</span>
+            </button>
+
+            <button
+              onClick={onClose}
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition cursor-pointer"
+              title="Close Invoice"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* RIGHT COLUMN: INTERACTIVE VISUAL LIVE PREVIEW PAPER */}
-        <div className="flex-1 bg-slate-150 p-4 sm:p-8 flex flex-col items-center justify-start overflow-y-auto relative h-full">
+        {/* INTERACTIVE VISUAL LIVE PREVIEW PAPER */}
+        <div className="flex-1 bg-slate-150 p-4 sm:p-8 flex flex-col items-center justify-start overflow-y-auto relative">
           
-          {/* Header overlay close button */}
-          <button 
-            onClick={onClose}
-            className="absolute right-4 top-4 bg-white hover:bg-slate-50 p-2.5 rounded-full shadow-lg border border-slate-200/80 hover:scale-105 active:scale-95 transition-all no-print hidden lg:block"
-            title="Close Invoice Panel"
-          >
-            <X className="w-5 h-5 text-slate-600" />
-          </button>
-
           {/* Wrapper to target ONLY printable material via CSS media selector */}
-          <div id="print-area-wrapper" className="w-full flex flex-col items-center justify-start py-6">
+          <div id="print-area-wrapper" className="w-full flex flex-col items-center justify-start py-2">
             
             {/* Interactive Paper Slip Container simulating real roll paper */}
             <div 

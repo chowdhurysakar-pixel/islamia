@@ -1166,7 +1166,7 @@ export const StaffView: React.FC = () => {
                     <div className="relative h-28 rounded-xl overflow-hidden bg-slate-200 border border-slate-150 shadow-inner group/img">
                       <img
                         src={room.images?.[0] || room.image}
-                        alt=""
+                        alt={`Room ${room.number} preview`}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
                         referrerPolicy="no-referrer"
                       />
@@ -1985,7 +1985,7 @@ export const StaffView: React.FC = () => {
                     <div className="grid grid-cols-4 gap-2">
                       {editRoomImages.map((img, idx) => (
                         <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100">
-                          <img src={img} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <img src={img} alt={`Room picture ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           <button
                             type="button"
                             onClick={() => setEditRoomImages(editRoomImages.filter((_, i) => i !== idx))}

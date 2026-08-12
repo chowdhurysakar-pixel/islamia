@@ -101,7 +101,9 @@ export const AdminPanel: React.FC = () => {
 
   // Property Details State
   const [propertyHotline, setPropertyHotline] = useState<string>('01909-806960');
-  const [propertyAddress, setPropertyAddress] = useState<string>('House 38, Road 2, Dhanmondi 1205');
+  const [propertyAddress, setPropertyAddress] = useState<string>(() => {
+    return localStorage.getItem('property_address') || 'House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209';
+  });
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
   // Update staff HR Approval status
@@ -456,7 +458,7 @@ export const AdminPanel: React.FC = () => {
             </h1>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-2 font-sans">
               <MapPin className="w-3.5 h-3.5 text-teal-400" />
-              <span>Islamia Guest House • House 38, Road 2, Dhanmondi 1205</span>
+              <span>Islamia Guest House • {propertyAddress}</span>
             </p>
           </div>
 
@@ -1238,7 +1240,11 @@ export const AdminPanel: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => showToast({ type: 'success', message: 'Property metadata & hotline saved successfully.' })}
+                  onClick={() => {
+                    localStorage.setItem('property_address', propertyAddress);
+                    localStorage.setItem('property_hotline', propertyHotline);
+                    showToast({ type: 'success', message: 'Property metadata & address saved successfully.' });
+                  }}
                   className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition cursor-pointer"
                 >
                   Save Configuration

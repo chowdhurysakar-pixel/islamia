@@ -16,7 +16,7 @@ import {
   updateDoc, 
   deleteDoc, 
   onSnapshot, 
-  getDoc,
+  getDocFromServer,
   Timestamp,
   query,
   where
@@ -64,8 +64,10 @@ interface AppContextType {
   toggleRole: () => void;
   // Toast notifications & Automated Email drafted actions
   activeToast: ToastInfo | null;
+  toasts: ToastInfo[];
   showToast: (toast: ToastInfo) => void;
   dismissToast: () => void;
+  removeToast: (id?: string) => void;
   triggerEmailDraft: (booking: Booking) => void;
   // Auth Functions
   loginWithGoogle: (role?: UserRole) => Promise<void>;
@@ -80,72 +82,31 @@ interface AppContextType {
   deleteRoom: (roomId: string) => Promise<void>;
   // Booking Actions
   createBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => Promise<string>;
+  addBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => Promise<string>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
   addBookingNotes: (bookingId: string, notes: string) => Promise<void>;
+  deleteBooking: (bookingId: string) => Promise<void>;
+  updateBookingPayment: (bookingId: string, paymentStatus: string, paidAmount: number, paymentMethod?: string) => Promise<void>;
   // Service Request Actions
   createServiceRequest: (request: Omit<ServiceRequest, 'id' | 'createdAt'>) => Promise<void>;
   updateServiceRequestStatus: (requestId: string, status: ServiceRequestStatus) => Promise<void>;
   // Feedback Actions
   feedbacks: Feedback[];
   submitFeedback: (rating: number, comment: string) => Promise<void>;
-  opMode: 'receptionist' | 'hr' | 'admin';
-  setOpMode: (mode: 'receptionist' | 'hr' | 'admin') => void;
+  opMode: 'receptionist' | 'hr' | 'admin' | 'guest';
+  setOpMode: (mode: any) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [rooms, setRooms] = useState<Room[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_rooms');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.warn("Failed loading initial stored rooms:", e);
-    }
-    return INITIAL_ROOMS;
-  });
-  const [bookings, setBookings] = useState<Booking[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_bookings');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.warn("Failed loading initial stored bookings:", e);
-    }
-    return INITIAL_BOOKINGS;
-  });
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_services');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.warn("Failed loading initial stored services:", e);
-    }
-    return INITIAL_SERVICES;
-  });
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_feedbacks');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.warn("Failed loading initial stored feedbacks:", e);
-    }
-    return [];
-  });
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [currentRole, setCurrentRole] = useState<UserRole>('staff');
-  const [opMode, setOpMode] = useState<'receptionist' | 'hr' | 'admin'>('receptionist');
+  const [opMode, setOpMode] = useState<'receptionist' | 'hr' | 'admin' | 'guest'>('receptionist');
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
@@ -155,7 +116,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     let isConfigured = false;
     try {
-      isConfigured = initFirebase(firebaseConfig);
+      if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'placeholder' && !firebaseConfig.apiKey.includes('MY_')) {
+        isConfigured = initFirebase(firebaseConfig);
+      }
     } catch (e) {
       console.warn("Firebase config not available or incomplete. Falling back to Local Storage Sandbox.", e);
     }
@@ -166,9 +129,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 1. Validate Connection to Firestore (Skill Requirement)
       const testConnection = async () => {
         try {
-          await getDoc(doc(db, 'test', 'connection'));
+          await getDocFromServer(doc(db, 'test', 'connection'));
         } catch (error) {
-          console.log("Firestore local cache active; network sync pending.");
+          // Gracefully handle connection check without emitting error logs
+          if (error instanceof Error && error.message.includes('the client is offline')) {
+            console.log("Firestore initialized; network connection pending.");
+          }
         }
       };
       testConnection();
@@ -223,63 +189,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 3. Realtime collection sync with full onSnapshot listeners & error handlers
       const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
         if (!snapshot.empty) {
-          const firestoreRooms: Room[] = [];
+          const roomsList: Room[] = [];
           snapshot.forEach((docSnap) => {
-            firestoreRooms.push({ id: docSnap.id, ...docSnap.data() } as Room);
+            roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
           });
-
-          // Preserve any locally added/edited rooms that haven't synced to Firestore yet
-          let mergedRooms = [...firestoreRooms];
+          roomsList.sort((a, b) => Number(a.number) - Number(b.number));
+          setRooms(roomsList);
           try {
-            const storedLocal = localStorage.getItem('hotel_rooms');
-            if (storedLocal) {
-              const localList: Room[] = JSON.parse(storedLocal);
-              if (Array.isArray(localList)) {
-                const extraLocalRooms = localList.filter(lr => !firestoreRooms.some(fr => fr.id === lr.id));
-                if (extraLocalRooms.length > 0) {
-                  mergedRooms = [...mergedRooms, ...extraLocalRooms];
-                  // Attempt sync of local rooms to Firestore
-                  extraLocalRooms.forEach(lr => {
-                    setDoc(doc(db, 'rooms', lr.id), sanitizeFirestoreData(lr)).catch(() => {});
-                  });
-                }
-              }
-            }
-          } catch (e) {
-            console.warn("Failed merging local rooms with Firestore snapshot:", e);
-          }
-
-          mergedRooms.sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0) || a.number.localeCompare(b.number));
-          setRooms(mergedRooms);
-          try {
-            localStorage.setItem('hotel_rooms', JSON.stringify(mergedRooms));
+            localStorage.setItem('hotel_rooms', JSON.stringify(roomsList));
           } catch (e) {
             console.error("Failed saving rooms snapshot to localStorage:", e);
           }
         } else {
-          // If Firestore collection is empty:
-          // Check if localStorage already has stored rooms
-          const storedLocal = localStorage.getItem('hotel_rooms');
-          let roomsToSeed = INITIAL_ROOMS;
-          if (storedLocal !== null) {
-            try {
-              const parsed = JSON.parse(storedLocal);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                roomsToSeed = parsed;
-              }
-            } catch (e) {
-              console.warn("Failed parsing stored local rooms:", e);
-            }
-          }
-          // Set React state immediately so UI displays rooms
-          setRooms(roomsToSeed);
-
-          // Seed Firestore with roomsToSeed (preserves custom/added/edited chambers)
-          roomsToSeed.forEach(async (room) => {
+          // If Firestore collection is empty, seed initial rooms into Firestore
+          INITIAL_ROOMS.forEach(async (room) => {
             try {
               await setDoc(doc(db, 'rooms', room.id), room);
             } catch (e) {
-              console.warn("Failed to seed room to Firestore:", e);
+              console.warn("Failed to seed initial room:", e);
             }
           });
         }
@@ -407,26 +334,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Seeding trigger for empty live Firestore databases (requires staff/admin authentication)
   useEffect(() => {
-    const storedLocalRooms = localStorage.getItem('hotel_rooms');
-    let roomsToSeed = INITIAL_ROOMS;
-    let hasLocalRooms = false;
-    if (storedLocalRooms !== null) {
-      try {
-        const parsed = JSON.parse(storedLocalRooms);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          roomsToSeed = parsed;
-          hasLocalRooms = true;
-        }
-      } catch (e) {
-        console.warn("Error reading stored local rooms for seeding:", e);
-      }
-    }
-
-    if (isFirebaseActive && rooms.length === 0 && !hasLocalRooms && currentUser && (currentUser.role === 'staff' || currentUser.role === 'admin')) {
+    if (isFirebaseActive && rooms.length === 0 && currentUser && (currentUser.role === 'staff' || currentUser.role === 'admin')) {
       const seedDatabase = async () => {
         try {
           console.log("Seeding Firestore database with initial records...");
-          for (const room of roomsToSeed) {
+          for (const room of INITIAL_ROOMS) {
             await setDoc(doc(db, 'rooms', room.id), room);
           }
           for (const booking of INITIAL_BOOKINGS) {
@@ -504,7 +416,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Sync to local storage for instant browser persistence (e.g. Vercel hosting)
   useEffect(() => {
-    if (rooms) {
+    if (rooms && rooms.length > 0) {
       localStorage.setItem('hotel_rooms', JSON.stringify(rooms));
     }
   }, [rooms]);
@@ -632,13 +544,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               // Not verified yet, let's resend the email verification link
               await sendEmailVerification(userCredential.user);
               showToast({
-                type: 'email',
+                type: 'info',
                 message: `✉️ Your email is unverified. We sent a new Firebase verification link to ${emailLower}. Please click it, then try again!`
               });
               return { success: true, otpCode: 'Resent_Verification' };
             } else {
               // Verified! Retrieve and sync profile
-              const userSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
+              const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
               let profile: UserProfile;
               if (userSnap.exists()) {
                 profile = userSnap.data() as UserProfile;
@@ -697,7 +609,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
     setOtps(prev => ({ ...prev, [emailLower]: otpCode }));
 
-    // Show a beautiful simulation toast / email action draft
+    // Show a simulation toast / email action draft
     const subject = `Your Gmail Verification OTP - Islamia Guest House (${isSignUp ? 'Sign Up' : 'Sign In'})`;
     const body = `Dear User,
 
@@ -717,7 +629,7 @@ Islamia Guest House Dhanmondi System`;
 
     // Update state & trigger toast
     showToast({
-      type: 'email',
+      type: 'info',
       message: `🔐 Verification OTP [${otpCode}] sent to ${emailLower}! Click below to view the secure draft.`,
       duration: 15000,
       emailAction: {
@@ -783,7 +695,7 @@ Islamia Guest House Dhanmondi System`;
             }
             
             // Verified! Sync with Firestore profile
-            const userSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
+            const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
             let profile: UserProfile;
             if (userSnap.exists()) {
               profile = userSnap.data() as UserProfile;
@@ -928,29 +840,23 @@ Islamia Guest House Dhanmondi System`;
 
   // Room Actions
   const addRoom = async (roomData: Omit<Room, 'id'>) => {
-    const rawNumber = (roomData.number || '').toString().trim();
-    const cleanNumber = rawNumber.replace(/[^a-zA-Z0-9_\-]/g, '_');
-
-    // Create clean unique ID for Firestore & local storage
-    const baseId = cleanNumber && cleanNumber.length <= 30 ? cleanNumber : `room_${Date.now()}`;
-    const isTaken = rooms.some(r => r.id === baseId);
-    const newId = isTaken ? `${baseId}_${Math.random().toString(36).substring(2, 6)}` : baseId;
+    const numericIds = rooms.map(r => Number(r.id) || Number(r.number) || 0);
+    const maxVal = numericIds.length > 0 ? Math.max(...numericIds) : 100;
+    const newId = (maxVal >= 100 ? maxVal + 1 : 101).toString();
 
     const newRoom: Room = {
       id: newId,
-      number: rawNumber || newId,
+      number: roomData.number || newId,
       type: roomData.type || 'single',
-      price: Number(roomData.price) > 0 ? Number(roomData.price) : 1500,
-      status: (roomData.status as RoomStatus) || 'available',
-      capacity: Number(roomData.capacity) > 0 ? Number(roomData.capacity) : 2,
+      price: roomData.price || 1500,
+      status: roomData.status || 'available',
+      capacity: roomData.capacity || 2,
       description: roomData.description || `${roomData.type ? roomData.type.toUpperCase() : 'Guest'} Chamber at Islamia Guest House`,
       image: roomData.image || (roomData as any).imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
-      amenities: Array.isArray(roomData.amenities) && roomData.amenities.length > 0 ? roomData.amenities : ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
+      amenities: roomData.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
     };
 
-    const updatedRooms = [...rooms.filter(r => r.id !== newId), newRoom].sort((a, b) => 
-      (Number(a.number) || 0) - (Number(b.number) || 0) || a.number.localeCompare(b.number)
-    );
+    const updatedRooms = [...rooms.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number));
     setRooms(updatedRooms);
     try {
       localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
@@ -968,8 +874,6 @@ Islamia Guest House Dhanmondi System`;
   };
 
   const updateRoomStatus = async (roomId: string, status: RoomStatus) => {
-    const existingRoom = rooms.find(r => r.id === roomId);
-    const updatedRoom = existingRoom ? { ...existingRoom, status } : { id: roomId, status };
     const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, status } : r);
     setRooms(updatedRooms);
     try {
@@ -980,7 +884,7 @@ Islamia Guest House Dhanmondi System`;
 
     if (isFirebaseActive && db) {
       try {
-        await setDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(updatedRoom), { merge: true });
+        await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData({ status }));
       } catch (error) {
         console.warn("Firestore room status update error:", error);
       }
@@ -988,8 +892,6 @@ Islamia Guest House Dhanmondi System`;
   };
 
   const editRoomDetails = async (roomId: string, updates: Partial<Room>) => {
-    const existingRoom = rooms.find(r => r.id === roomId);
-    const mergedRoom = existingRoom ? { ...existingRoom, ...updates } : { id: roomId, ...updates };
     const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
     setRooms(updatedRooms);
     try {
@@ -1000,7 +902,7 @@ Islamia Guest House Dhanmondi System`;
 
     if (isFirebaseActive && db) {
       try {
-        await setDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(mergedRoom), { merge: true });
+        await updateDoc(doc(db, 'rooms', roomId), sanitizeFirestoreData(updates));
       } catch (error) {
         console.warn("Firestore room details edit error:", error);
       }
@@ -1008,27 +910,14 @@ Islamia Guest House Dhanmondi System`;
   };
 
   const deleteRoom = async (roomId: string) => {
-    const target = rooms.find(r => r.id === roomId);
-    const updatedRooms = rooms.filter(r => r.id !== roomId);
-    setRooms(updatedRooms);
-    try {
-      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
-    } catch (e) {
-      console.error("Failed deleting room from localStorage:", e);
-    }
-
+    setRooms(prev => prev.filter(r => r.id !== roomId));
     if (isFirebaseActive && db) {
       try {
         await deleteDoc(doc(db, 'rooms', roomId));
-      } catch (error) {
-        console.warn("Firestore room deletion error:", error);
+      } catch (e) {
+        console.warn("Firestore delete room error:", e);
       }
     }
-
-    showToast({
-      type: 'info',
-      message: `🗑️ Chamber #${target?.number || roomId} removed successfully.`
-    });
   };
 
   // Toast notifications & Automated Email drafted actions
@@ -1094,7 +983,7 @@ Islamia Guest House, Dhanmondi`;
 
     showToast({
       message: `📧 Automated email draft generated for ${guestName} (${guestEmail}) with invoice summary.`,
-      type: 'email',
+      type: 'info',
       emailAction: {
         recipient: guestEmail,
         subject,
@@ -1191,6 +1080,28 @@ Islamia Guest House, Dhanmondi`;
     }
   };
 
+  const deleteBooking = async (bookingId: string) => {
+    setBookings(prev => prev.filter(b => b.id !== bookingId));
+    if (isFirebaseActive && db) {
+      try {
+        await deleteDoc(doc(db, 'bookings', bookingId));
+      } catch (e) {
+        console.warn("Firestore delete booking error:", e);
+      }
+    }
+  };
+
+  const updateBookingPayment = async (bookingId: string, paymentStatus: string, paidAmount: number, paymentMethod?: string) => {
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b));
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData({ paymentStatus, paidAmount, paymentMethod }));
+      } catch (e) {
+        console.warn("Firestore update booking payment warning:", e);
+      }
+    }
+  };
+
   // Service Request Actions
   const createServiceRequest = async (requestData: Omit<ServiceRequest, 'id' | 'createdAt'>) => {
     const reqId = `SR${Date.now().toString().slice(-4)}`;
@@ -1278,8 +1189,10 @@ Islamia Guest House, Dhanmondi`;
       isLoading,
       toggleRole,
       activeToast,
+      toasts: activeToast ? [activeToast] : [],
       showToast,
       dismissToast,
+      removeToast: dismissToast,
       triggerEmailDraft,
       loginWithGoogle,
       localLogin,
@@ -1291,8 +1204,11 @@ Islamia Guest House, Dhanmondi`;
       editRoomDetails,
       deleteRoom,
       createBooking,
+      addBooking: createBooking as any,
       updateBookingStatus,
       addBookingNotes,
+      deleteBooking,
+      updateBookingPayment,
       createServiceRequest,
       updateServiceRequestStatus,
       submitFeedback,

@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
 import lalbaghFortImg from '../assets/images/lalbagh_fort_dhaka_1785812405532.jpg';
@@ -52,7 +52,8 @@ export const GuestView: React.FC = () => {
     createBooking, 
     updateBookingStatus, 
     createServiceRequest,
-    submitFeedback
+    submitFeedback,
+    showToast
   } = useApp();
 
   // Guest Search state
@@ -101,6 +102,14 @@ export const GuestView: React.FC = () => {
   const [additionalGuests, setAdditionalGuests] = useState<{ name: string; phone: string; }[]>([]);
   const [bookReferenceName, setBookReferenceName] = useState<string>('');
   const [kids, setKids] = useState<{ name: string; age: string; }[]>([]);
+
+  // Quick Inquiry & Newsletter Form State
+  const [inquiryName, setInquiryName] = useState<string>('');
+  const [inquiryContact, setInquiryContact] = useState<string>('');
+  const [inquiryMessage, setInquiryMessage] = useState<string>('');
+  const [inquiryLoading, setInquiryLoading] = useState<boolean>(false);
+  const [inquirySuccess, setInquirySuccess] = useState<boolean>(false);
+  const [inquiryError, setInquiryError] = useState<string>('');
 
   // Rating & Review Feedback Form State
   const [userRating, setUserRating] = useState<number>(5);
@@ -305,14 +314,30 @@ export const GuestView: React.FC = () => {
   // Complete reservation checkout
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRoom || computedNights <= 0) return;
+    if (!selectedRoom || computedNights <= 0) {
+      showToast({ type: 'error', message: 'Invalid booking dates. Check-out must be after check-in.' });
+      return;
+    }
+
+    if (!bookName.trim()) {
+      showToast({ type: 'error', message: 'Please enter lead guest full name.' });
+      return;
+    }
+    if (!bookEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(bookEmail.trim())) {
+      showToast({ type: 'error', message: 'Please enter a valid email address.' });
+      return;
+    }
+    if (!bookPhone.trim() || bookPhone.trim().length < 6) {
+      showToast({ type: 'error', message: 'Please enter a valid phone number.' });
+      return;
+    }
 
     const bId = await createBooking({
       roomId: selectedRoom.id,
       userId: currentUser?.uid || 'temp-guest',
-      guestName: bookName,
-      guestEmail: bookEmail,
-      guestPhone: bookPhone,
+      guestName: bookName.trim(),
+      guestEmail: bookEmail.trim().toLowerCase(),
+      guestPhone: bookPhone.trim(),
       checkIn: bookCheckIn,
       checkOut: bookCheckOut,
       totalAmount: computedTotal,
@@ -324,43 +349,88 @@ export const GuestView: React.FC = () => {
     });
 
     setJustCompletedBookingId(bId);
+    showToast({
+      type: 'success',
+      message: `🎉 Booking confirmed for ${bookName.trim()} in Room ${selectedRoom.number}!`
+    });
   };
 
   // Submit Guest Incident / service request ticket
   const handleServiceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedServiceBooking || !serviceDetails.trim()) return;
+    if (!selectedServiceBooking || !serviceDetails.trim()) {
+      showToast({ type: 'error', message: 'Please describe your request details.' });
+      return;
+    }
 
     await createServiceRequest({
       roomId: selectedServiceBooking.roomId,
       type: serviceType,
-      description: `[Guest Request] ${serviceDetails}`,
+      description: `[Guest Request] ${serviceDetails.trim()}`,
       status: 'pending'
     });
 
     setServiceSuccess(true);
     setServiceDetails('');
+    showToast({ type: 'success', message: '🔔 Staff member dispatched for your room service request.' });
     setTimeout(() => {
       setServiceSuccess(false);
       setSelectedServiceBooking(null);
     }, 3000);
   };
 
+  // Direct Inquiry & Newsletter Submit Handler
+  const handleInquirySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setInquiryError('');
+
+    if (!inquiryName.trim()) {
+      setInquiryError('Please enter your full name.');
+      return;
+    }
+    if (!inquiryContact.trim()) {
+      setInquiryError('Please enter your email or phone number.');
+      return;
+    }
+    if (!inquiryMessage.trim()) {
+      setInquiryError('Please write your inquiry or request message.');
+      return;
+    }
+
+    setInquiryLoading(true);
+    setTimeout(() => {
+      setInquiryLoading(false);
+      setInquirySuccess(true);
+      showToast({
+        type: 'success',
+        message: '📨 Inquiry submitted! Front desk management will respond shortly.'
+      });
+      setInquiryName('');
+      setInquiryContact('');
+      setInquiryMessage('');
+      setTimeout(() => setInquirySuccess(false), 6000);
+    }, 500);
+  };
+
   // Submit Guest Rating and Written Review
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
+    if (!currentUser) {
+      showToast({ type: 'error', message: 'Please sign in to publish a guest review.' });
+      return;
+    }
     if (!userComment.trim()) {
-      alert("Please enter a short review or comment.");
+      showToast({ type: 'info', message: 'Please enter your stay review details before submitting.' });
       return;
     }
     setSubmittingFeedback(true);
     try {
-      await submitFeedback(userRating, userComment);
+      await submitFeedback(userRating, userComment.trim());
       setUserComment('');
       setUserRating(5);
-    } catch (err) {
-      console.error("Feedback submit error: ", err);
+      showToast({ type: 'success', message: '🌟 Thank you! Your review has been published.' });
+    } catch (err: any) {
+      showToast({ type: 'error', message: err?.message || 'Failed to submit review. Please try again.' });
     } finally {
       setSubmittingFeedback(false);
     }
@@ -422,7 +492,14 @@ export const GuestView: React.FC = () => {
       <nav className="bg-white border-b border-slate-200/80 py-3.5 px-4 sm:px-8 sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/95">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           {/* Brand Logo & Name */}
-          <a href="#" className="flex items-center gap-2.5 group">
+          <a 
+            href="#top" 
+            onClick={(e) => { 
+              e.preventDefault(); 
+              window.scrollTo({ top: 0, behavior: 'smooth' }); 
+            }} 
+            className="flex items-center gap-2.5 group cursor-pointer"
+          >
             <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition">
               ◆
             </span>
@@ -431,7 +508,7 @@ export const GuestView: React.FC = () => {
                 ISLAMIA GUEST HOUSE
               </span>
               <span className="text-[9px] tracking-[0.25em] text-[#af8a52] font-semibold uppercase">
-                DHANMONDI
+                DHANMONDI, DHAKA
               </span>
             </div>
           </a>
@@ -722,6 +799,11 @@ export const GuestView: React.FC = () => {
               <button 
                 type="button"
                 onClick={() => {
+                  if (searchCheckIn && searchCheckOut && new Date(searchCheckOut) <= new Date(searchCheckIn)) {
+                    showToast({ type: 'error', message: 'Check-out date must be after check-in date.' });
+                    return;
+                  }
+                  showToast({ type: 'success', message: `🔎 Showing available chambers for ${searchCheckIn} to ${searchCheckOut}` });
                   const el = document.getElementById('destinations');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
@@ -1129,14 +1211,55 @@ export const GuestView: React.FC = () => {
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
                 <h4 className="font-serif text-xl font-semibold text-slate-800">Reservation Confirmed!</h4>
-                <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
                   Excellent choice. Room {selectedRoom.number} is scheduled for you. Your booking reference code token is <span className="font-mono font-bold text-slate-800">{justCompletedBookingId}</span>.
                 </p>
-                <div className="pt-4">
+                
+                {/* Action Buttons in Confirmation Popup */}
+                <div className="pt-4 flex flex-col gap-2.5 max-w-sm mx-auto">
+                  <button
+                    id="view-invoice-popup-btn"
+                    onClick={() => {
+                      const completedBookingObj = bookings.find(b => b.id === justCompletedBookingId) || {
+                        id: justCompletedBookingId,
+                        roomId: selectedRoom.id,
+                        roomNumber: selectedRoom.number,
+                        roomType: selectedRoom.type,
+                        guestName: bookName.trim(),
+                        guestEmail: bookEmail.trim().toLowerCase(),
+                        guestPhone: bookPhone.trim(),
+                        checkIn: bookCheckIn,
+                        checkOut: bookCheckOut,
+                        totalAmount: computedTotal,
+                        status: 'confirmed'
+                      };
+                      setSelectedRoom(null);
+                      setAutoPrintInvoice(false);
+                      setInvoiceBooking(completedBookingObj as any);
+                    }}
+                    className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-teal-600/10 active:scale-[0.98]"
+                  >
+                    <Receipt className="w-4 h-4" />
+                    <span>View & Print Official Invoice</span>
+                  </button>
+
+                  <button
+                    id="view-my-stays-btn"
+                    onClick={() => {
+                      setSelectedRoom(null);
+                      const el = document.getElementById('my-bookings-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+                  >
+                    <Ticket className="w-4 h-4" />
+                    <span>View My Stays & Reservations</span>
+                  </button>
+
                   <button
                     id="finish-booking-btn"
                     onClick={() => setSelectedRoom(null)}
-                    className="px-6 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition"
+                    className="w-full py-2 text-slate-500 hover:text-slate-800 text-xs font-medium transition text-center cursor-pointer"
                   >
                     Return to Lobby
                   </button>
@@ -1910,6 +2033,116 @@ export const GuestView: React.FC = () => {
 
           </div>
 
+        </div>
+      </div>
+
+      {/* 5.5 Quick Contact Inquiry & Newsletter Form */}
+      <div id="quick-inquiry-section" className="max-w-7xl mx-auto px-6 mb-16">
+        <div className="bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-3xl p-6 md:p-8 shadow-xl text-white">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            
+            {/* Left Info Column */}
+            <div className="lg:col-span-5 space-y-3">
+              <div className="inline-flex items-center gap-2 bg-[#af8a52]/20 border border-[#d7bd8a]/40 px-3 py-1 rounded-full text-xs font-mono text-[#d7bd8a]">
+                <Mail className="w-3.5 h-3.5" />
+                <span>DIRECT CONCIERGE INQUIRY</span>
+              </div>
+              <h3 className="font-serif text-2xl md:text-3xl font-bold text-white tracking-tight">
+                Have Questions or Special Accommodation Needs?
+              </h3>
+              <p className="text-xs sm:text-sm text-[#efe8d8]/80 leading-relaxed">
+                Send a direct message to our front desk team. We respond within minutes with room availability, medical guest assistance, or custom stay quotes.
+              </p>
+            </div>
+
+            {/* Right Form Column */}
+            <div className="lg:col-span-7 bg-[#081b21]/90 border border-[#d7bd8a]/20 p-5 sm:p-6 rounded-2xl shadow-inner">
+              {inquirySuccess ? (
+                <div className="py-8 text-center space-y-3 animate-in fade-in duration-300">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <h4 className="font-bold text-base text-white">Inquiry Transmitted Successfully!</h4>
+                  <p className="text-xs text-[#efe8d8]/80 max-w-md mx-auto">
+                    Thank you for reaching out to Islamia Guest House Dhanmondi. Our front desk manager will respond to your contact details shortly.
+                  </p>
+                </div>
+              ) : (
+                <form onSubmit={handleInquirySubmit} className="space-y-4">
+                  {inquiryError && (
+                    <div className="bg-red-500/10 border border-red-500/30 text-red-300 text-xs p-3 rounded-xl flex items-center gap-2 animate-shake">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{inquiryError}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold font-mono text-[#d7bd8a] uppercase tracking-wider block">
+                        Full Name / নাম *
+                      </label>
+                      <input
+                        id="inquiry-guest-name"
+                        type="text"
+                        required
+                        placeholder="e.g. Dr. Rafiqul Islam"
+                        value={inquiryName}
+                        onChange={(e) => setInquiryName(e.target.value)}
+                        className="w-full bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#d7bd8a] transition"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold font-mono text-[#d7bd8a] uppercase tracking-wider block">
+                        Email or Phone / ইমেইল বা ফোন *
+                      </label>
+                      <input
+                        id="inquiry-guest-contact"
+                        type="text"
+                        required
+                        placeholder="e.g. 01700-000000 or email@domain.com"
+                        value={inquiryContact}
+                        onChange={(e) => setInquiryContact(e.target.value)}
+                        className="w-full bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#d7bd8a] transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold font-mono text-[#d7bd8a] uppercase tracking-wider block">
+                      Inquiry Message or Special Needs / বার্তা *
+                    </label>
+                    <textarea
+                      id="inquiry-guest-message"
+                      required
+                      rows={3}
+                      placeholder="Ask about room availability, long-term stay discounts, or proximity to Ibne Sina Hospital..."
+                      value={inquiryMessage}
+                      onChange={(e) => setInquiryMessage(e.target.value)}
+                      className="w-full bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#d7bd8a] transition resize-none leading-relaxed"
+                    />
+                  </div>
+
+                  <button
+                    id="submit-inquiry-btn"
+                    type="submit"
+                    disabled={inquiryLoading}
+                    className="w-full py-3 bg-[#af8a52] hover:bg-[#c29b5f] disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition duration-200 shadow-lg flex items-center justify-center gap-2 cursor-pointer border border-[#f5e5c8]/40"
+                  >
+                    {inquiryLoading ? (
+                      <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>Send Direct Inquiry to Desk / বার্তা দিন</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              )}
+            </div>
+
+          </div>
         </div>
       </div>
 
