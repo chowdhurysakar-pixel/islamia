@@ -37,20 +37,32 @@ export interface Booking {
   createdAt?: any;
 }
 
+interface ToastInfo {
+  type: 'success' | 'error' | 'info';
+  message: string;
+}
+
 interface AppContextType {
+  // Auth & Header State
   user: any;
-  rooms: Room[];
-  bookings: Booking[];
+  currentUser: any;
+  currentRole: 'guest' | 'staff';
+  toggleRole: () => void;
+  opMode: 'admin' | 'receptionist' | 'hr';
+  setOpMode: (mode: 'admin' | 'receptionist' | 'hr') => void;
+  showToast: (toast: ToastInfo) => void;
+  
+  // Auth Modals & Actions
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
   openAuthModal: () => void;
   closeAuthModal: () => void;
-  setIsAuthOpen: (open: boolean) => void;
-  setShowAuthModal: (open: boolean) => void;
-  toggleAuthModal: () => void;
   loginWithGoogle: () => Promise<void>;
-  login: () => Promise<void>;
   logout: () => Promise<void>;
+
+  // Firestore Database Data
+  rooms: Room[];
+  bookings: Booking[];
   addRoom: (room: Room) => Promise<void>;
   updateRoom: (id: string, room: Partial<Room>) => Promise<void>;
   deleteRoom: (id: string) => Promise<void>;
@@ -61,12 +73,17 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Auth & UI States required by Header
   const [user, setUser] = useState<any>(null);
+  const [currentRole, setCurrentRole] = useState<'guest' | 'staff'>('guest');
+  const [opMode, setOpMode] = useState<'admin' | 'receptionist' | 'hr'>('receptionist');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  
+  // Database States
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
 
-  // 1. Auth Listener
+  // Listen to Auth State
   useEffect(() => {
     if (!auth) return;
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -75,7 +92,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => unsubscribe();
   }, []);
 
-  // 2. Real-time Rooms
+  // Real-time Rooms Sync
   useEffect(() => {
     if (!db) return;
     const roomsRef = collection(db, 'rooms');
@@ -89,7 +106,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => unsubscribe();
   }, []);
 
-  // 3. Real-time Bookings
+  // Real-time Bookings Sync
   useEffect(() => {
     if (!db) return;
     const bookingsRef = collection(db, 'bookings');
@@ -103,10 +120,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => unsubscribe();
   }, []);
 
-  // Auth Helpers
+  // Header State Controllers
+  const toggleRole = () => {
+    setCurrentRole((prev) => (prev === 'guest' ? 'staff' : 'guest'));
+  };
+
+  const showToast = (toast: ToastInfo) => {
+    console.log(`[${toast.type.toUpperCase()}] ${toast.message}`);
+  };
+
+  // Auth Functions
   const openAuthModal = () => setIsAuthModalOpen(true);
   const closeAuthModal = () => setIsAuthModalOpen(false);
-  const toggleAuthModal = () => setIsAuthModalOpen(prev => !prev);
 
   const loginWithGoogle = async () => {
     try {
@@ -125,7 +150,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  // Database Actions
+  // Database CRUD Functions
   const addRoom = async (room: Room) => {
     if (!db) return;
     await setDoc(doc(db, 'rooms', room.id), room);
@@ -168,18 +193,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider value={{
       user,
-      rooms,
-      bookings,
+      currentUser: user ? { ...user, role: 'admin' } : null,
+      currentRole,
+      toggleRole,
+      opMode,
+      setOpMode,
+      showToast,
       isAuthModalOpen,
       setIsAuthModalOpen,
       openAuthModal,
       closeAuthModal,
-      setIsAuthOpen: setIsAuthModalOpen,
-      setShowAuthModal: setIsAuthModalOpen,
-      toggleAuthModal,
       loginWithGoogle,
-      login: loginWithGoogle,
       logout,
+      rooms,
+      bookings,
       addRoom,
       updateRoom,
       deleteRoom,
