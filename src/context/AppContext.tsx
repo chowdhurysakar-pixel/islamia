@@ -49,8 +49,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
 
-  // ১. রুমের জন্য রিয়েল-টাইম সিঙ্ক
+  // ১. রুমের জন্য রিয়েল-টাইম লাইভ সিঙ্ক
   useEffect(() => {
+    if (!db) return;
     const roomsRef = collection(db, 'rooms');
     const unsubscribe = onSnapshot(roomsRef, (snapshot) => {
       const roomList: Room[] = [];
@@ -65,12 +66,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => unsubscribe();
   }, []);
 
-  // ২. বুকিংয়ের জন্য রিয়েল-টাইম সিঙ্ক (আজীবন ডাটা সেভ থাকবে, মোবাইল এবং ল্যাপটপ একসাথে আপডেট হবে)
+  // ২. বুকিংয়ের জন্য লাইভ সিঙ্ক (মোবাইল ও ল্যাপটপ একসাথে আপডেট হবে এবং ডাটা মুছে যাবে না)
   useEffect(() => {
+    if (!db) return;
     const bookingsRef = collection(db, 'bookings');
-    const q = query(bookingsRef, orderBy('createdAt', 'desc'));
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
       const bookingList: Booking[] = [];
       snapshot.forEach((doc) => {
         bookingList.push({ id: doc.id, ...doc.data() } as Booking);
@@ -83,8 +84,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => unsubscribe();
   }, []);
 
-  // রুম অ্যাকশনসমূহ
   const addRoom = async (room: Room) => {
+    if (!db) return;
     try {
       await setDoc(doc(db, 'rooms', room.id), room);
     } catch (err) {
@@ -93,6 +94,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const updateRoom = async (id: string, updatedFields: Partial<Room>) => {
+    if (!db) return;
     try {
       await updateDoc(doc(db, 'rooms', id), updatedFields);
     } catch (err) {
@@ -101,6 +103,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteRoom = async (id: string) => {
+    if (!db) return;
     try {
       await deleteDoc(doc(db, 'rooms', id));
     } catch (err) {
@@ -108,8 +111,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  // বুকিং অ্যাকশনসমূহ (চেক-ইন / চেক-আউট ডাটা চিরস্থায়ীভাবে সেভ হবে)
   const addBooking = async (bookingData: Omit<Booking, 'id'>) => {
+    if (!db) return;
     try {
       const bookingId = 'B' + Math.floor(1000 + Math.random() * 9000);
       const newBooking = {
@@ -121,7 +124,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
       await setDoc(doc(db, 'bookings', bookingId), newBooking);
 
-      // স্বয়ংক্রিয়ভাবে রুমের স্ট্যাটাস occupied করা হবে
       if (bookingData.roomId) {
         await updateDoc(doc(db, 'rooms', bookingData.roomId), { status: 'occupied' });
       }
@@ -131,6 +133,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const checkoutBooking = async (id: string) => {
+    if (!db) return;
     try {
       const bookingRef = doc(db, 'bookings', id);
       await updateDoc(bookingRef, { status: 'CHECKED-OUT' });
