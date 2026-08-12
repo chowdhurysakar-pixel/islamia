@@ -6,11 +6,15 @@ import {
   updateDoc, 
   deleteDoc, 
   onSnapshot, 
-  query, 
-  orderBy, 
   serverTimestamp 
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { 
+  auth, 
+  db, 
+  signInWithPopup, 
+  GoogleAuthProvider, 
+  signOut as firebaseSignOut 
+} from '../firebase';
 
 export interface Room {
   id: string;
@@ -34,8 +38,13 @@ export interface Booking {
 }
 
 interface AppContextType {
+  user: any;
   rooms: Room[];
   bookings: Booking[];
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (open: boolean) => void;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
   addRoom: (room: Room) => Promise<void>;
   updateRoom: (id: string, room: Partial<Room>) => Promise<void>;
   deleteRoom: (id: string) => Promise<void>;
@@ -46,10 +55,21 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<any>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
 
-  // ১. রুমের জন্য রিয়েল-টাইম লাইভ সিঙ্ক
+  // 1. Authentication Listener
+  useEffect(() => {
+    if (!auth) return;
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Real-time Rooms Sync
   useEffect(() => {
     if (!db) return;
     const roomsRef = collection(db, 'rooms');
@@ -59,98 +79,94 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         roomList.push({ id: doc.id, ...doc.data() } as Room);
       });
       setRooms(roomList);
-    }, (error) => {
-      console.error("Firestore Rooms Sync Error:", error);
-    });
+    }, (err) => console.error("Rooms sync error:", err));
 
     return () => unsubscribe();
   }, []);
 
-  // ২. বুকিংয়ের জন্য লাইভ সিঙ্ক (মোবাইল ও ল্যাপটপ একসাথে আপডেট হবে এবং ডাটা মুছে যাবে না)
+  // 3. Real-time Bookings Sync (Lifetime Persistence)
   useEffect(() => {
     if (!db) return;
     const bookingsRef = collection(db, 'bookings');
-    
     const unsubscribe = onSnapshot(bookingsRef, (snapshot) => {
       const bookingList: Booking[] = [];
       snapshot.forEach((doc) => {
         bookingList.push({ id: doc.id, ...doc.data() } as Booking);
       });
       setBookings(bookingList);
-    }, (error) => {
-      console.error("Firestore Bookings Sync Error:", error);
-    });
+    }, (err) => console.error("Bookings sync error:", err));
 
     return () => unsubscribe();
   }, []);
 
+  // Auth Methods
+  const loginWithGoogle = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      setIsAuthModalOpen(false);
+    } catch (error) {
+      console.error("Google Sign-in failed:", error);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await firebaseSignOut(auth);
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  // Database Methods
   const addRoom = async (room: Room) => {
     if (!db) return;
-    try {
-      await setDoc(doc(db, 'rooms', room.id), room);
-    } catch (err) {
-      console.error("Error adding room:", err);
-    }
+    await setDoc(doc(db, 'rooms', room.id), room);
   };
 
   const updateRoom = async (id: string, updatedFields: Partial<Room>) => {
     if (!db) return;
-    try {
-      await updateDoc(doc(db, 'rooms', id), updatedFields);
-    } catch (err) {
-      console.error("Error updating room:", err);
-    }
+    await updateDoc(doc(db, 'rooms', id), updatedFields);
   };
 
   const deleteRoom = async (id: string) => {
     if (!db) return;
-    try {
-      await deleteDoc(doc(db, 'rooms', id));
-    } catch (err) {
-      console.error("Error deleting room:", err);
-    }
+    await deleteDoc(doc(db, 'rooms', id));
   };
 
   const addBooking = async (bookingData: Omit<Booking, 'id'>) => {
     if (!db) return;
-    try {
-      const bookingId = 'B' + Math.floor(1000 + Math.random() * 9000);
-      const newBooking = {
-        ...bookingData,
-        id: bookingId,
-        status: 'CHECKED-IN',
-        createdAt: serverTimestamp()
-      };
-
-      await setDoc(doc(db, 'bookings', bookingId), newBooking);
-
-      if (bookingData.roomId) {
-        await updateDoc(doc(db, 'rooms', bookingData.roomId), { status: 'occupied' });
-      }
-    } catch (err) {
-      console.error("Error creating booking:", err);
+    const bookingId = 'B' + Math.floor(1000 + Math.random() * 9000);
+    const newBooking = {
+      ...bookingData,
+      id: bookingId,
+      status: 'CHECKED-IN',
+      createdAt: serverTimestamp()
+    };
+    await setDoc(doc(db, 'bookings', bookingId), newBooking);
+    if (bookingData.roomId) {
+      await updateDoc(doc(db, 'rooms', bookingData.roomId), { status: 'occupied' });
     }
   };
 
   const checkoutBooking = async (id: string) => {
     if (!db) return;
-    try {
-      const bookingRef = doc(db, 'bookings', id);
-      await updateDoc(bookingRef, { status: 'CHECKED-OUT' });
-
-      const targetBooking = bookings.find(b => b.id === id);
-      if (targetBooking?.roomId) {
-        await updateDoc(doc(db, 'rooms', targetBooking.roomId), { status: 'cleaning' });
-      }
-    } catch (err) {
-      console.error("Error checking out booking:", err);
+    await updateDoc(doc(db, 'bookings', id), { status: 'CHECKED-OUT' });
+    const target = bookings.find(b => b.id === id);
+    if (target?.roomId) {
+      await updateDoc(doc(db, 'rooms', target.roomId), { status: 'cleaning' });
     }
   };
 
   return (
     <AppContext.Provider value={{
+      user,
       rooms,
       bookings,
+      isAuthModalOpen,
+      setIsAuthModalOpen,
+      loginWithGoogle,
+      logout,
       addRoom,
       updateRoom,
       deleteRoom,
