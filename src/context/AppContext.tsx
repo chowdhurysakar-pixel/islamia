@@ -43,6 +43,10 @@ interface AppContextType {
   bookings: Booking[];
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (open: boolean) => void;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
+  setIsAuthOpen: (open: boolean) => void;
+  setShowAuthModal: (open: boolean) => void;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   addRoom: (room: Room) => Promise<void>;
@@ -60,7 +64,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
 
-  // 1. Authentication Listener
+  // 1. Listen for Authentication state
   useEffect(() => {
     if (!auth) return;
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -69,7 +73,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return () => unsubscribe();
   }, []);
 
-  // 2. Real-time Rooms Sync
+  // 2. Real-time Firestore Rooms sync
   useEffect(() => {
     if (!db) return;
     const roomsRef = collection(db, 'rooms');
@@ -79,12 +83,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         roomList.push({ id: doc.id, ...doc.data() } as Room);
       });
       setRooms(roomList);
-    }, (err) => console.error("Rooms sync error:", err));
-
+    });
     return () => unsubscribe();
   }, []);
 
-  // 3. Real-time Bookings Sync (Lifetime Persistence)
+  // 3. Real-time Firestore Bookings sync
   useEffect(() => {
     if (!db) return;
     const bookingsRef = collection(db, 'bookings');
@@ -94,19 +97,22 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         bookingList.push({ id: doc.id, ...doc.data() } as Booking);
       });
       setBookings(bookingList);
-    }, (err) => console.error("Bookings sync error:", err));
-
+    });
     return () => unsubscribe();
   }, []);
 
-  // Auth Methods
+  // Helper functions to handle all possible button calls
+  const openAuthModal = () => setIsAuthModalOpen(true);
+  const closeAuthModal = () => setIsAuthModalOpen(false);
+
+  // Google Sign-In & Logout
   const loginWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       setIsAuthModalOpen(false);
     } catch (error) {
-      console.error("Google Sign-in failed:", error);
+      console.error("Google Sign-in error:", error);
     }
   };
 
@@ -114,11 +120,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       await firebaseSignOut(auth);
     } catch (error) {
-      console.error("Logout failed:", error);
+      console.error("Logout error:", error);
     }
   };
 
-  // Database Methods
+  // Database CRUD Actions
   const addRoom = async (room: Room) => {
     if (!db) return;
     await setDoc(doc(db, 'rooms', room.id), room);
@@ -165,6 +171,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       bookings,
       isAuthModalOpen,
       setIsAuthModalOpen,
+      openAuthModal,
+      closeAuthModal,
+      setIsAuthOpen: setIsAuthModalOpen,
+      setShowAuthModal: setIsAuthModalOpen,
       loginWithGoogle,
       logout,
       addRoom,
