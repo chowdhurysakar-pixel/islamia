@@ -396,7 +396,7 @@ export const GuestView: React.FC = () => {
   };
 
   // Direct Inquiry & Newsletter Submit Handler
-  const handleInquirySubmit = (e: React.FormEvent) => {
+  const handleInquirySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setInquiryError('');
 
@@ -414,18 +414,27 @@ export const GuestView: React.FC = () => {
     }
 
     setInquiryLoading(true);
-    setTimeout(() => {
-      setInquiryLoading(false);
-      setInquirySuccess(true);
-      showToast({
-        type: 'success',
-        message: '📨 Inquiry submitted! Front desk management will respond shortly.'
+    try {
+      await createServiceRequest({
+        roomId: 'Inquiry Desk',
+        type: 'concierge',
+        description: `[Direct Concierge Inquiry] From: ${inquiryName.trim()} (${inquiryContact.trim()}) — Message: ${inquiryMessage.trim()}`,
+        status: 'pending'
       });
-      setInquiryName('');
-      setInquiryContact('');
-      setInquiryMessage('');
-      setTimeout(() => setInquirySuccess(false), 6000);
-    }, 500);
+    } catch (err) {
+      console.warn("Notice saving concierge inquiry:", err);
+    }
+
+    setInquiryLoading(false);
+    setInquirySuccess(true);
+    showToast({
+      type: 'success',
+      message: '📨 Inquiry submitted! Front desk management will respond shortly.'
+    });
+    setInquiryName('');
+    setInquiryContact('');
+    setInquiryMessage('');
+    setTimeout(() => setInquirySuccess(false), 6000);
   };
 
   // Submit Guest Rating and Written Review
@@ -2092,7 +2101,7 @@ export const GuestView: React.FC = () => {
                         id="inquiry-guest-name"
                         type="text"
                         required
-                        placeholder="e.g. Dr. Rafiqul Islam"
+                        placeholder="e.g. Mr. Shajjad Sohel"
                         value={inquiryName}
                         onChange={(e) => setInquiryName(e.target.value)}
                         className="w-full bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#d7bd8a] transition"

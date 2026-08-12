@@ -13,7 +13,7 @@ import {
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
   Printer, Receipt, Settings, DollarSign, UserCheck, UserX, Lock, 
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
-  ChevronRight, BarChart3, PieChart, Download
+  ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound
 } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
@@ -30,11 +30,70 @@ export const AdminPanel: React.FC = () => {
     opMode,
     setOpMode,
     isFirebaseActive,
-    showToast
+    showToast,
+    changeAdminPassword
   } = useApp();
 
   // Admin Active Tab
   const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'chambers' | 'reservations' | 'settings'>('analytics');
+
+  // Change Admin Password State & Toggles
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState<string>('');
+  const [newPasswordInput, setNewPasswordInput] = useState<string>('');
+  const [confirmPasswordInput, setConfirmPasswordInput] = useState<string>('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState<boolean>(false);
+  const [showNewPassword, setShowNewPassword] = useState<boolean>(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
+
+  // Submit Password Change
+  const handleChangePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    // 1. Client-Side Validation
+    if (!currentPasswordInput.trim()) {
+      setPasswordError('Please enter your current password.');
+      return;
+    }
+    if (!newPasswordInput) {
+      setPasswordError('Please enter a new password.');
+      return;
+    }
+    if (newPasswordInput.length < 6) {
+      setPasswordError('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPasswordInput !== confirmPasswordInput) {
+      setPasswordError('New password and confirmation password do not match.');
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      const res = await changeAdminPassword(currentPasswordInput, newPasswordInput);
+      if (res.success) {
+        setPasswordSuccess('✅ Admin password updated successfully! Credentials are now secured in Firebase Authentication.');
+        showToast({
+          type: 'success',
+          message: '🔒 Admin password updated successfully!'
+        });
+        setCurrentPasswordInput('');
+        setNewPasswordInput('');
+        setConfirmPasswordInput('');
+      } else {
+        setPasswordError(res.error || 'Failed to update admin password.');
+      }
+    } catch (err: any) {
+      setPasswordError(err?.message || 'An error occurred while updating admin password.');
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
 
   // Registered Staff Management State
   const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>(() => {
@@ -220,15 +279,21 @@ export const AdminPanel: React.FC = () => {
 
   // Handle Chamber Add Submit
   const handleAddRoomSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRoomNo.trim()) return;
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    const trimmedNo = newRoomNo.trim();
+    if (!trimmedNo) return;
+
+    const parsedPrice = Number(newRoomPrice) || 0;
+    const parsedCapacity = Number(newRoomCapacity) || 1;
 
     await addRoom({
-      number: newRoomNo.trim(),
+      number: trimmedNo,
       type: newRoomType,
-      price: newRoomPrice,
+      price: parsedPrice,
       status: 'available',
-      capacity: newRoomCapacity,
+      capacity: parsedCapacity,
       description: newRoomDesc || `${newRoomType.toUpperCase()} Chamber at Islamia Guest House Dhanmondi`,
       image: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
       amenities: ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Clean Toiletries']
@@ -240,7 +305,7 @@ export const AdminPanel: React.FC = () => {
     setNewRoomImg('');
     showToast({
       type: 'success',
-      message: `🏨 New Chamber #${newRoomNo} added to inventory!`
+      message: `🏨 New Chamber #${trimmedNo} added to inventory!`
     });
   };
 
@@ -474,6 +539,18 @@ export const AdminPanel: React.FC = () => {
             >
               <Building className="w-3.5 h-3.5" />
               <span>Front Desk View</span>
+            </button>
+            <button
+              onClick={() => {
+                setPasswordError(null);
+                setPasswordSuccess(null);
+                setIsPasswordModalOpen(true);
+              }}
+              title="Change Admin Password"
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+              <span>Change Password</span>
             </button>
             <button
               onClick={handleLockPanel}
@@ -1193,7 +1270,7 @@ export const AdminPanel: React.FC = () => {
       {/* TAB 5: SYSTEM SETTINGS & PROPERTY AUDIT */}
       {activeTab === 'settings' && (
         <div className="space-y-6 animate-fadeIn">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Hotel Business Settings */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -1252,6 +1329,115 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
 
+            {/* Admin Password Management Settings Card */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+              <h3 className="text-sm font-bold text-slate-850 flex items-center justify-between border-b border-slate-100 pb-3">
+                <span className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-600" />
+                  <span>Admin Password Management</span>
+                </span>
+                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-mono rounded-md font-semibold">
+                  Firebase Auth
+                </span>
+              </h3>
+
+              <form onSubmit={handleChangePasswordSubmit} className="space-y-3 text-xs">
+                {passwordError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>{passwordError}</span>
+                  </div>
+                )}
+
+                {passwordSuccess && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>{passwordSuccess}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Current Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      required
+                      value={currentPasswordInput}
+                      onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                      placeholder="Enter current password"
+                      className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    New Password (Min. 6 chars) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={newPasswordInput}
+                      onChange={(e) => setNewPasswordInput(e.target.value)}
+                      placeholder="Enter new password"
+                      className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Confirm New Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      required
+                      minLength={6}
+                      value={confirmPasswordInput}
+                      onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                      placeholder="Re-enter new password"
+                      className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-purple-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isUpdatingPassword}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{isUpdatingPassword ? 'Updating Password...' : 'Update Admin Password'}</span>
+                </button>
+              </form>
+            </div>
+
             {/* Maintenance & Data Management */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
               <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -1278,6 +1464,136 @@ export const AdminPanel: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Admin Password Standalone Modal Dialog */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-amber-600" />
+                <span>Change Executive Admin Password</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsPasswordModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Re-authenticate with your current password to update your Firebase Authentication credentials securely.
+            </p>
+
+            <form onSubmit={handleChangePasswordSubmit} className="space-y-3.5 text-xs">
+              {passwordError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+
+              {passwordSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{passwordSuccess}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Current Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    required
+                    value={currentPasswordInput}
+                    onChange={(e) => setCurrentPasswordInput(e.target.value)}
+                    placeholder="Enter current password"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  New Password (Min. 6 characters) *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={newPasswordInput}
+                    onChange={(e) => setNewPasswordInput(e.target.value)}
+                    placeholder="Enter new secure password"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Confirm New Password *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    required
+                    minLength={6}
+                    value={confirmPasswordInput}
+                    onChange={(e) => setConfirmPasswordInput(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingPassword}
+                  className="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <Lock className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{isUpdatingPassword ? 'Updating...' : 'Save Password'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

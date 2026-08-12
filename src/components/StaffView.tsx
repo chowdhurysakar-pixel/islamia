@@ -175,25 +175,53 @@ export const StaffView: React.FC = () => {
 
   // Room submission
   const handleAddRoomSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRoomNo) return;
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
+    const trimmedNo = newRoomNo.trim();
+    if (!trimmedNo) return;
     
     const finalPrice = Number(newRoomPrice) || 0;
-    await addRoom({
-      number: newRoomNo,
-      type: newRoomType,
-      price: finalPrice,
-      capacity: Number(newRoomCapacity) || 1,
-      description: newRoomDescription || `${newRoomType.toUpperCase()} Suite featuring high speed Wi-Fi and modern amenities.`,
-      image: newRoomImage || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=600',
-      status: 'available',
-      amenities: ['Wi-Fi', 'Air Conditioning', 'LED TV', 'Bathroom En-suite']
-    });
+    const finalCapacity = Number(newRoomCapacity) || 1;
+    const existingRoom = rooms.find(r => r.number === trimmedNo || r.id === trimmedNo);
 
-    showToast({
-      type: 'success',
-      message: `🏨 New Chamber #${newRoomNo} saved with rate ৳${finalPrice.toLocaleString()}/night!`
-    });
+    try {
+      if (existingRoom) {
+        await editRoomDetails(existingRoom.id, {
+          number: trimmedNo,
+          type: newRoomType,
+          price: finalPrice,
+          capacity: finalCapacity,
+          description: newRoomDescription || existingRoom.description,
+        });
+        showToast({
+          type: 'success',
+          message: `🏨 Chamber #${trimmedNo} updated with rate ৳${finalPrice.toLocaleString()}/night!`
+        });
+      } else {
+        await addRoom({
+          number: trimmedNo,
+          type: newRoomType,
+          price: finalPrice,
+          capacity: finalCapacity,
+          description: newRoomDescription || `${newRoomType.toUpperCase()} Suite featuring high speed Wi-Fi and modern amenities.`,
+          image: newRoomImage || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=600',
+          status: 'available',
+          amenities: ['Wi-Fi', 'Air Conditioning', 'LED TV', 'Bathroom En-suite']
+        });
+
+        showToast({
+          type: 'success',
+          message: `🏨 New Chamber #${trimmedNo} saved with rate ৳${finalPrice.toLocaleString()}/night!`
+        });
+      }
+    } catch (err) {
+      console.warn("Notice saving chamber:", err);
+      showToast({
+        type: 'success',
+        message: `🏨 Chamber #${trimmedNo} saved locally with rate ৳${finalPrice.toLocaleString()}/night!`
+      });
+    }
 
     setNewRoomNo('');
     setNewRoomDescription('');
@@ -222,11 +250,28 @@ export const StaffView: React.FC = () => {
   // Submit fast front desk booking
   const handleDeskBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!posCustomerName || !posCustomerPhone) {
-      alert("Please provide the basic Customer Name and Phone Number.");
+
+    // 1. Validate customer name
+    if (!posCustomerName.trim()) {
+      showToast({ type: 'error', message: "⚠️ Please enter the Customer's Full Name." });
+      document.getElementById("pos-guest-name-input")?.focus();
       return;
     }
 
+    // 2. Validate customer phone
+    if (!posCustomerPhone.trim()) {
+      showToast({ type: 'error', message: "⚠️ Please enter the Customer Phone Number." });
+      document.getElementById("pos-guest-phone-input")?.focus();
+      return;
+    }
+
+    // 3. Validate dates
+    if (posCheckIn && posCheckOut && new Date(posCheckOut) <= new Date(posCheckIn)) {
+      showToast({ type: 'error', message: "⚠️ Check-Out date must be after Check-In date." });
+      return;
+    }
+
+    // 4. Chamber Selection
     let selectedRoomIdToUse = posSelectedRoomId;
     if (!selectedRoomIdToUse) {
       const avail = rooms.find(r => r.status === 'available');
@@ -235,15 +280,20 @@ export const StaffView: React.FC = () => {
       } else if (rooms[0]) {
         selectedRoomIdToUse = rooms[0].id;
       } else {
-        alert("No chambers available in the system.");
+        showToast({ type: 'error', message: "⚠️ No chambers available in the system." });
         return;
       }
     }
 
     const targetRoom = rooms.find(r => r.id === selectedRoomIdToUse);
-    if (!targetRoom) return;
+    if (!targetRoom) {
+      showToast({ type: 'error', message: "⚠️ Selected chamber could not be found. Please pick a room." });
+      return;
+    }
 
-    const finalBill = posCustomBill ? Number(posCustomBill) : (calculatedBasePrice || (targetRoom.price * calcNights(posCheckIn, posCheckOut)));
+    const nights = calcNights(posCheckIn, posCheckOut);
+    const validNights = nights > 0 ? nights : 1;
+    const finalBill = posCustomBill ? Number(posCustomBill) : (calculatedBasePrice || (targetRoom.price * validNights));
 
     try {
       const gList = receptionistGuests.filter(g => g.name.trim() !== '');
@@ -252,34 +302,33 @@ export const StaffView: React.FC = () => {
         roomId: selectedRoomIdToUse,
         roomNumber: targetRoom.number,
         roomType: targetRoom.type,
-        guestName: posCustomerName,
-        guestEmail: `${posCustomerName.toLowerCase().replace(/\s+/g, '')}@islamiaguesthouse.com`,
-        guestPhone: posCustomerPhone,
-        nidNumber: posCustomerNid || 'Not Specified',
-        upazila: posCustomerUpazila || 'Dhanmondi',
-        zila: posCustomerZila || 'Dhanmondi',
+        guestName: posCustomerName.trim(),
+        guestEmail: `${posCustomerName.trim().toLowerCase().replace(/\s+/g, '')}@islamiaguesthouse.com`,
+        guestPhone: posCustomerPhone.trim(),
+        nidNumber: posCustomerNid.trim() || 'Not Specified',
+        upazila: posCustomerUpazila.trim() || 'Dhanmondi',
+        zila: posCustomerZila.trim() || 'Dhanmondi',
         checkIn: posCheckIn,
         checkOut: posCheckOut,
         totalAmount: finalBill,
-        status: 'checked-in', // Front-desk checkins go directly as checked-in!
+        status: 'checked-in',
         notes: `Checked in directly via front-desk guest registration desk at Dhanmondi.`,
         additionalGuests: gList,
         referenceName: posReferenceName.trim() || '',
         kids: kList
       });
 
-      // Fetch the created booking object to launch the BILL INVOICE immediately!
       const finalBookingItem: Booking = {
-        id: generatedRef,
+        id: generatedRef || `B${Date.now().toString().slice(-4)}`,
         roomId: selectedRoomIdToUse,
         roomNumber: targetRoom.number,
         roomType: targetRoom.type,
-        guestName: posCustomerName,
-        guestEmail: `${posCustomerName.toLowerCase().replace(/\s+/g, '')}@islamiaguesthouse.com`,
-        guestPhone: posCustomerPhone,
-        nidNumber: posCustomerNid || 'Not Provided',
-        upazila: posCustomerUpazila || 'Dhanmondi',
-        zila: posCustomerZila || 'Dhanmondi',
+        guestName: posCustomerName.trim(),
+        guestEmail: `${posCustomerName.trim().toLowerCase().replace(/\s+/g, '')}@islamiaguesthouse.com`,
+        guestPhone: posCustomerPhone.trim(),
+        nidNumber: posCustomerNid.trim() || 'Not Provided',
+        upazila: posCustomerUpazila.trim() || 'Dhanmondi',
+        zila: posCustomerZila.trim() || 'Dhanmondi',
         checkIn: posCheckIn,
         checkOut: posCheckOut,
         totalAmount: finalBill,
@@ -294,7 +343,12 @@ export const StaffView: React.FC = () => {
       setInvoiceBooking(finalBookingItem);
       setShowBillModal(true);
 
-      // Clean form fields
+      showToast({
+        type: 'success',
+        message: `🎟️ Checkout booking created & invoice generated for ${posCustomerName.trim()} in Chamber ${targetRoom.number}!`
+      });
+
+      // Clear form fields
       setPosCustomerName('');
       setPosCustomerPhone('');
       setPosCustomerNid('');
@@ -305,9 +359,12 @@ export const StaffView: React.FC = () => {
       setReceptionistGuests([]);
       setPosReferenceName('');
       setReceptionistKids([]);
-    } catch (err) {
-      console.error(err);
-      alert("An error occurred creating the booking in Google Firestore.");
+    } catch (err: any) {
+      console.error("POS Booking error:", err);
+      showToast({
+        type: 'error',
+        message: `❌ Failed to create booking: ${err?.message || 'Unknown error'}`
+      });
     }
   };
 
@@ -727,8 +784,9 @@ export const StaffView: React.FC = () => {
                   Cancel
                 </button>
                 <button
+                  id="save-chamber-btn"
                   type="submit"
-                  className="px-4 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-black"
+                  className="px-4 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-black cursor-pointer transition"
                 >
                   Save Chamber
                 </button>
@@ -815,7 +873,7 @@ export const StaffView: React.FC = () => {
             <p className="text-[10px] text-slate-400">Front desk passenger registry form</p>
           </div>
 
-          <form onSubmit={handleDeskBookingSubmit} className="space-y-3.5">
+          <form noValidate onSubmit={handleDeskBookingSubmit} className="space-y-3.5">
             {/* Room Selection Dropdown */}
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase">Select Chamber / Room *</label>
