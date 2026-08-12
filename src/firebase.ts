@@ -1,47 +1,33 @@
-import { initializeApp, getApp, getApps } from 'firebase/app';
+import { initializeApp, getApp, getApps } from "firebase/app";
 import { 
   getAuth, 
   signInWithPopup, 
   GoogleAuthProvider, 
   signOut,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendEmailVerification
-} from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json';
+  signInWithEmailAndPassword
+} from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Initialize Firebase App
+const firebaseConfig = {
+  apiKey: "AIzaSyBDhtnThyEJOeZYs4GPnQgaK1mgAcSVLcI",
+  authDomain: "gen-lang-client-0139585657.firebaseapp.com",
+  projectId: "gen-lang-client-0139585657",
+  storageBucket: "gen-lang-client-0139585657.firebasestorage.app",
+  messagingSenderId: "24979260879",
+  appId: "1:24979260879:web:66e8da41201bda29d3beba"
+};
+
 export const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-
-// Target Firestore Database & Auth Instance
-export const db = getFirestore(firebaseApp, "ai-studio-d4de3759-a550-402d-907d-6317961785af");
+export const db = getFirestore(firebaseApp);
 export const auth = getAuth(firebaseApp);
+export const googleProvider = new GoogleAuthProvider();
 export const isFirebaseAvailable = true;
 
-// Export Auth functions required by the Sign-In popup
 export { 
   signInWithPopup, 
   GoogleAuthProvider, 
   signOut,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendEmailVerification
+  signInWithEmailAndPassword
 };
-
-export function initFirebase() {
-  return true;
-}
-
-export enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-export function handleFirestoreError(error: unknown) {
-  console.warn("Firestore Warning:", error);
-}
