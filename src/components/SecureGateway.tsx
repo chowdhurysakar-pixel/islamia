@@ -7,8 +7,8 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserRole, UserProfile } from '../types';
 import { 
-  Mail, Key, User, Shield, Users, Hotel, 
-  ArrowRight, Loader2, Lock, CheckCircle2, 
+  Mail, Key, User, Users, Hotel, 
+  ArrowRight, Loader2, CheckCircle2, 
   AlertCircle, ShieldCheck, Phone, KeyRound,
   Eye, EyeOff, X
 } from 'lucide-react';

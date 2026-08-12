@@ -5,12 +5,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Shield, User, Clock, ShieldCheck, Lock, X, Key, AlertCircle, LogIn, LogOut } from 'lucide-react';
+import { Shield, User, Clock, ShieldCheck, Lock, X, Key, AlertCircle } from 'lucide-react';
 
 const VALID_ADMIN_PASSCODES = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026', 'STAFF789'];
 
 export const Header: React.FC = () => {
-  const { currentRole, toggleRole, currentUser, opMode, setOpMode, logout, showToast } = useApp();
+  const { currentRole, toggleRole, currentUser, opMode, setOpMode, showToast } = useApp();
   const [time, setTime] = useState<string>('');
   
   // Admin Passcode Modal
@@ -27,24 +27,6 @@ export const Header: React.FC = () => {
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  // Handle Top-Right Sign In / Switch Account Click
-  const handleSignInClick = () => {
-    if (logout) logout();
-    sessionStorage.removeItem('admin_authorized');
-    setOpMode('auth');
-  };
-
-  // Handle Staff Access Verification
-  const handleStaffAccessClick = () => {
-    if (currentUser?.role === 'staff' || currentUser?.role === 'admin') {
-      if (currentRole === 'guest') toggleRole();
-      setOpMode('receptionist');
-    } else {
-      // If user is just a guest, send them to login screen
-      setOpMode('auth');
-    }
-  };
 
   const handleAdminAccessClick = () => {
     const isAlreadyAdminUser = currentUser?.role === 'admin';
@@ -75,7 +57,7 @@ export const Header: React.FC = () => {
         message: '🔓 Admin Control Center unlocked successfully.'
       });
     } else {
-      setAdminPasscodeError('Access Denied: Invalid Admin Passcode.');
+      setAdminPasscodeError('Access Denied: Invalid Admin Passcode. Guest, regular Staff, and HR accounts cannot access Admin controls without authorization.');
     }
   };
 
@@ -116,17 +98,16 @@ export const Header: React.FC = () => {
               </div>
             </div>
 
-            {/* Role Switcher & Top Sign In Button */}
+            {/* Role & Operational Mode Switcher */}
             <div className="flex items-center gap-3">
               <div className="flex items-center bg-slate-100/85 p-1 rounded-xl border border-slate-200/50">
                 <button
                   id="role-switch-guest-btn"
                   onClick={() => {
                     if (currentRole !== 'guest') toggleRole();
-                    setOpMode('guest');
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 cursor-pointer ${
-                    currentRole === 'guest' && opMode === 'guest'
+                    currentRole === 'guest'
                       ? 'bg-white text-slate-800 shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
@@ -137,7 +118,10 @@ export const Header: React.FC = () => {
 
                 <button
                   id="role-switch-staff-btn"
-                  onClick={handleStaffAccessClick}
+                  onClick={() => {
+                    if (currentRole === 'guest') toggleRole();
+                    setOpMode('receptionist');
+                  }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-300 cursor-pointer ${
                     currentRole === 'staff' && opMode !== 'admin'
                       ? 'bg-slate-850 text-white shadow-sm'
@@ -161,15 +145,6 @@ export const Header: React.FC = () => {
                   <span>Admin Panel</span>
                 </button>
               </div>
-
-              {/* Main Sign In / Auth Switcher Button */}
-              <button
-                onClick={handleSignInClick}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer ml-1"
-              >
-                {currentUser ? <LogOut className="w-3.5 h-3.5" /> : <LogIn className="w-3.5 h-3.5" />}
-                <span>{currentUser ? `${currentUser.name || 'User'} (Exit)` : 'Sign In'}</span>
-              </button>
             </div>
             
           </div>
