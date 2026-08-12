@@ -1243,50 +1243,11 @@ export const GuestView: React.FC = () => {
                 {/* Action Buttons in Confirmation Popup */}
                 <div className="pt-4 flex flex-col gap-2.5 max-w-sm mx-auto">
                   <button
-                    id="view-invoice-popup-btn"
-                    onClick={() => {
-                      const completedBookingObj = bookings.find(b => b.id === justCompletedBookingId) || {
-                        id: justCompletedBookingId,
-                        roomId: selectedRoom.id,
-                        roomNumber: selectedRoom.number,
-                        roomType: selectedRoom.type,
-                        guestName: bookName.trim(),
-                        guestEmail: bookEmail.trim().toLowerCase(),
-                        guestPhone: bookPhone.trim(),
-                        checkIn: bookCheckIn,
-                        checkOut: bookCheckOut,
-                        totalAmount: computedTotal,
-                        status: 'confirmed'
-                      };
-                      setSelectedRoom(null);
-                      setAutoPrintInvoice(false);
-                      setInvoiceBooking(completedBookingObj as any);
-                    }}
-                    className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-teal-600/10 active:scale-[0.98]"
-                  >
-                    <Receipt className="w-4 h-4" />
-                    <span>View & Print Official Invoice</span>
-                  </button>
-
-                  <button
-                    id="view-my-stays-btn"
-                    onClick={() => {
-                      setSelectedRoom(null);
-                      const el = document.getElementById('my-bookings-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
-                  >
-                    <Ticket className="w-4 h-4" />
-                    <span>View My Stays & Reservations</span>
-                  </button>
-
-                  <button
                     id="finish-booking-btn"
                     onClick={() => setSelectedRoom(null)}
-                    className="w-full py-2 text-slate-500 hover:text-slate-800 text-xs font-medium transition text-center cursor-pointer"
+                    className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-teal-600/10 active:scale-[0.98]"
                   >
-                    Return to Lobby
+                    <span>Return to Lobby</span>
                   </button>
                 </div>
               </div>
