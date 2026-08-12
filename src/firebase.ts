@@ -19,7 +19,13 @@ const firebaseConfig = {
 };
 
 export const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const db = getFirestore(firebaseApp);
+
+// Connect specifically to your named Firestore database
+export const db = getFirestore(
+  firebaseApp, 
+  "ai-studio-remixislamiagues-3281db5c-c7cb-4537-998c-2b87b8a55c0c"
+);
+
 export const auth = getAuth(firebaseApp);
 export const googleProvider = new GoogleAuthProvider();
 export const isFirebaseAvailable = true;
