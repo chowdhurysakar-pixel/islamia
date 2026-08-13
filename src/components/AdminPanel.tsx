@@ -195,7 +195,12 @@ export const AdminPanel: React.FC = () => {
   const [chamberSearch, setChamberSearch] = useState<string>('');
   const [reservationSearch, setReservationSearch] = useState<string>('');
   const [reservationStatusFilter, setReservationStatusFilter] = useState<BookingStatus | 'all'>('all');
-  const [ledgerSelectedDate, setLedgerSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [ledgerSelectedDate, setLedgerSelectedDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
 
   // Chamber Creation / Editing State
   const [isAddRoomOpen, setIsAddRoomOpen] = useState<boolean>(false);
@@ -266,40 +271,6 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
-  // Calculate Key Financial Metrics
-  const metrics = useMemo(() => {
-    const totalEarnings = bookings.reduce((sum, b) => {
-      if (b.status === 'confirmed' || b.status === 'checked-in' || b.status === 'checked-out') {
-        return sum + (b.totalAmount || 0);
-      }
-      return sum;
-    }, 0);
-
-    const checkedOutEarnings = bookings.reduce((sum, b) => {
-      if (b.status === 'checked-out') return sum + (b.totalAmount || 0);
-      return sum;
-    }, 0);
-
-    const activeBookingsCount = bookings.filter(b => b.status === 'checked-in' || b.status === 'confirmed').length;
-    const occupiedChambersCount = rooms.filter(r => r.status === 'occupied').length;
-    const occupancyPercentage = rooms.length > 0 ? Math.round((occupiedChambersCount / rooms.length) * 100) : 0;
-    const pendingServicesCount = serviceRequests.filter(s => s.status === 'pending').length;
-
-    const staffAccountsCount = registeredUsers.filter(u => u.role === 'staff').length;
-    const pendingStaffApprovals = registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length;
-
-    return {
-      totalEarnings,
-      checkedOutEarnings,
-      activeBookingsCount,
-      occupiedChambersCount,
-      occupancyPercentage,
-      pendingServicesCount,
-      staffAccountsCount,
-      pendingStaffApprovals
-    };
-  }, [bookings, rooms, serviceRequests, registeredUsers]);
-
   // Filtered Users for Staff tab
   const filteredStaff = useMemo(() => {
     return registeredUsers.filter(u => 
@@ -331,6 +302,93 @@ export const AdminPanel: React.FC = () => {
     });
     return Array.from(map.values());
   }, [bookings, archivedBookings]);
+
+  // Calculate Key Financial Metrics (Daily Updates based on selectedDate)
+  const metrics = useMemo(() => {
+    const activeDate = selectedDate || new Date().toISOString().split('T')[0];
+    const currentToday = new Date().toISOString().split('T')[0];
+
+    // Filter reservations active or checked out on selectedDate
+    const dateBookings = allCombinedBookings.filter(b => {
+      if (b.status === 'cancelled') return false;
+      const cin = b.checkIn || b.checkInDate || '';
+      const cout = b.checkOut || b.checkOutDate || cin;
+
+      const inRange = Boolean(cin && cout && cin <= activeDate && cout >= activeDate);
+      const isCheckedOutOnDate = Boolean(
+        (b.status === 'checked-out' || b.status === 'checked_out') && 
+        ((b.checkedOutAt && b.checkedOutAt.startsWith(activeDate)) || cout === activeDate)
+      );
+      const isCreatedOnDate = Boolean(b.createdAt && b.createdAt.startsWith(activeDate));
+
+      return inRange || isCheckedOutOnDate || isCreatedOnDate;
+    });
+
+    // Gross Earnings for reservations active or checked out on selected date
+    const totalEarnings = dateBookings.reduce((sum, b) => {
+      if (b.status === 'confirmed' || b.status === 'checked-in' || b.status === 'checked-out' || b.status === 'checked_out') {
+        return sum + (b.finalBillAmount ?? b.paidAmount ?? b.totalAmount ?? 0);
+      }
+      return sum;
+    }, 0);
+
+    // Checked-out payments specifically on selected date
+    const checkedOutEarnings = dateBookings.reduce((sum, b) => {
+      if (b.status === 'checked-out' || b.status === 'checked_out') {
+        return sum + (b.finalBillAmount ?? b.paidAmount ?? b.totalAmount ?? 0);
+      }
+      return sum;
+    }, 0);
+
+    // Active reservations on selected date
+    const activeBookingsCount = dateBookings.filter(b => 
+      b.status === 'checked-in' || b.status === 'confirmed' || b.status === 'occupied'
+    ).length;
+
+    // Daily Chamber Occupancy rate strictly based on chambers occupied on selected date
+    const occupiedRoomIds = new Set<string>();
+    allCombinedBookings.forEach(b => {
+      if (b.status === 'checked-in' || b.status === 'confirmed' || b.status === 'occupied') {
+        const cin = b.checkIn || b.checkInDate || '';
+        const cout = b.checkOut || b.checkOutDate || cin;
+        if (cin && cout && cin <= activeDate && cout >= activeDate) {
+          if (b.roomId) occupiedRoomIds.add(b.roomId);
+          if (b.roomNumber) {
+            const matchedRoom = rooms.find(r => r.number === b.roomNumber);
+            if (matchedRoom) occupiedRoomIds.add(matchedRoom.id);
+          }
+        }
+      }
+    });
+
+    // If activeDate is today, also include chambers marked as occupied in room state
+    if (activeDate === currentToday) {
+      rooms.forEach(r => {
+        if (r.status === 'occupied') occupiedRoomIds.add(r.id);
+      });
+    }
+
+    const occupiedChambersCount = Math.min(occupiedRoomIds.size, rooms.length);
+    const totalChambers = rooms.length;
+    const occupancyPercentage = totalChambers > 0 ? Math.round((occupiedChambersCount / totalChambers) * 100) : 0;
+
+    const pendingServicesCount = serviceRequests.filter(s => s.status === 'pending').length;
+    const staffAccountsCount = registeredUsers.filter(u => u.role === 'staff').length;
+    const pendingStaffApprovals = registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length;
+
+    return {
+      selectedDate: activeDate,
+      totalEarnings,
+      checkedOutEarnings,
+      activeBookingsCount,
+      occupiedChambersCount,
+      totalChambers,
+      occupancyPercentage,
+      pendingServicesCount,
+      staffAccountsCount,
+      pendingStaffApprovals
+    };
+  }, [allCombinedBookings, rooms, serviceRequests, registeredUsers, selectedDate]);
 
   // Filtered Bookings for Reservations tab with Day-by-Day Guest History support
   const filteredBookings = useMemo(() => {
@@ -707,12 +765,70 @@ export const AdminPanel: React.FC = () => {
         </div>
       </div>
 
+      {/* Date Selector Filter Bar for Daily Operational Metrics */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-teal-50 text-teal-700 rounded-xl border border-teal-100">
+            <Calendar className="w-5 h-5 text-teal-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold text-slate-850 uppercase tracking-wider font-mono">
+                Daily Operational Metrics Date
+              </h3>
+              <span className="px-2 py-0.5 bg-teal-100/80 text-teal-800 text-[10px] font-mono font-bold rounded-md">
+                {selectedDate === new Date().toISOString().split('T')[0] ? 'Today' : selectedDate}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Filter Gross Earnings and Chamber Occupancy rate day-by-day for a specific date.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <input
+            type="date"
+            id="admin-metrics-date-picker"
+            value={selectedDate}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val) {
+                setSelectedDate(val);
+                setLedgerSelectedDate(val);
+              }
+            }}
+            className="px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white shadow-xs cursor-pointer"
+          />
+          {selectedDate !== new Date().toISOString().split('T')[0] && (
+            <button
+              type="button"
+              onClick={() => {
+                const today = new Date().toISOString().split('T')[0];
+                setSelectedDate(today);
+                setLedgerSelectedDate(today);
+              }}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 shrink-0"
+              title="Reset filter to today's date"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+              <span>Today</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* KPI Overview Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Metric 1: Total Revenue */}
+        {/* Metric 1: Daily Gross Earnings */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-2">
           <div className="flex justify-between items-center text-slate-400">
-            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Gross Earnings</span>
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono block">Gross Earnings</span>
+              <span className="text-[9px] font-mono text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded font-semibold inline-block">
+                {metrics.selectedDate}
+              </span>
+            </div>
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
               <TrendingUp className="w-4 h-4" />
             </div>
@@ -721,21 +837,26 @@ export const AdminPanel: React.FC = () => {
             ৳{metrics.totalEarnings.toLocaleString()}
           </div>
           <p className="text-[11px] text-slate-500">
-            Checked-out: <span className="font-semibold text-emerald-600">৳{metrics.checkedOutEarnings.toLocaleString()}</span>
+            Checked-out ({metrics.selectedDate}): <span className="font-semibold text-emerald-600">৳{metrics.checkedOutEarnings.toLocaleString()}</span>
           </p>
         </div>
 
-        {/* Metric 2: Occupancy Rate */}
+        {/* Metric 2: Daily Chamber Occupancy */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-2">
           <div className="flex justify-between items-center text-slate-400">
-            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Chamber Occupancy</span>
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono block">Chamber Occupancy</span>
+              <span className="text-[9px] font-mono text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded font-semibold inline-block">
+                {metrics.selectedDate}
+              </span>
+            </div>
             <div className="p-2 bg-teal-50 text-teal-600 rounded-xl">
               <Building className="w-4 h-4" />
             </div>
           </div>
           <div className="text-xl font-bold font-mono text-slate-850 flex items-baseline gap-2">
             <span>{metrics.occupancyPercentage}%</span>
-            <span className="text-xs font-normal text-slate-500">({metrics.occupiedChambersCount}/{rooms.length})</span>
+            <span className="text-xs font-normal text-slate-500">({metrics.occupiedChambersCount}/{metrics.totalChambers})</span>
           </div>
           <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
             <div 
@@ -745,7 +866,7 @@ export const AdminPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Metric 3: Active Bookings */}
+        {/* Metric 3: Active Guests */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-2">
           <div className="flex justify-between items-center text-slate-400">
             <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Active Guests</span>
@@ -757,7 +878,7 @@ export const AdminPanel: React.FC = () => {
             {metrics.activeBookingsCount} Reservations
           </div>
           <p className="text-[11px] text-slate-500">
-            Total Ledger Records: <span className="font-semibold text-slate-700">{bookings.length}</span>
+            Total Ledger Records: <span className="font-semibold text-slate-700">{allCombinedBookings.length}</span>
           </p>
         </div>
 
@@ -1305,23 +1426,31 @@ export const AdminPanel: React.FC = () => {
                     type="date"
                     id="admin-ledger-date-picker"
                     value={ledgerSelectedDate}
-                    onChange={(e) => setLedgerSelectedDate(e.target.value)}
-                    className="bg-transparent text-xs text-slate-700 font-medium focus:outline-none cursor-pointer"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLedgerSelectedDate(val);
+                      if (val) setSelectedDate(val);
+                    }}
+                    className="bg-transparent text-xs text-slate-700 font-medium focus:outline-none cursor-pointer font-mono font-bold"
                     title="Filter guest history by specific date"
                   />
                 </div>
 
                 {/* Date Filter Reset Button */}
-                {ledgerSelectedDate && (
+                {ledgerSelectedDate !== new Date().toISOString().split('T')[0] && (
                   <button
                     type="button"
                     id="admin-ledger-date-reset-btn"
-                    onClick={() => setLedgerSelectedDate('')}
-                    className="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
-                    title="Clear date filter to view all history"
+                    onClick={() => {
+                      const today = new Date().toISOString().split('T')[0];
+                      setLedgerSelectedDate(today);
+                      setSelectedDate(today);
+                    }}
+                    className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                    title="Reset date filter to today's date"
                   >
-                    <RotateCcw className="w-3 h-3 text-rose-600" />
-                    <span>Reset Date</span>
+                    <RotateCcw className="w-3 h-3 text-slate-600" />
+                    <span>Today</span>
                   </button>
                 )}
 
