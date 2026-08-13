@@ -17,6 +17,12 @@ export interface Room {
   price: number;
   status: RoomStatus;
   capacity: number;
+  capacityText?: string;
+  bedSize?: string;
+  windows?: string;
+  toilet?: string;
+  extra?: string;
+  startingPriceBanner?: string;
   amenities: string[];
   image: string;
   description: string;

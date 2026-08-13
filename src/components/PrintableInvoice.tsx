@@ -85,9 +85,9 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
   // Customizable Address & Contact Info States (for invoice style changing with address and phn number option)
   const [invoiceStyle, setInvoiceStyle] = useState<'classic' | 'modern' | 'minimal'>('classic');
   const [guestHouseName, setGuestHouseName] = useState<string>('ISLAMIA GUEST HOUSE');
-  const [guestHouseAddressBangla, setGuestHouseAddressBangla] = useState<string>('বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি - ১২০৯');
-  const [guestHouseAddressEnglish, setGuestHouseAddressEnglish] = useState<string>('(House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209)');
-  const [guestHouseLandmark, setGuestHouseLandmark] = useState<string>('ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন');
+  const [guestHouseAddressBangla, setGuestHouseAddressBangla] = useState<string>('House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209');
+  const [guestHouseAddressEnglish, setGuestHouseAddressEnglish] = useState<string>('Dhanmondi, Dhaka - 1209, Bangladesh');
+  const [guestHouseLandmark, setGuestHouseLandmark] = useState<string>('Opposite Ibne Sina 9/A, Behind Meena Bazar, Adjacent to Northern Medical College');
   const [phoneBkash, setPhoneBkash] = useState<string>('01832-841818');
   const [phoneCall, setPhoneCall] = useState<string>('01909-806960');
   const [phoneWhatsapp, setPhoneWhatsapp] = useState<string>('01799-148408');
@@ -529,7 +529,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                               <path d="M13 10h-1v1.5h-1v1h1v2.5h1V12.5h1.2l.2-1H13z" fill="#2563eb" />
                             </svg>
                           </div>
-                          <span className="text-[9px] font-bold text-slate-800 font-sans">ফেসবুকে দেখুন</span>
+                          <span className="text-[9px] font-bold text-slate-800 font-sans">View on Facebook</span>
                           <span className="text-[7px] text-slate-400 font-mono">fb.com/islamia.dhaka</span>
                         </div>
 
@@ -544,7 +544,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                               <path d="M12.5 10c-1.1 0-2 .9-2 2 0 1.2 2 3 2 3s2-1.8 2-3c0-1.1-.9-2-2-2zm0 2.7c-.4 0-.7-.3-.7-.7 0-.4.3-.7.7-.7.4 0 .7.3.7.7 0 .4-.3.7-.7.7z" fill="#059669" />
                             </svg>
                           </div>
-                          <span className="text-[9px] font-bold text-slate-800 font-sans">ম্যাপে দেখুন</span>
+                          <span className="text-[9px] font-bold text-slate-800 font-sans">View on Maps</span>
                           <span className="text-[7px] text-slate-400 font-mono">goo.gl/maps/islamia</span>
                         </div>
                       </div>
@@ -801,7 +801,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                                 <path d="M13 10h-1v1.5h-1v1h1v2.5h1V12.5h1.2l.2-1H13z" fill="#2563eb" />
                               </svg>
                             </div>
-                            <span className="text-[9px] font-bold text-slate-800 font-sans">ফেসবুকে দেখুন</span>
+                            <span className="text-[9px] font-bold text-slate-800 font-sans">View on Facebook</span>
                           </div>
 
                           {/* Google Maps QR Code */}
@@ -814,7 +814,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                                 <path d="M12.5 10c-1.1 0-2 .9-2 2 0 1.2 2 3 2 3s2-1.8 2-3c0-1.1-.9-2-2-2zm0 2.7c-.4 0-.7-.3-.7-.7 0-.4.3-.7.7-.7.4 0 .7.3.7.7 0 .4-.3.7-.7.7z" fill="#059669" />
                               </svg>
                             </div>
-                            <span className="text-[9px] font-bold text-slate-800 font-sans">ম্যাপে দেখুন</span>
+                            <span className="text-[9px] font-bold text-slate-800 font-sans">View on Maps</span>
                           </div>
                         </div>
                       )}

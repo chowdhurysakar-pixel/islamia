@@ -7,7 +7,9 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
+import { Chambers } from './Chambers';
 import { PrintableInvoice } from './PrintableInvoice';
+import { WhyChooseUs } from './WhyChooseUs';
 import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
@@ -523,7 +525,7 @@ export const GuestView: React.FC = () => {
             </a>
           </div>
           <div className="flex flex-wrap gap-3.5 items-center text-[11px]">
-            <span className="opacity-80 text-[#0e2b33]">🌐 English / বাংলা</span>
+            <span className="opacity-80 text-[#0e2b33]">🌐 English</span>
             <a href="#my-stays-section" className="hover:text-[#905e38] font-medium text-[#0e2b33]">
               My Stays ({myBookings.length})
             </a>
@@ -586,6 +588,7 @@ export const GuestView: React.FC = () => {
             <li><a href="#philosophy" className="hover:text-[#af8a52] transition">Philosophy</a></li>
             <li><a href="#events" className="hover:text-[#af8a52] transition">Experience</a></li>
             <li><a href="#guest-reviews-section" className="hover:text-[#af8a52] transition">Reviews</a></li>
+            <li><a href="#why-us" className="hover:text-[#af8a52] transition">Why Us</a></li>
             <li><a href="#contact-footer" className="hover:text-[#af8a52] transition">Location</a></li>
           </ul>
 
@@ -626,6 +629,9 @@ export const GuestView: React.FC = () => {
             </a>
             <a href="#guest-reviews-section" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
               Guest Reviews
+            </a>
+            <a href="#why-us" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
+              Why Choose Us
             </a>
             <a href="#contact-footer" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
               Location &amp; Directions
@@ -898,24 +904,10 @@ export const GuestView: React.FC = () => {
         </div>
       </section>
 
-      {/* 3. Rooms Listing Grid */}
-      <section id="destinations" className="max-w-7xl mx-auto px-6 mb-16 space-y-8">
-        <div className="flex justify-between items-end border-b border-[#0e2b33]/10 pb-4">
-          <div>
-            <div className="text-[11px] tracking-[0.28em] text-[#af8a52] font-bold uppercase mb-1">
-              LUXURY ACCOMMODATIONS
-            </div>
-            <h2 className="font-serif text-2xl sm:text-3xl font-normal text-[#0e2b33]">
-              Discover indulgent escapes in our Dhanmondi chambers
-            </h2>
-          </div>
-          <span className="text-xs font-mono font-semibold text-[#0e2b33] bg-[#efe8d8] px-3.5 py-1.5 rounded border border-[#0e2b33]/10">
-            {filteredRooms.length} Chambers Available
-          </span>
-        </div>
-
-        {filteredRooms.length === 0 ? (
-          <div className="text-center py-16 bg-[#efe8d8]/30 rounded border border-[#0e2b33]/10">
+      {/* 3. Rooms / Chambers Listing Grid */}
+      {filteredRooms.length === 0 ? (
+        <section id="destinations" className="max-w-7xl mx-auto px-6 mb-16 space-y-8 scroll-mt-24">
+          <div className="text-center py-16 bg-[#efe8d8]/30 rounded-2xl border border-[#0e2b33]/10">
             <p className="text-[#0e2b33] font-medium text-sm">No chambers match your specific parameters.</p>
             <button 
               id="clear-filters-btn"
@@ -925,19 +917,13 @@ export const GuestView: React.FC = () => {
               Reset Search Parameters
             </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredRooms.map((room) => (
-              <RoomCard 
-                key={room.id}
-                room={room}
-                isStaffMode={false}
-                onBookClick={handleOpenBooking}
-              />
-            ))}
-          </div>
-        )}
-      </section>
+        </section>
+      ) : (
+        <Chambers 
+          rooms={filteredRooms}
+          onBookClick={handleOpenBooking}
+        />
+      )}
 
       {/* 3.5 Events & Experience Collage Section */}
       <section id="events" className="bg-[#0e2b33] text-[#f8f4ec] py-20 px-6 mb-16">
@@ -1084,7 +1070,7 @@ export const GuestView: React.FC = () => {
                     localStorage.setItem('guest_my_stay_query', val);
                   } catch (err) {}
                 }}
-                placeholder="মোবাইল নম্বর / NID / ইমেইল দিয়ে খুঁজুন..."
+                placeholder="Search by Mobile number / NID / Email..."
                 className="w-full pl-9 pr-8 py-2 bg-white border border-[#0e2b33]/20 rounded-xl text-xs text-[#0e2b33] placeholder:text-slate-400 focus:outline-none focus:border-[#af8a52] focus:ring-1 focus:ring-[#af8a52] shadow-xs"
               />
               {myStaySearch && (
@@ -1109,12 +1095,12 @@ export const GuestView: React.FC = () => {
           <div className="bg-[#efe8d8]/40 p-8 rounded-2xl text-center border border-[#0e2b33]/10 max-w-xl mx-auto my-4 shadow-xs">
             <HeartHandshake className="w-10 h-10 text-[#af8a52] mx-auto mb-3" />
             <h4 className="font-semibold text-[#0e2b33] text-sm">
-              {myStaySearch ? 'কোনো বুকিং রেকর্ড পাওয়া যায়নি (No Match Found)' : 'কোনো অ্যাক্টিভ বুকিং তথ্য নেই (No Active Booking)'}
+              {myStaySearch ? 'No Match Found' : 'No Active Booking'}
             </h4>
             <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
               {myStaySearch 
-                ? `"${myStaySearch}" দিয়ে কোনো বুকিং খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক মোবাইল নম্বর বা NID চেক করুন।` 
-                : 'বুকিং করার সময় প্রদত্ত মোবাইল নম্বর বা NID দিয়ে ওপরের সার্চ বক্সে দিয়ে সার্চ করে সহজেই আপনার স্টেই এর রুম সার্ভিস ও তথ্য পরিচালনা করুন।'}
+                ? `No booking found matching "${myStaySearch}". Please verify your mobile number or NID.` 
+                : 'Search using your mobile number or NID provided during booking to manage your room services and stay details.'}
             </p>
             {myStaySearch && (
               <button
@@ -1126,7 +1112,7 @@ export const GuestView: React.FC = () => {
                 className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0e2b33] text-[#efe8d8] text-xs font-bold rounded-xl hover:bg-[#af8a52] transition cursor-pointer"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span>সার্চ রিসেট করুন (Reset Search)</span>
+                <span>Reset Search</span>
               </button>
             )}
           </div>
@@ -1590,7 +1576,7 @@ export const GuestView: React.FC = () => {
                                 : 'text-slate-400 hover:text-slate-600'
                             }`}
                           >
-                            বাংলা
+                            Bengali
                           </button>
                         </div>
 
@@ -1626,7 +1612,7 @@ export const GuestView: React.FC = () => {
                       rows={2}
                       placeholder={
                         isListening 
-                          ? (speechLanguage === 'en-US' ? "Speak now! e.g. 'I need three extra towels and morning tea'..." : "এখন বলুন! যেমন: 'আমার ৩টি অতিরিক্ত তোয়ালে ও সকালের চা লাগবে'...")
+                          ? "Speak now! e.g. 'I need three extra towels and morning tea'..."
                           : "e.g. Feather pillows, extra towels, morning tea..."
                       }
                       value={bookNotes}
@@ -1649,9 +1635,7 @@ export const GuestView: React.FC = () => {
                       <div className="text-[10px] text-teal-600 font-medium bg-teal-50/30 border border-teal-100/40 p-1.5 rounded-lg flex items-center gap-1.5">
                         <span className="w-1.5 h-1.5 rounded-full bg-teal-500 shrink-0 animate-ping" />
                         <span>
-                          {speechLanguage === 'en-US' 
-                            ? "Voice input active: speak clearly into your mic. Your transcript will append below." 
-                            : "ভয়েস ইনপুট সক্রিয়: মাইক্রোফোনে স্পষ্ট করে বলুন। আপনার বক্তব্য নিচে যোগ হবে।"}
+                          Voice input active: speak clearly into your mic. Your transcript will append below.
                         </span>
                       </div>
                     )}
@@ -1957,6 +1941,9 @@ export const GuestView: React.FC = () => {
         </div>
       </div>
 
+      {/* 4.8. Why Choose Us Section */}
+      <WhyChooseUs />
+
       {/* 5. Contact & Location Info Footer Banner with Map Background */}
       <div 
         id="contact-footer" 
@@ -1981,13 +1968,10 @@ export const GuestView: React.FC = () => {
               
               <div className="space-y-2">
                 <h3 className="text-2xl sm:text-3xl font-serif text-white tracking-tight drop-shadow">
-                  ইসলামিয়া গেস্ট হাউস (Islamia Guest House)
+                  Islamia Guest House
                 </h3>
                 <p className="text-sm text-[#efe8d8] font-medium leading-relaxed">
-                  বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি - ১২০৯ <br />
-                  <span className="text-[#efe8d8]/80 text-xs font-normal">
-                    (House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209)
-                  </span>
+                  House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209, Dhaka, Bangladesh
                 </p>
               </div>
 
@@ -1995,10 +1979,10 @@ export const GuestView: React.FC = () => {
                 <Info className="w-5 h-5 text-[#d7bd8a] shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="text-xs font-bold text-[#d7bd8a] uppercase tracking-wider font-mono">
-                    Landmarks / ল্যান্ডমার্ক
+                    Landmarks
                   </p>
                   <p className="text-xs text-[#efe8d8] leading-relaxed font-sans">
-                    ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন
+                    Opposite Ibne Sina 9/A, Behind Meena Bazar, Adjacent to Northern Medical College Building
                   </p>
                 </div>
               </div>
@@ -2013,7 +1997,7 @@ export const GuestView: React.FC = () => {
                 className="inline-flex items-center gap-3 bg-[#af8a52] hover:bg-[#c29b5f] text-slate-950 font-semibold px-5 py-3 rounded-lg shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-xs sm:text-sm tracking-wide border border-[#f5e5c8]/50 group"
               >
                 <MapPin className="w-4 h-4 text-slate-950 group-hover:scale-110 transition" />
-                <span>Open Location in Google Maps / গুগল ম্যাপে লোকেশন দেখুন</span>
+                <span>Open Location in Google Maps</span>
                 <ExternalLink className="w-4 h-4 text-slate-950/70 group-hover:translate-x-0.5 transition" />
               </a>
             </div>
@@ -2023,7 +2007,7 @@ export const GuestView: React.FC = () => {
           <div className="lg:col-span-5 space-y-4 bg-[#0e2b33]/80 backdrop-blur-md p-6 rounded-xl border border-[#d7bd8a]/30 shadow-2xl flex flex-col justify-between">
             <div>
               <h4 className="text-xs font-bold text-[#d7bd8a] uppercase tracking-wider font-mono mb-3.5">
-                Hotline &amp; Payment Support / যোগাযোগ
+                Hotline &amp; Payment Support
               </h4>
               
               <div className="space-y-3">
@@ -2108,115 +2092,7 @@ export const GuestView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5.5 Quick Contact Inquiry & Newsletter Form */}
-      <div id="quick-inquiry-section" className="max-w-7xl mx-auto px-6 mb-16">
-        <div className="bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-3xl p-6 md:p-8 shadow-xl text-white">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            
-            {/* Left Info Column */}
-            <div className="lg:col-span-5 space-y-3">
-              <div className="inline-flex items-center gap-2 bg-[#af8a52]/20 border border-[#d7bd8a]/40 px-3 py-1 rounded-full text-xs font-mono text-[#d7bd8a]">
-                <Mail className="w-3.5 h-3.5" />
-                <span>DIRECT CONCIERGE INQUIRY</span>
-              </div>
-              <h3 className="font-serif text-2xl md:text-3xl font-bold text-white tracking-tight">
-                Have Questions or Special Accommodation Needs?
-              </h3>
-              <p className="text-xs sm:text-sm text-[#efe8d8]/80 leading-relaxed">
-                Send a direct message to our front desk team. We respond within minutes with room availability, medical guest assistance, or custom stay quotes.
-              </p>
-            </div>
 
-            {/* Right Form Column */}
-            <div className="lg:col-span-7 bg-[#081b21]/90 border border-[#d7bd8a]/20 p-5 sm:p-6 rounded-2xl shadow-inner">
-              {inquirySuccess ? (
-                <div className="py-8 text-center space-y-3 animate-in fade-in duration-300">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-6 h-6" />
-                  </div>
-                  <h4 className="font-bold text-base text-white">Inquiry Transmitted Successfully!</h4>
-                  <p className="text-xs text-[#efe8d8]/80 max-w-md mx-auto">
-                    Thank you for reaching out to Islamia Guest House Dhanmondi. Our front desk manager will respond to your contact details shortly.
-                  </p>
-                </div>
-              ) : (
-                <form onSubmit={handleInquirySubmit} className="space-y-4">
-                  {inquiryError && (
-                    <div className="bg-red-500/10 border border-red-500/30 text-red-300 text-xs p-3 rounded-xl flex items-center gap-2 animate-shake">
-                      <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{inquiryError}</span>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold font-mono text-[#d7bd8a] uppercase tracking-wider block">
-                        Full Name / নাম *
-                      </label>
-                      <input
-                        id="inquiry-guest-name"
-                        type="text"
-                        required
-                        placeholder="e.g. Mr. Shajjad Sohel"
-                        value={inquiryName}
-                        onChange={(e) => setInquiryName(e.target.value)}
-                        className="w-full bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#d7bd8a] transition"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold font-mono text-[#d7bd8a] uppercase tracking-wider block">
-                        Email or Phone / ইমেইল বা ফোন *
-                      </label>
-                      <input
-                        id="inquiry-guest-contact"
-                        type="text"
-                        required
-                        placeholder="e.g. 01700-000000 or email@domain.com"
-                        value={inquiryContact}
-                        onChange={(e) => setInquiryContact(e.target.value)}
-                        className="w-full bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#d7bd8a] transition"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold font-mono text-[#d7bd8a] uppercase tracking-wider block">
-                      Inquiry Message or Special Needs / বার্তা *
-                    </label>
-                    <textarea
-                      id="inquiry-guest-message"
-                      required
-                      rows={3}
-                      placeholder="Ask about room availability, long-term stay discounts, or proximity to Ibne Sina Hospital..."
-                      value={inquiryMessage}
-                      onChange={(e) => setInquiryMessage(e.target.value)}
-                      className="w-full bg-[#0e2b33] border border-[#d7bd8a]/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#d7bd8a] transition resize-none leading-relaxed"
-                    />
-                  </div>
-
-                  <button
-                    id="submit-inquiry-btn"
-                    type="submit"
-                    disabled={inquiryLoading}
-                    className="w-full py-3 bg-[#af8a52] hover:bg-[#c29b5f] disabled:opacity-50 text-slate-950 font-bold rounded-xl text-xs transition duration-200 shadow-lg flex items-center justify-center gap-2 cursor-pointer border border-[#f5e5c8]/40"
-                  >
-                    {inquiryLoading ? (
-                      <span className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4" />
-                        <span>Send Direct Inquiry to Desk / বার্তা দিন</span>
-                      </>
-                    )}
-                  </button>
-                </form>
-              )}
-            </div>
-
-          </div>
-        </div>
-      </div>
 
       {/* 6. Luxury Footer */}
       <footer className="bg-[#081b21] text-[#f8f4ec]/70 py-12 px-6 border-t border-[#0e2b33]">
@@ -2238,6 +2114,8 @@ export const GuestView: React.FC = () => {
                   <li><a href="#destinations" className="hover:text-white">Chambers</a></li>
                   <li><a href="#philosophy" className="hover:text-white">Philosophy</a></li>
                   <li><a href="#events" className="hover:text-white">Experience</a></li>
+                  <li><a href="#guest-reviews-section" className="hover:text-white">Reviews</a></li>
+                  <li><a href="#why-us" className="hover:text-white">Why Us</a></li>
                 </ul>
               </div>
               <div>
@@ -2252,10 +2130,6 @@ export const GuestView: React.FC = () => {
           </div>
           <div className="pt-6 text-xs flex flex-col sm:flex-row justify-between items-center gap-4 text-[#efe8d8]/60">
             <span>© 2026 Islamia Guest House, Dhanmondi. All rights reserved.</span>
-            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-[#0e2b33] border border-[#af8a52]/40 rounded-full text-[#d7bd8a] font-mono text-xs shadow-inner">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span>👥 বর্তমান অ্যাক্টিভ গেস্ট (Active Guests): <strong className="text-white font-bold">{activeGuestsCount} জন</strong></span>
-            </div>
             <span className="text-[#d7bd8a]/80 font-mono">Dedicated to Islamia Guest House</span>
           </div>
         </div>

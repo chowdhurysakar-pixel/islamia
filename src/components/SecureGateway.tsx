@@ -132,9 +132,9 @@ export const SecureGateway: React.FC = () => {
     try {
       const result = await sendPasswordResetLink(emailToReset);
       if (result.success) {
-        setForgotStatus(`পাসওয়ার্ড রিসেট ইমেইল রিফ্লেক্ট করা হয়েছে: ${emailToReset}। আপনার জিমেইল ইনবক্স এবং স্প্যাম/জাঙ্ক ফোল্ডারটি চেক করুন।`);
+        setForgotStatus(`Password reset email sent to: ${emailToReset}. Please check your Gmail inbox and spam/junk folder.`);
       } else {
-        setForgotError(`${result.error || 'পাসওয়ার্ড রিসেট লিংক পাঠাতে ব্যর্থ হয়েছে।'} টিপস: আপনি চাইলে উপরের "Instant Master Access" অপশন ব্যবহার করে মাস্টির কি দিয়ে সরাসরি লগইন করতে পারেন।`);
+        setForgotError(`${result.error || 'Failed to send password reset email.'} Tip: You can also use the "Instant Master Access" option above to log in directly with the master key.`);
       }
     } catch (err: any) {
       setForgotError(`${err.message || 'Failed to dispatch password reset request.'}`);

@@ -1647,7 +1647,7 @@ export const StaffView: React.FC = () => {
                     title="Clear date filter to view all history"
                   >
                     <RotateCcw className="w-3 h-3 text-rose-600" />
-                    <span>রিসেট (Reset Date)</span>
+                    <span>Reset Date</span>
                   </button>
                 )}
 
@@ -1676,21 +1676,21 @@ export const StaffView: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-teal-200 flex items-center gap-2">
-                    <span>দিনভিত্তিক রিপোর্ট সামারি (Day-by-Day Summary)</span>
+                    <span>Day-by-Day Summary</span>
                     {hrSelectedDate ? (
                       <span className="px-2.5 py-0.5 bg-teal-500/25 text-teal-300 rounded-full text-[10px] font-mono border border-teal-500/40 font-bold">
                         📅 {hrSelectedDate}
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded-full text-[10px]">
-                        সকল ইতিহাস (All History)
+                        All History
                       </span>
                     )}
                   </h4>
                   <p className="text-[11px] text-slate-300 mt-0.5">
                     {hrSelectedDate 
-                      ? `${hrSelectedDate} তারিখের গেস্ট সংখ্যা, মোট অর্জিত রেভিনিউ এবং চেক-ইন/আউট সংখ্যা` 
-                      : 'নির্দিষ্ট তারিখ নির্বাচন করে ওই দিনের গেস্ট হিস্ট্রি ও রিপোর্ট সামারি দেখুন।'}
+                      ? `Guest count, earned revenue, and check-in/out counts for ${hrSelectedDate}` 
+                      : 'Select a date from the date picker above to view daily guest history and summary metrics.'}
                   </p>
                 </div>
               </div>
@@ -1700,8 +1700,8 @@ export const StaffView: React.FC = () => {
                 <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
                   <Users className="w-4 h-4 text-sky-400 shrink-0" />
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">মোট গেস্ট (Total Guests)</p>
-                    <p className="text-xs font-bold font-mono text-white">{hrDailyMetrics.totalGuests} জন</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Total Guests</p>
+                    <p className="text-xs font-bold font-mono text-white">{hrDailyMetrics.totalGuests} Guests</p>
                   </div>
                 </div>
 
@@ -1709,7 +1709,7 @@ export const StaffView: React.FC = () => {
                 <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
                   <DollarSign className="w-4 h-4 text-emerald-400 shrink-0" />
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">মোট অর্জিত রেভিনিউ</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Total Revenue</p>
                     <p className="text-xs font-bold font-mono text-emerald-300">৳{hrDailyMetrics.totalRevenue.toLocaleString()}</p>
                   </div>
                 </div>
@@ -1718,9 +1718,9 @@ export const StaffView: React.FC = () => {
                 <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
                   <ArrowUpDown className="w-4 h-4 text-amber-400 shrink-0" />
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">চেক-ইন / চেক-আউট</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Check-In / Check-Out</p>
                     <p className="text-xs font-bold font-mono text-amber-200">
-                      📥 {hrDailyMetrics.checkInsCount} চেক-ইন | 📤 {hrDailyMetrics.checkOutsCount} চেক-আউট
+                      📥 {hrDailyMetrics.checkInsCount} Check-In | 📤 {hrDailyMetrics.checkOutsCount} Check-Out
                     </p>
                   </div>
                 </div>

@@ -5,7 +5,26 @@
 
 import React, { useState } from 'react';
 import { Room, RoomStatus } from '../types';
-import { Users, Wifi, Tv, Coffee, Wind, Eye, Compass, ShieldAlert, KeyRound, Hammer, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  Users, 
+  Wifi, 
+  Tv, 
+  Wind, 
+  Sparkles, 
+  ChevronLeft, 
+  ChevronRight,
+  BedDouble,
+  Compass,
+  Bath,
+  Shirt,
+  Refrigerator,
+  Coffee,
+  Zap,
+  Lamp,
+  Sofa,
+  Maximize2,
+  Tag
+} from 'lucide-react';
 
 interface RoomCardProps {
   room: Room;
@@ -18,15 +37,29 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
   const [activeImgIndex, setActiveImgIndex] = useState(0);
   const displayImages = room.images && room.images.length > 0 ? room.images : [room.image];
 
+  // Helper for human-friendly category name
+  const getRoomTitle = (room: Room) => {
+    switch (room.number) {
+      case '101': return 'Double Deluxe';
+      case '102': return 'Family Room';
+      case '103': return 'Double (Executive Single)';
+      case '201': return 'Triple Room';
+      case '202': return 'Standard Double';
+      case '301': return 'Single (Economy)';
+      default:
+        return room.type === 'suite' ? 'Room Suite' : `${room.type.charAt(0).toUpperCase() + room.type.slice(1)} Room`;
+    }
+  };
+
   // Status Visual Builders
   const getStatusStyle = (status: RoomStatus) => {
     switch (status) {
       case 'available':
-        return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-100', dot: 'bg-emerald-500', label: 'Available' };
+        return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200/80', dot: 'bg-emerald-500', label: 'Available' };
       case 'occupied':
-        return { bg: 'bg-rose-50 text-rose-700 border-rose-100', dot: 'bg-rose-500', label: 'Occupied' };
+        return { bg: 'bg-rose-50 text-rose-700 border-rose-200/80', dot: 'bg-rose-500', label: 'Occupied' };
       case 'cleaning':
-        return { bg: 'bg-amber-50 text-amber-700 border-amber-100', dot: 'bg-amber-500 animate-pulse', label: 'Cleaning' };
+        return { bg: 'bg-amber-50 text-amber-700 border-amber-200/80', dot: 'bg-amber-500 animate-pulse', label: 'Cleaning' };
       case 'maintenance':
         return { bg: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-500', label: 'Maintenance' };
     }
@@ -34,27 +67,33 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
 
   const statusStyle = getStatusStyle(room.status);
 
-  // Map amenities to icons
+  // Map amenities to specific icons
   const getAmenityIcon = (amenity: string) => {
     const textSnapshot = amenity.toLowerCase();
-    if (textSnapshot.includes('wi-fi') || textSnapshot.includes('wifi')) return <Wifi className="w-3.5 h-3.5" />;
-    if (textSnapshot.includes('tv') || textSnapshot.includes('streaming')) return <Tv className="w-3.5 h-3.5" />;
-    if (textSnapshot.includes('coffee') || textSnapshot.includes('nespresso')) return <Coffee className="w-3.5 h-3.5" />;
-    if (textSnapshot.includes('air') || textSnapshot.includes('ac')) return <Wind className="w-3.5 h-3.5" />;
-    if (textSnapshot.includes('bath') || textSnapshot.includes('tub')) return <Compass className="w-3.5 h-3.5" />;
-    return <Sparkles className="w-3.5 h-3.5" />;
+    if (textSnapshot.includes('wifi') || textSnapshot.includes('wi-fi')) return <Wifi className="w-3 h-3 text-sky-600" />;
+    if (textSnapshot.includes('tv')) return <Tv className="w-3 h-3 text-indigo-600" />;
+    if (textSnapshot.includes('refrigeration') || textSnapshot.includes('fridge')) return <Refrigerator className="w-3 h-3 text-teal-600" />;
+    if (textSnapshot.includes('tea')) return <Coffee className="w-3 h-3 text-amber-700" />;
+    if (textSnapshot.includes('electricity') || textSnapshot.includes('24/7')) return <Zap className="w-3 h-3 text-amber-500" />;
+    if (textSnapshot.includes('lamp')) return <Lamp className="w-3 h-3 text-orange-500" />;
+    if (textSnapshot.includes('sofa')) return <Sofa className="w-3 h-3 text-emerald-600" />;
+    if (textSnapshot.includes('ac')) return <Wind className="w-3 h-3 text-blue-500" />;
+    if (textSnapshot.includes('balcony')) return <Maximize2 className="w-3 h-3 text-teal-600" />;
+    return <Sparkles className="w-3 h-3 text-[#af8a52]" />;
   };
+
+  const roomTitle = getRoomTitle(room);
 
   return (
     <div 
       id={`room-${room.id}`}
-      className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col group h-full"
+      className="bg-white rounded-2xl border border-[#0e2b33]/15 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden flex flex-col group h-full"
     >
       {/* Room Image Banner */}
-      <div className="relative h-48 overflow-hidden aspect-video bg-slate-100 group/img">
+      <div className="relative h-52 overflow-hidden aspect-video bg-slate-100 group/img">
         <img
           src={displayImages[activeImgIndex % displayImages.length]}
-          alt={`Room ${room.number} - Image ${activeImgIndex + 1}`}
+          alt={`${roomTitle} - Image ${activeImgIndex + 1}`}
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
@@ -69,7 +108,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
                 e.stopPropagation();
                 setActiveImgIndex((prev) => (prev - 1 + displayImages.length) % displayImages.length);
               }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1 rounded-full transition-opacity opacity-0 group-hover/img:opacity-100 z-10"
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1.5 rounded-full transition-opacity opacity-0 group-hover/img:opacity-100 z-10"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -82,13 +121,13 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
                 e.stopPropagation();
                 setActiveImgIndex((prev) => (prev + 1) % displayImages.length);
               }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 hover:bg-black/60 text-white p-1 rounded-full transition-opacity opacity-0 group-hover/img:opacity-100 z-10"
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1.5 rounded-full transition-opacity opacity-0 group-hover/img:opacity-100 z-10"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
 
             {/* Pagination Dots */}
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10 bg-black/20 px-2 py-0.5 rounded-full">
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10 bg-black/30 backdrop-blur-xs px-2 py-0.5 rounded-full">
               {displayImages.map((_, dotIdx) => (
                 <button
                   key={dotIdx}
@@ -107,59 +146,128 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
         )}
         
         {/* Absolute Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-2">
-          <span className="bg-white/95 backdrop-blur-md text-slate-800 text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-md font-bold shadow-sm">
-            {room.type === 'suite' ? 'Room Suite' : `${room.type} Room`}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+          <span className="bg-[#0e2b33]/90 backdrop-blur-md text-[#efe8d8] text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-md font-bold shadow-sm border border-[#af8a52]/40">
+            Chamber {room.number}
           </span>
         </div>
 
         <div className="absolute top-3 right-3">
-          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium border backdrop-blur-md ${statusStyle.bg} shadow-sm`}>
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono font-bold border backdrop-blur-md ${statusStyle.bg} shadow-sm uppercase tracking-wider`}>
             <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
             <span>{statusStyle.label}</span>
           </span>
         </div>
 
-        <div className="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg text-sm font-mono font-semibold">
-          ৳{room.price} <span className="text-[10px] opacity-70 font-sans font-normal">/ night</span>
+        {/* Pricing Overlay Badge */}
+        <div className="absolute bottom-3 left-3 bg-[#0e2b33]/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg text-xs font-mono font-bold border border-[#af8a52]/30 flex items-center gap-1.5 shadow-sm">
+          {room.startingPriceBanner ? (
+            <div className="text-amber-300 font-bold flex items-center gap-1">
+              <Tag className="w-3.5 h-3.5 text-amber-400" />
+              <span>{room.startingPriceBanner}</span>
+            </div>
+          ) : (
+            <div>
+              <span className="text-emerald-300 text-sm font-bold">৳{room.price.toLocaleString()}</span>
+              <span className="text-[10px] opacity-75 font-sans font-normal ml-1">/ night</span>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Room Details Column */}
-      <div className="p-5 flex-1 flex flex-col">
-        <div className="flex justify-between items-baseline mb-2">
-          <h3 className="font-serif text-lg font-semibold text-slate-800">
-            Room {room.number}
-          </h3>
-          <div className="flex items-center gap-1 text-slate-500 text-xs font-medium">
-            <Users className="w-3.5 h-3.5 text-teal-600" />
-            <span>Up to {room.capacity} Person{room.capacity > 1 ? 's' : ''}</span>
+      <div className="p-5 flex-1 flex flex-col space-y-4">
+        
+        {/* Title & Capacity */}
+        <div>
+          <div className="flex justify-between items-start gap-2 mb-1">
+            <h3 className="font-serif text-lg font-bold text-[#0e2b33] leading-snug">
+              {roomTitle}
+            </h3>
+          </div>
+
+          <div className="inline-flex items-center gap-1.5 text-[#0e2b33] bg-[#efe8d8]/80 border border-[#0e2b33]/10 px-2.5 py-1 rounded-md text-xs font-mono font-semibold">
+            <Users className="w-3.5 h-3.5 text-[#af8a52]" />
+            <span>Capacity: <strong>{room.capacityText || `${room.capacity} Adults`}</strong></span>
           </div>
         </div>
 
-        <p className="text-slate-500 text-xs leading-relaxed mb-4">
-          {room.description}
-        </p>
+        {/* Specification Details Grid */}
+        <div className="bg-[#0e2b33]/5 rounded-xl p-3 border border-[#0e2b33]/10 text-xs space-y-2 font-sans">
+          {room.bedSize && (
+            <div className="flex items-center justify-between text-slate-700">
+              <span className="text-[11px] font-semibold text-[#0e2b33]/80 flex items-center gap-1.5">
+                <BedDouble className="w-3.5 h-3.5 text-[#af8a52]" />
+                Bed Size:
+              </span>
+              <span className="font-medium text-[#0e2b33]">{room.bedSize}</span>
+            </div>
+          )}
 
-        {/* Room Amenities Tags */}
-        <div className="flex flex-wrap gap-1.5 mb-5 mt-auto">
-          {room.amenities.map((amenity, idx) => (
-            <span 
-              key={idx}
-              className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-50 border border-slate-100/75 px-2 py-1 rounded-md"
-            >
-              {getAmenityIcon(amenity)}
-              <span>{amenity}</span>
-            </span>
-          ))}
+          {room.windows && (
+            <div className="flex items-center justify-between text-slate-700">
+              <span className="text-[11px] font-semibold text-[#0e2b33]/80 flex items-center gap-1.5">
+                <Compass className="w-3.5 h-3.5 text-[#af8a52]" />
+                Windows:
+              </span>
+              <span className="font-medium text-[#0e2b33]">{room.windows}</span>
+            </div>
+          )}
+
+          {room.toilet && (
+            <div className="flex items-center justify-between text-slate-700">
+              <span className="text-[11px] font-semibold text-[#0e2b33]/80 flex items-center gap-1.5">
+                <Bath className="w-3.5 h-3.5 text-[#af8a52]" />
+                Toilet:
+              </span>
+              <span className="font-medium text-[#0e2b33]">{room.toilet}</span>
+            </div>
+          )}
+
+          {room.extra && (
+            <div className="flex items-center justify-between text-slate-700">
+              <span className="text-[11px] font-semibold text-[#0e2b33]/80 flex items-center gap-1.5">
+                <Shirt className="w-3.5 h-3.5 text-[#af8a52]" />
+                Extra:
+              </span>
+              <span className="font-medium text-[#0e2b33]">{room.extra}</span>
+            </div>
+          )}
         </div>
 
-        {/* Staff Actions vs Guest Booking Trigger */}
-        <div className="pt-4 border-t border-slate-100/75 flex flex-col gap-2">
+        {/* Clear Pricing Banner for Single Economy or Price Details */}
+        {room.startingPriceBanner && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 text-center">
+            <span className="text-xs font-mono font-bold text-amber-900 block">
+              🏷️ Promo Rate: {room.startingPriceBanner}
+            </span>
+          </div>
+        )}
+
+        {/* Room Amenities Badges */}
+        <div className="mt-auto pt-2">
+          <p className="text-[10px] font-mono font-bold text-[#0e2b33]/60 uppercase tracking-wider mb-2">
+            Included Amenities:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {room.amenities.map((amenity, idx) => (
+              <span 
+                key={idx}
+                className="inline-flex items-center gap-1 text-[10px] font-medium text-[#0e2b33] bg-[#efe8d8]/60 border border-[#0e2b33]/10 px-2 py-1 rounded-md shadow-2xs"
+              >
+                {getAmenityIcon(amenity)}
+                <span>{amenity}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Action Button / Staff Controls */}
+        <div className="pt-3 border-t border-[#0e2b33]/10 flex flex-col gap-2">
           {isStaffMode ? (
             <div className="flex flex-col gap-1.5">
               <label className="text-[10px] font-mono uppercase text-slate-400 font-bold">
-                Update Room status
+                Update Status
               </label>
               <div className="grid grid-cols-2 gap-1">
                 {(['available', 'occupied', 'cleaning', 'maintenance'] as RoomStatus[]).map((status) => (
@@ -169,7 +277,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
                     onClick={() => onStatusChange && onStatusChange(room.id, status)}
                     className={`text-[10px] font-medium py-1.5 px-2 rounded-lg border transition-all ${
                       room.status === status
-                        ? 'bg-slate-800 text-white border-slate-800/80'
+                        ? 'bg-[#0e2b33] text-white border-[#0e2b33]'
                         : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'
                     }`}
                   >
@@ -183,16 +291,17 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
               id={`book-room-${room.id}-btn`}
               onClick={() => onBookClick && onBookClick(room)}
               disabled={room.status !== 'available'}
-              className={`w-full py-2 px-4 rounded-xl text-xs font-semibold tracking-wide transition-all ${
+              className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold tracking-wide transition-all ${
                 room.status === 'available'
-                  ? 'bg-teal-600 shadow-sm shadow-teal-600/20 text-white hover:bg-teal-700 active:scale-[0.98]'
+                  ? 'bg-[#af8a52] hover:bg-[#c29b5f] text-slate-950 shadow-sm active:scale-[0.98] border border-[#f5e5c8]/40'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/50'
               }`}
             >
-              {room.status === 'available' ? 'Reserve Room' : 'Unavailable'}
+              {room.status === 'available' ? 'Reserve Chamber' : 'Currently Unavailable'}
             </button>
           )}
         </div>
+
       </div>
     </div>
   );

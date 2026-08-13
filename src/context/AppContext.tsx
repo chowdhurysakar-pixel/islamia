@@ -914,7 +914,7 @@ Islamia Guest House Dhanmondi System`;
     const emailClean = email.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailClean || !emailRegex.test(emailClean)) {
-      return { success: false, error: 'অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন। (Please enter a valid email address.)' };
+      return { success: false, error: 'Please enter a valid email address.' };
     }
 
     if (isFirebaseActive && auth) {
@@ -927,13 +927,13 @@ Islamia Guest House Dhanmondi System`;
         return { success: true };
       } catch (err: any) {
         console.warn("sendPasswordResetEmail notice:", err);
-        let msg = 'পাসওয়ার্ড রিসেট লিংক পাঠাতে ব্যর্থ হয়েছে। (Failed to send password reset email.)';
+        let msg = 'Failed to send password reset email.';
         if (err.code === 'auth/user-not-found') {
-          msg = 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি। (No account found with this email.)';
+          msg = 'No account found with this email.';
         } else if (err.code === 'auth/invalid-email') {
-          msg = 'ইমেইলের ফরম্যাট সঠিক নয়। (Invalid email address format.)';
+          msg = 'Invalid email address format.';
         } else if (err.code === 'auth/too-many-requests') {
-          msg = 'অনেকবার চেষ্টা করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন। (Too many reset requests. Please try again later.)';
+          msg = 'Too many reset requests. Please try again later.';
         } else if (err.message) {
           msg = err.message;
         }
@@ -1194,9 +1194,8 @@ Total Invoice Amount: ৳ ${totalAmount}
 =======================================================
 
 House Address:
-বাড়ি নং ৫৫/সি/১, রোড নং ৯/এ, ধানমন্ডি - ১২০৯
-(House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209)
-Landmarks: ইবনে সিনা ৯/এ এর বিপরীতে, মীনা বাজারের পিছনে, নর্দান মেডিকেল কলেজ বিল্ডিং সংলগ্ন
+House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209, Dhaka, Bangladesh
+Landmarks: Opposite Ibne Sina 9/A, Behind Meena Bazar, Adjacent to Northern Medical College Building
 
 For any support or questions, please reach us on:
 - bKash/Hotline: 01832-841818
