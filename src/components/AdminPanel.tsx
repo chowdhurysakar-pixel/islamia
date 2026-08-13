@@ -473,7 +473,7 @@ export const AdminPanel: React.FC = () => {
       price: parsedPrice,
       status: 'available',
       capacity: parsedCapacity,
-      description: newRoomDesc || `${newRoomType.toUpperCase()} Chamber at Islamia Guest House Dhanmondi`,
+      description: newRoomDesc || `${newRoomType.toUpperCase()} Room at Islamia Guest House Dhanmondi`,
       image: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
       amenities: ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Clean Toiletries']
     });
@@ -484,7 +484,7 @@ export const AdminPanel: React.FC = () => {
     setNewRoomImg('');
     showToast({
       type: 'success',
-      message: `🏨 New Chamber #${trimmedNo} added to inventory!`
+      message: `🏨 New Room #${trimmedNo} added to inventory!`
     });
   };
 
@@ -515,7 +515,7 @@ export const AdminPanel: React.FC = () => {
       'Phone Number',
       'Email Address',
       'NID Number',
-      'Chamber Number',
+      'Room Number',
       'Room Type',
       'Check In Date',
       'Check Out Date',
@@ -781,7 +781,7 @@ export const AdminPanel: React.FC = () => {
               </span>
             </div>
             <p className="text-[11px] text-slate-500">
-              Filter Gross Earnings and Chamber Occupancy rate day-by-day for a specific date.
+              Filter Gross Earnings and Room Occupancy rate day-by-day for a specific date.
             </p>
           </div>
         </div>
@@ -841,11 +841,11 @@ export const AdminPanel: React.FC = () => {
           </p>
         </div>
 
-        {/* Metric 2: Daily Chamber Occupancy */}
+        {/* Metric 2: Daily Room Occupancy */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-2">
           <div className="flex justify-between items-center text-slate-400">
             <div className="space-y-0.5">
-              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono block">Chamber Occupancy</span>
+              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono block">Room Occupancy</span>
               <span className="text-[9px] font-mono text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded font-semibold inline-block">
                 {metrics.selectedDate}
               </span>
@@ -958,7 +958,7 @@ export const AdminPanel: React.FC = () => {
           }`}
         >
           <Building className="w-4 h-4 text-sky-400" />
-          <span>Chamber Inventory &amp; Pricing</span>
+          <span>Room Inventory &amp; Pricing</span>
         </button>
 
         <button
@@ -996,7 +996,7 @@ export const AdminPanel: React.FC = () => {
                 <div>
                   <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-teal-600" />
-                    <span>Earnings Distribution by Chamber Category</span>
+                    <span>Earnings Distribution by Room Category</span>
                   </h3>
                   <p className="text-xs text-slate-400">Gross income generated across room tiers in Dhanmondi.</p>
                 </div>
@@ -1021,7 +1021,7 @@ export const AdminPanel: React.FC = () => {
                         <span className="text-xs font-bold font-mono text-teal-700">৳{typeRevenue.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between items-center text-[11px] text-slate-500">
-                        <span>Chambers Count: {typeRoomCount}</span>
+                        <span>Rooms Count: {typeRoomCount}</span>
                         <span>Occupied: {typeOccupied}</span>
                       </div>
                       <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
@@ -1235,18 +1235,18 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: CHAMBERS & TARIFF MATRIX */}
+      {/* TAB 3: ROOMS & TARIFF MATRIX */}
       {activeTab === 'chambers' && (
         <div className="space-y-6 animate-fadeIn">
-          {/* Chamber Control Bar */}
+          {/* Room Control Bar */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
                   <Building className="w-4 h-4 text-teal-600" />
-                  <span>Chamber Inventory &amp; Tariff Management</span>
+                  <span>Room Inventory &amp; Tariff Management</span>
                 </h3>
-                <p className="text-xs text-slate-400">Add new rooms, update nightly pricing (৳), and change chamber maintenance statuses.</p>
+                <p className="text-xs text-slate-400">Add new rooms, update nightly pricing (৳), and change room maintenance statuses.</p>
               </div>
 
               <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -1256,7 +1256,7 @@ export const AdminPanel: React.FC = () => {
                     type="text"
                     value={chamberSearch}
                     onChange={(e) => setChamberSearch(e.target.value)}
-                    placeholder="Search Chamber # or Type..."
+                    placeholder="Search Room # or Type..."
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
                   />
                 </div>
@@ -1266,22 +1266,22 @@ export const AdminPanel: React.FC = () => {
                   className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-2 cursor-pointer shrink-0 shadow-sm"
                 >
                   <Plus className="w-4 h-4 text-teal-400" />
-                  <span>Add Chamber</span>
+                  <span>Add Room</span>
                 </button>
               </div>
             </div>
 
-            {/* Chamber List Table */}
+            {/* Room List Table */}
             <div className="overflow-x-auto pt-2">
               <table className="w-full text-left text-xs text-slate-600">
                 <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] tracking-wider border-b border-slate-200/60">
                   <tr>
-                    <th className="p-3">Chamber #</th>
+                    <th className="p-3">Room #</th>
                     <th className="p-3">Category</th>
                     <th className="p-3">Nightly Tariff (৳)</th>
                     <th className="p-3">Capacity</th>
                     <th className="p-3">Current Status</th>
-                    <th className="p-3 text-right">Chamber Control</th>
+                    <th className="p-3 text-right">Room Control</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -1292,7 +1292,7 @@ export const AdminPanel: React.FC = () => {
                       </td>
                       <td className="p-3">
                         <span className="font-semibold text-slate-800 capitalize">
-                          {room.type} Chamber
+                          {room.type} Room
                         </span>
                       </td>
                       <td className="p-3 font-mono font-bold text-teal-700">
@@ -1357,16 +1357,16 @@ export const AdminPanel: React.FC = () => {
                           </button>
                           <button
                             onClick={() => {
-                              if (window.confirm(`Are you sure you want to remove Chamber #${room.number}?`)) {
+                              if (window.confirm(`Are you sure you want to remove Room #${room.number}?`)) {
                                 showToast({
                                   type: 'info',
-                                  message: `🗑️ Chamber #${room.number} deleted successfully!`
+                                  message: `🗑️ Room #${room.number} deleted successfully!`
                                 });
                                 deleteRoom(room.id);
                               }
                             }}
                             className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Remove Chamber"
+                            title="Remove Room"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1532,7 +1532,7 @@ export const AdminPanel: React.FC = () => {
                 <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] tracking-wider border-b border-slate-200/60">
                   <tr>
                     <th className="p-3">Guest Name &amp; Contact</th>
-                    <th className="p-3">Chamber</th>
+                    <th className="p-3">Room</th>
                     <th className="p-3">Check-In / Out</th>
                     <th className="p-3">NID / Zila</th>
                     <th className="p-3">Total Tariff</th>
@@ -1934,14 +1934,14 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Add Chamber Modal Dialog */}
+      {/* Add Room Modal Dialog */}
       {isAddRoomOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
                 <Building className="w-4 h-4 text-teal-600" />
-                <span>Add New Guest House Chamber</span>
+                <span>Add New Guest House Room</span>
               </h3>
               <button
                 type="button"
@@ -1955,7 +1955,7 @@ export const AdminPanel: React.FC = () => {
             <form onSubmit={handleAddRoomSubmit} className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Chamber Number *</label>
+                  <label className="block font-semibold text-slate-600 mb-1">Room Number *</label>
                   <input
                     type="text"
                     required
@@ -2008,7 +2008,7 @@ export const AdminPanel: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-600 mb-1">Chamber Photo (From Computer)</label>
+                <label className="block font-semibold text-slate-600 mb-1">Room Photo (From Computer)</label>
                 <div className="flex gap-2 items-center bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
                   <input
                     type="file"
@@ -2021,7 +2021,7 @@ export const AdminPanel: React.FC = () => {
                         try {
                           const dataUrl = await processUploadedImage(file);
                           setNewRoomImg(dataUrl);
-                          showToast({ type: 'success', message: '📸 Chamber photo uploaded from computer!' });
+                          showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
                         } catch (err) {
                           showToast({ type: 'error', message: 'Failed to process image.' });
                         }
@@ -2082,7 +2082,7 @@ export const AdminPanel: React.FC = () => {
                   type="submit"
                   className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition"
                 >
-                  Create Chamber
+                  Create Room
                 </button>
               </div>
             </form>

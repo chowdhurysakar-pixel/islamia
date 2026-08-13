@@ -160,7 +160,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
         {/* Absolute Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1.5">
           <span className="bg-[#0e2b33]/90 backdrop-blur-md text-[#efe8d8] text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-md font-bold shadow-sm border border-[#af8a52]/40">
-            Chamber {room.number}
+            Room {room.number}
           </span>
         </div>
 
@@ -335,7 +335,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/50'
               }`}
             >
-              {room.status === 'available' ? 'Reserve Chamber' : 'Currently Unavailable'}
+              {room.status === 'available' ? 'Reserve Room' : 'Currently Unavailable'}
             </button>
           )}
         </div>

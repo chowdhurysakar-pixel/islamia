@@ -22,7 +22,7 @@ export const Chambers: React.FC<ChambersProps> = ({ rooms, onBookClick, isStaffM
         <div>
           <div className="inline-flex items-center gap-1.5 text-[11px] font-mono tracking-[0.2em] text-[#af8a52] font-bold uppercase mb-1">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>BOUTIQUE CHAMBERS &amp; SUITES</span>
+            <span>BOUTIQUE ROOMS &amp; SUITES</span>
           </div>
           <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#0e2b33] tracking-tight">
             Accommodations at Islamia Guest House

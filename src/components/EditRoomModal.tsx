@@ -255,7 +255,7 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
       return;
     }
     if (!number.trim()) {
-      if (showToast) showToast({ type: 'error', message: 'Please enter a chamber number.' });
+      if (showToast) showToast({ type: 'error', message: 'Please enter a room number.' });
       return;
     }
     if (isNaN(Number(price)) || Number(price) <= 0) {
@@ -324,7 +324,7 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
                 Edit Room Details: {title}
               </h3>
               <p className="text-xs text-[#f8f4ec]/70 font-mono">
-                Chamber No. #{room.number} • Updates sync in real time to website
+                Room No. #{room.number} • Updates sync in real time to website
               </p>
             </div>
           </div>
@@ -364,7 +364,7 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700 block">
-                  Chamber No. <span className="text-rose-500">*</span>
+                  Room No. <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -646,7 +646,7 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
           <div className="space-y-3">
             <div className="text-xs font-mono font-bold text-[#0e2b33] uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
               <ImageIcon className="w-4 h-4 text-[#af8a52]" />
-              <span>4. Chamber Photos ({images.length})</span>
+              <span>4. Room Photos ({images.length})</span>
             </div>
 
             {/* Current Image Thumbnails */}
@@ -656,7 +656,7 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
                   <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
                     <img 
                       src={imgUrl} 
-                      alt={`Chamber photo ${idx + 1}`} 
+                      alt={`Room photo ${idx + 1}`} 
                       className="w-full h-full object-cover" 
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
@@ -733,7 +733,7 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
           <div className="space-y-1.5">
             <label className="text-xs font-mono font-bold text-[#0e2b33] uppercase tracking-wider flex items-center gap-1.5">
               <FileText className="w-4 h-4 text-[#af8a52]" />
-              <span>5. Chamber Description / Overview</span>
+              <span>5. Room Description / Overview</span>
             </label>
             <textarea
               rows={3}

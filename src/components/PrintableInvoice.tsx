@@ -399,11 +399,11 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                     
                     <div className="space-y-1 text-[10px] font-mono">
                       <div className="flex justify-between font-bold">
-                        <span>SUITE / CHAMBER:</span>
+                        <span>SUITE / ROOM:</span>
                         <span>Room {booking.roomNumber || booking.roomId}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>CHAMBER TYPE:</span>
+                        <span>ROOM TYPE:</span>
                         <span className="capitalize">{booking.roomType || associatedRoom?.type || 'Standard'}</span>
                       </div>
                       <div className="flex justify-between">
@@ -727,7 +727,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                           <span className="font-bold text-slate-800">Room {booking.roomNumber || booking.roomId}</span>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400 uppercase block font-mono">Chamber Type</span>
+                          <span className="text-[10px] text-slate-400 uppercase block font-mono">Room Type</span>
                           <span className="font-bold text-slate-850 capitalize">
                             {booking.roomType || associatedRoom?.type || 'Standard Suite'}
                           </span>
@@ -765,7 +765,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                       <tbody className="divide-y divide-slate-100">
                         <tr className="text-slate-700">
                           <td className="py-4 px-4 font-medium">
-                            Chamber Room {booking.roomNumber || booking.roomId} Rent
+                            Room {booking.roomNumber || booking.roomId} Rent
                             <span className="block text-[10px] text-slate-400 mt-0.5">Complementary Wi-Fi, Breakfast & Mini-fridge</span>
                           </td>
                           <td className="py-4 px-4 text-center font-mono">{nights}</td>

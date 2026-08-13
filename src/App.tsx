@@ -123,7 +123,7 @@ const MainLayout: React.FC = () => {
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
                 {opMode === 'admin'
-                  ? 'Manage revenue analytics, approve staff access, configure chamber tariffs, and oversee guest bookings.'
+                  ? 'Manage revenue analytics, approve staff access, configure room tariffs, and oversee guest bookings.'
                   : 'Book rooms via Front Desk, manage guest invoices, and review local booking records in Dhanmondi.'
                 }
               </p>

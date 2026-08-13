@@ -610,7 +610,7 @@ export const GuestView: React.FC = () => {
 
           {/* Desktop Links */}
           <ul className="hidden lg:flex gap-8 text-[11px] tracking-widest text-[#0e2b33] uppercase font-bold">
-            <li><a href="#destinations" className="hover:text-[#af8a52] transition">Chambers</a></li>
+            <li><a href="#destinations" className="hover:text-[#af8a52] transition">Rooms</a></li>
             <li><a href="#philosophy" className="hover:text-[#af8a52] transition">Philosophy</a></li>
             <li><a href="#events" className="hover:text-[#af8a52] transition">Experience</a></li>
             <li><a href="#guest-reviews-section" className="hover:text-[#af8a52] transition">Reviews</a></li>
@@ -645,7 +645,7 @@ export const GuestView: React.FC = () => {
         {mobileMenuOpen && (
           <div className="mt-3 pt-3 border-t border-slate-200 bg-white/95 rounded-b-2xl p-4 shadow-lg flex flex-col gap-3 text-xs uppercase font-semibold text-[#0e2b33] animate-in fade-in duration-200">
             <a href="#destinations" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
-              Chambers &amp; Suites
+              Rooms &amp; Suites
             </a>
             <a href="#philosophy" onClick={() => setMobileMenuOpen(false)} className="py-2 px-3 rounded hover:bg-slate-100 transition">
               Philosophy &amp; Service
@@ -681,7 +681,7 @@ export const GuestView: React.FC = () => {
       <div className="bg-[#efe8d8] border-b border-[#0e2b33]/10 py-2.5 px-4 text-xs text-[#0e2b33] text-center">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-2">
           <span>
-            Stay 3, pay for 2 on Suites &amp; Deluxe Chambers across our Dhanmondi location. Extend your stay — valid through 2026.
+            Stay 3, pay for 2 on Suites &amp; Deluxe Rooms across our Dhanmondi location. Extend your stay — valid through 2026.
           </span>
           <a 
             href="https://wa.me/8801799148408" 
@@ -902,7 +902,7 @@ export const GuestView: React.FC = () => {
                     showToast({ type: 'error', message: 'Check-out date must be after check-in date.' });
                     return;
                   }
-                  showToast({ type: 'success', message: `🔎 Showing available chambers for ${searchCheckIn} to ${searchCheckOut}` });
+                  showToast({ type: 'success', message: `🔎 Showing available rooms for ${searchCheckIn} to ${searchCheckOut}` });
                   const el = document.getElementById('destinations');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
@@ -925,16 +925,16 @@ export const GuestView: React.FC = () => {
             Opening doors to a world of quiet fascination and homely luxury
           </h2>
           <p className="text-sm md:text-base text-[#3c4650] max-w-2xl leading-relaxed">
-            Travel, to us, is more than a destination — it's a passage that widens perspective, connects cultures, and leaves a mark long after check-out. As custodians of a slower kind of luxury in Dhanmondi, Islamia Guest House invites you into peaceful chambers where remarkable service happens in the moments you least expect.
+            Travel, to us, is more than a destination — it's a passage that widens perspective, connects cultures, and leaves a mark long after check-out. As custodians of a slower kind of luxury in Dhanmondi, Islamia Guest House invites you into peaceful rooms where remarkable service happens in the moments you least expect.
           </p>
         </div>
       </section>
 
-      {/* 3. Rooms / Chambers Listing Grid */}
+      {/* 3. Rooms Listing Grid */}
       {filteredRooms.length === 0 ? (
         <section id="destinations" className="max-w-7xl mx-auto px-6 mb-16 space-y-8 scroll-mt-24">
           <div className="text-center py-16 bg-[#efe8d8]/30 rounded-2xl border border-[#0e2b33]/10">
-            <p className="text-[#0e2b33] font-medium text-sm">No chambers match your specific parameters.</p>
+            <p className="text-[#0e2b33] font-medium text-sm">No rooms match your specific parameters.</p>
             <button 
               id="clear-filters-btn"
               onClick={() => { setRoomTypeFilter('all'); setRoomsCount(1); setAdultsCount(1); }}
@@ -1370,7 +1370,7 @@ export const GuestView: React.FC = () => {
               <form noValidate onSubmit={handleBookingSubmit} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
                   <div className="text-xs font-medium text-slate-500">
-                    Daily Chamber Rate: <span className="font-semibold text-slate-700 block mt-0.5">৳{selectedRoom.price} / night</span>
+                    Daily Room Rate: <span className="font-semibold text-slate-700 block mt-0.5">৳{selectedRoom.price} / night</span>
                   </div>
                   <div className="text-xs font-medium text-slate-500">
                     Max Capacity: <span className="font-semibold text-slate-700 block mt-0.5">{selectedRoom.capacity} Person{selectedRoom.capacity > 1 ? 's' : ''}</span>
@@ -1840,7 +1840,7 @@ export const GuestView: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <div>
-                      <span className="font-bold">Verified Reservation Guest:</span> {myBookings[0].guestName} (Chamber #{myBookings[0].roomId})
+                      <span className="font-bold">Verified Reservation Guest:</span> {myBookings[0].guestName} (Room #{myBookings[0].roomId})
                     </div>
                   </div>
                 </div>
@@ -2179,7 +2179,7 @@ export const GuestView: React.FC = () => {
               <div>
                 <h5 className="text-[11px] font-bold tracking-widest text-[#d7bd8a] uppercase mb-3">Explore</h5>
                 <ul className="space-y-2">
-                  <li><a href="#destinations" className="hover:text-white">Chambers</a></li>
+                  <li><a href="#destinations" className="hover:text-white">Rooms</a></li>
                   <li><a href="#philosophy" className="hover:text-white">Philosophy</a></li>
                   <li><a href="#events" className="hover:text-white">Experience</a></li>
                   <li><a href="#guest-reviews-section" className="hover:text-white">Reviews</a></li>

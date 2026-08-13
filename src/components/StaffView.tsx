@@ -292,7 +292,7 @@ export const StaffView: React.FC = () => {
         });
         showToast({
           type: 'success',
-          message: `🏨 Chamber #${trimmedNo} updated with rate ৳${finalPrice.toLocaleString()}/night!`
+          message: `🏨 Room #${trimmedNo} updated with rate ৳${finalPrice.toLocaleString()}/night!`
         });
       } else {
         await addRoom({
@@ -308,14 +308,14 @@ export const StaffView: React.FC = () => {
 
         showToast({
           type: 'success',
-          message: `🏨 New Chamber #${trimmedNo} saved with rate ৳${finalPrice.toLocaleString()}/night!`
+          message: `🏨 New Room #${trimmedNo} saved with rate ৳${finalPrice.toLocaleString()}/night!`
         });
       }
     } catch (err) {
-      console.warn("Notice saving chamber:", err);
+      console.warn("Notice saving room:", err);
       showToast({
         type: 'success',
-        message: `🏨 Chamber #${trimmedNo} saved locally with rate ৳${finalPrice.toLocaleString()}/night!`
+        message: `🏨 Room #${trimmedNo} saved locally with rate ৳${finalPrice.toLocaleString()}/night!`
       });
     }
 
@@ -367,7 +367,7 @@ export const StaffView: React.FC = () => {
       return;
     }
 
-    // 4. Chamber Selection
+    // 4. Room Selection
     let selectedRoomIdToUse = posSelectedRoomId;
     if (!selectedRoomIdToUse) {
       const avail = rooms.find(r => r.status === 'available');
@@ -376,14 +376,14 @@ export const StaffView: React.FC = () => {
       } else if (rooms[0]) {
         selectedRoomIdToUse = rooms[0].id;
       } else {
-        showToast({ type: 'error', message: "⚠️ No chambers available in the system." });
+        showToast({ type: 'error', message: "⚠️ No rooms available in the system." });
         return;
       }
     }
 
     const targetRoom = rooms.find(r => r.id === selectedRoomIdToUse);
     if (!targetRoom) {
-      showToast({ type: 'error', message: "⚠️ Selected chamber could not be found. Please pick a room." });
+      showToast({ type: 'error', message: "⚠️ Selected room could not be found. Please pick a room." });
       return;
     }
 
@@ -441,7 +441,7 @@ export const StaffView: React.FC = () => {
 
       showToast({
         type: 'success',
-        message: `🎟️ Checkout booking created & invoice generated for ${posCustomerName.trim()} in Chamber ${targetRoom.number}!`
+        message: `🎟️ Checkout booking created & invoice generated for ${posCustomerName.trim()} in Room ${targetRoom.number}!`
       });
 
       // Clear form fields
@@ -658,7 +658,7 @@ export const StaffView: React.FC = () => {
       'Phone Number',
       'Email Address',
       'NID Number',
-      'Chamber Number',
+      'Room Number',
       'Room Type',
       'Check In Date',
       'Check Out Date',
@@ -746,7 +746,7 @@ export const StaffView: React.FC = () => {
         <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-sm flex flex-col justify-between h-32">
           <div className="flex justify-between items-start">
             <span className="text-[10px] uppercase tracking-wider font-mono font-bold text-slate-400">
-              Staff Chamber Duty
+              Staff Room Duty
             </span>
             <span className="bg-amber-100 text-amber-800 text-[9px] font-mono font-bold px-2 py-0.5 rounded">
               Needs Service
@@ -844,7 +844,7 @@ export const StaffView: React.FC = () => {
       {/* 3. Point Of Sale Fast Room Booking Desk */}
       <div id="pos-guest-desk" className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Left 2 Columns: Chamber Picker Visual Grid & Quick Binder */}
+        {/* Left 2 Columns: Room Picker Visual Grid & Quick Binder */}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex justify-between items-baseline">
             <div className="space-y-0.5">
@@ -926,7 +926,7 @@ export const StaffView: React.FC = () => {
 
               <div className="col-span-2 space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between">
-                  <span>Chamber Photo (From Computer)</span>
+                  <span>Room Photo (From Computer)</span>
                   {newRoomImage && <span className="text-emerald-600 font-semibold">✓ Photo attached</span>}
                 </label>
                 <div className="flex gap-2 items-center">
@@ -941,7 +941,7 @@ export const StaffView: React.FC = () => {
                         try {
                           const dataUrl = await processUploadedImage(file);
                           setNewRoomImage(dataUrl);
-                          showToast({ type: 'success', message: '📸 Chamber photo uploaded from computer!' });
+                          showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
                         } catch (err) {
                           showToast({ type: 'error', message: 'Failed to upload photo.' });
                         }
@@ -999,11 +999,11 @@ export const StaffView: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  id="save-chamber-btn"
+                  id="save-room-btn"
                   type="submit"
                   className="px-4 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-black cursor-pointer transition"
                 >
-                  Save Chamber
+                  Save Room
                 </button>
               </div>
             </form>
@@ -1034,7 +1034,7 @@ export const StaffView: React.FC = () => {
                     <button
                       id={`room-manage-trigger-${room.id}`}
                       type="button"
-                      title="Manage room status/chamber duty"
+                      title="Manage room status/duty"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedRoomToManage(room);
@@ -1091,7 +1091,7 @@ export const StaffView: React.FC = () => {
           <form noValidate onSubmit={handleDeskBookingSubmit} className="space-y-3.5">
             {/* Room Selection Dropdown */}
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Select Chamber / Room *</label>
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Select Room *</label>
               <select
                 id="pos-room-select-dropdown"
                 value={posSelectedRoomId}
@@ -1101,7 +1101,7 @@ export const StaffView: React.FC = () => {
                 <option value="">-- Click a Room Left or Choose Here --</option>
                 {rooms.map(r => (
                   <option key={r.id} value={r.id}>
-                    Chamber {r.number} ({r.type.toUpperCase()}) - ৳{r.price}/night [{r.status.toUpperCase()}]
+                    Room {r.number} ({r.type.toUpperCase()}) - ৳{r.price}/night [{r.status.toUpperCase()}]
                   </option>
                 ))}
               </select>
@@ -1114,7 +1114,7 @@ export const StaffView: React.FC = () => {
                   Billed Room Selection
                 </span>
                 <span className="font-serif text-sm font-bold text-slate-800">
-                  {selectedRoomDetails ? `Room ${selectedRoomDetails.number}` : 'No Chamber Selected'}
+                  {selectedRoomDetails ? `Room ${selectedRoomDetails.number}` : 'No Room Selected'}
                 </span>
               </div>
               <div>
@@ -1409,7 +1409,7 @@ export const StaffView: React.FC = () => {
               </p>
             </div>
             <div className="bg-amber-50 text-amber-800 text-[10px] font-mono font-bold px-3 py-1.5 rounded-full border border-amber-100 uppercase tracking-wider shrink-0">
-              {rooms.length} Chambers Configured
+              {rooms.length} Rooms Configured
             </div>
           </div>
 
@@ -1426,7 +1426,7 @@ export const StaffView: React.FC = () => {
                     <div className="flex justify-between items-start">
                       <div>
                         <span className="text-[10px] uppercase font-mono tracking-wider font-extrabold text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80">
-                          Chamber {room.number}
+                          Room {room.number}
                         </span>
                         <h4 className="text-xs font-serif font-bold text-slate-800 capitalize mt-2">{room.type} Bed</h4>
                       </div>
@@ -1898,7 +1898,7 @@ export const StaffView: React.FC = () => {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400 font-mono font-bold">
-                      <th className="py-3 px-2">Ref / Chamber</th>
+                      <th className="py-3 px-2">Ref / Room</th>
                       <th className="py-3 px-2">PASSENGER NAME & IDENTITIES</th>
                       <th className="py-3 px-2">SPAN DATES</th>
                       <th className="py-3 px-2">BILL PREVIEW</th>
@@ -1911,7 +1911,7 @@ export const StaffView: React.FC = () => {
                         <td className="py-3.5 px-2">
                           <span className="font-mono font-bold text-slate-800 block">{booking.id}</span>
                           <span className="text-[10px] text-slate-500 font-extrabold text-teal-600">
-                            Chamber {booking.roomNumber || booking.roomId}
+                            Room {booking.roomNumber || booking.roomId}
                           </span>
                         </td>
                         <td className="py-3.5 px-2 space-y-1">
@@ -2082,7 +2082,7 @@ export const StaffView: React.FC = () => {
         />
       )}
 
-      {/* 6. ROOM STATUS, PRICING & CHAMBER DUTY SETTINGS MANAGER */}
+      {/* 6. ROOM STATUS, PRICING & ROOM DUTY SETTINGS MANAGER */}
       {selectedRoomToManage && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden">
@@ -2093,7 +2093,7 @@ export const StaffView: React.FC = () => {
                 <Settings className="w-5 h-5 text-teal-600" />
                 <div>
                   <h3 className="font-serif text-base font-bold text-slate-800">
-                    Chamber Settings & Status Tracker
+                    Room Settings & Status Tracker
                   </h3>
                   <p className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-bold">
                     Room {selectedRoomToManage.number} • {selectedRoomToManage.type}
@@ -2107,7 +2107,7 @@ export const StaffView: React.FC = () => {
                   setSelectedRoomToManage(null);
                   showToast({
                     type: 'info',
-                    message: `ℹ️ Chamber #${num} settings closed.`
+                    message: `ℹ️ Room #${num} settings closed.`
                   });
                 }}
                 className="text-slate-400 hover:text-slate-600 p-1 bg-white border border-slate-200 rounded-lg shadow-sm"
@@ -2119,7 +2119,7 @@ export const StaffView: React.FC = () => {
             {/* Body */}
             <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
 
-              {/* If chamber is occupied, show prominent quick Checkout & Show Bill Banner */}
+              {/* If room is occupied, show prominent quick Checkout & Show Bill Banner */}
               {selectedRoomToManage.status === 'occupied' && (
                 <div className="bg-rose-50 border border-rose-200 p-4 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
                   <div>
@@ -2127,7 +2127,7 @@ export const StaffView: React.FC = () => {
                     <p className="text-xs font-bold text-slate-800 mt-0.5">
                       {bookings.find(b => b.roomId === selectedRoomToManage.id && b.status === 'checked-in')?.guestName ? 
                         `Guest: ${bookings.find(b => b.roomId === selectedRoomToManage.id && b.status === 'checked-in')?.guestName}` : 
-                        `Chamber #${selectedRoomToManage.number}`}
+                        `Room #${selectedRoomToManage.number}`}
                     </p>
                   </div>
                   <button
@@ -2153,7 +2153,7 @@ export const StaffView: React.FC = () => {
               
               {/* Settings Fields: Room details, capacity, and PRICE (Money edit!) */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-4">
-                <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 block font-bold">Chamber & Tracker Settings</span>
+                <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 block font-bold">Room & Tracker Settings</span>
                 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
@@ -2223,7 +2223,7 @@ export const StaffView: React.FC = () => {
                   {[
                     { id: 'available', name: 'Available (Ready)', color: 'border-emerald-200 hover:bg-emerald-50 text-emerald-800 bg-emerald-50/20', dotColor: 'bg-emerald-500', desc: 'Ready for passenger check-in' },
                     { id: 'occupied', name: 'Occupied', color: 'border-rose-200 hover:bg-rose-50 text-rose-800 bg-rose-50/20', dotColor: 'bg-rose-500', desc: 'Currently checked-in guests inside' },
-                    { id: 'cleaning', name: 'Cleaning (Duty)', color: 'border-amber-200 hover:bg-amber-50 text-amber-800 bg-amber-50/20', dotColor: 'bg-amber-400', desc: 'Chamber duty / vacuum & stock' },
+                    { id: 'cleaning', name: 'Cleaning (Duty)', color: 'border-amber-200 hover:bg-amber-50 text-amber-800 bg-amber-50/20', dotColor: 'bg-amber-400', desc: 'Room duty / vacuum & stock' },
                     { id: 'maintenance', name: 'Maintenance', color: 'border-slate-200 hover:bg-slate-50 text-slate-850 bg-slate-50/20', dotColor: 'bg-slate-400', desc: 'Engineering repairs / offline' }
                   ].map((opt) => {
                     const isSelected = editRoomStatus === opt.id;
@@ -2473,13 +2473,13 @@ export const StaffView: React.FC = () => {
               <button
                 type="button"
                 onClick={async () => {
-                  if (window.confirm(`Are you sure you want to delete Chamber #${selectedRoomToManage.number}?`)) {
-                    const chamberNum = selectedRoomToManage.number;
+                  if (window.confirm(`Are you sure you want to delete Room #${selectedRoomToManage.number}?`)) {
+                    const roomNum = selectedRoomToManage.number;
                     const roomId = selectedRoomToManage.id;
                     setSelectedRoomToManage(null);
                     showToast({
                       type: 'info',
-                      message: `🗑️ Chamber #${chamberNum} deleted successfully from inventory!`
+                      message: `🗑️ Room #${roomNum} deleted successfully from inventory!`
                     });
                     await deleteRoom(roomId);
                   }
@@ -2487,7 +2487,7 @@ export const StaffView: React.FC = () => {
                 className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
               >
                 <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                <span>Delete Chamber</span>
+                <span>Delete Room</span>
               </button>
 
               <div className="flex items-center gap-2.5">
@@ -2495,11 +2495,11 @@ export const StaffView: React.FC = () => {
                   id="cancel-status-manager-btn"
                   type="button"
                   onClick={() => {
-                    const chamberNum = selectedRoomToManage.number;
+                    const roomNum = selectedRoomToManage.number;
                     setSelectedRoomToManage(null);
                     showToast({
                       type: 'info',
-                      message: `ℹ️ Chamber #${chamberNum} modifications cancelled.`
+                      message: `ℹ️ Room #${roomNum} modifications cancelled.`
                     });
                   }}
                   className="px-4 py-2 border border-slate-250 bg-white hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition cursor-pointer"
@@ -2511,13 +2511,13 @@ export const StaffView: React.FC = () => {
                   type="button"
                   onClick={async () => {
                     const finalPrice = Number(editRoomPrice) || 0;
-                    const chamberNum = editRoomNumber || selectedRoomToManage.number;
+                    const roomNum = editRoomNumber || selectedRoomToManage.number;
                     const roomId = selectedRoomToManage.id;
 
                     // Instantly notify & close modal for optimal responsiveness
                     showToast({
                       type: 'success',
-                      message: `✅ Chamber #${chamberNum} saved with tariff ৳${finalPrice.toLocaleString()}/night!`
+                      message: `✅ Room #${roomNum} saved with tariff ৳${finalPrice.toLocaleString()}/night!`
                     });
                     setSelectedRoomToManage(null);
 

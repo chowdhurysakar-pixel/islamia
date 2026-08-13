@@ -20,7 +20,7 @@ export const INITIAL_ROOMS: Room[] = [
     extra: 'Cloth Rack',
     amenities: ['TV', 'Free WiFi', 'Common Refrigeration', 'Tea Table', '24/7 Electricity', 'Stand Lamp', 'Sofa', 'AC/Non-AC'],
     image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
-    description: 'Double Deluxe chamber with spacious layout featuring two double beds, dual aspect windows, and complete luxury amenities for up to 4 adults.'
+    description: 'Double Deluxe room with spacious layout featuring two double beds, dual aspect windows, and complete luxury amenities for up to 4 adults.'
   },
   {
     id: '102',
@@ -52,7 +52,7 @@ export const INITIAL_ROOMS: Room[] = [
     extra: 'Cloth Rack',
     amenities: ['TV', 'Free WiFi', 'Common Refrigeration', 'Tea Table', '24/7 Electricity', 'Stand Lamp', 'Sofa', 'AC/Non-AC'],
     image: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80',
-    description: 'Executive Single / Double chamber offering a queen size bed, peaceful dual windows, sofa seating, and flexible climate choices.'
+    description: 'Executive Single / Double room offering a queen size bed, peaceful dual windows, sofa seating, and flexible climate choices.'
   },
   {
     id: '201',
@@ -84,7 +84,7 @@ export const INITIAL_ROOMS: Room[] = [
     extra: 'Cloth Rack',
     amenities: ['TV', 'Free WiFi', 'Common Refrigeration', 'Tea Table', '24/7 Electricity', 'Stand Lamp', 'Sofa', 'Balcony', 'AC/Non-AC'],
     image: 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=800&q=80',
-    description: 'Standard Double chamber with a king size bed, breezy balcony, pan toilet, and comfortable sofa for couples or small families.'
+    description: 'Standard Double room with a king size bed, breezy balcony, pan toilet, and comfortable sofa for couples or small families.'
   },
   {
     id: '301',
@@ -101,7 +101,7 @@ export const INITIAL_ROOMS: Room[] = [
     extra: 'Cloth Rack',
     amenities: ['Free WiFi', 'Common Refrigeration', 'Tea Table', '24/7 Electricity'],
     image: 'https://images.unsplash.com/photo-1598289431512-b97b0917affc?auto=format&fit=crop&w=800&q=80',
-    description: 'Economy Single chamber tailored for solo travelers or medical visits on a budget. Includes essential WiFi, electricity, and tea table.'
+    description: 'Economy Single room tailored for solo travelers or medical visits on a budget. Includes essential WiFi, electricity, and tea table.'
   }
 ];
 
