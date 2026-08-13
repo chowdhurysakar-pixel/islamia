@@ -75,7 +75,7 @@ const ToastNotification: React.FC = () => {
 };
 
 const MainLayout: React.FC = () => {
-  const { currentRole, isLoading, currentUser, logout, opMode } = useApp();
+  const { currentRole, isLoading, currentUser, logout, opMode, activeGuestsCount } = useApp();
 
   if (isLoading) {
     return (
@@ -159,11 +159,15 @@ const MainLayout: React.FC = () => {
           {opMode === 'admin' ? <AdminPanel /> : <StaffView />}
         </main>
 
-        <footer className="border-t border-slate-150 bg-white/70 py-6">
+        <footer className="border-t border-slate-200/80 bg-white/80 py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
             <p className="text-xs text-slate-500 font-medium">
               &copy; 2026 Islamia Guest House Dhanmondi. Secure Front Desk &amp; billing manager.
             </p>
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200/80 rounded-full text-emerald-800 text-xs font-semibold font-mono shadow-xs">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span>বর্তমান অ্যাক্টিভ গেস্ট (Active Guests): <strong className="text-emerald-950 font-extrabold">{activeGuestsCount} জন</strong></span>
+            </div>
             <div className="text-xs text-slate-400 font-mono">
               <span>Dedicated to Islamia Guest House</span>
             </div>

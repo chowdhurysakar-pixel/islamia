@@ -10,7 +10,7 @@ import { Shield, User, Clock, ShieldCheck, Lock, X, Key, AlertCircle } from 'luc
 const VALID_ADMIN_PASSCODES = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026', 'STAFF789'];
 
 export const Header: React.FC = () => {
-  const { currentRole, toggleRole, currentUser, opMode, setOpMode, showToast } = useApp();
+  const { currentRole, toggleRole, currentUser, opMode, setOpMode, showToast, activeGuestsCount } = useApp();
   const [time, setTime] = useState<string>('');
   
   // Admin Passcode Modal
@@ -90,11 +90,15 @@ export const Header: React.FC = () => {
               </span>
             </div>
 
-            {/* Time Indicator */}
-            <div className="hidden md:flex items-center gap-6">
-              <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+            {/* Time & Active Guests Indicator */}
+            <div className="hidden md:flex items-center gap-3">
+              <div className="flex items-center gap-2 text-xs font-mono text-slate-500 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 shadow-xs">
                 <Clock className="w-3.5 h-3.5 text-teal-600 animate-pulse" />
                 <span>{time}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-mono text-teal-900 bg-teal-50 px-3 py-1.5 rounded-full border border-teal-200/60 font-semibold shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span>Active Guests: {activeGuestsCount}</span>
               </div>
             </div>
 

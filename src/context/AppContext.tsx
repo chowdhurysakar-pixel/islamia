@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
@@ -64,6 +64,7 @@ interface AppContextType {
   serviceRequests: ServiceRequest[];
   currentUser: UserProfile | null;
   currentRole: UserRole;
+  activeGuestsCount: number;
   isFirebaseActive: boolean;
   isLoading: boolean;
   toggleRole: () => void;
@@ -113,9 +114,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [archivedBookings, setArchivedBookings] = useState<Booking[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [currentRole, setCurrentRole] = useState<UserRole>('staff');
-  const [opMode, setOpMode] = useState<'receptionist' | 'hr' | 'admin' | 'guest'>('receptionist');
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('hotel_current_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [currentRole, setCurrentRole] = useState<UserRole>(() => {
+    try {
+      const saved = localStorage.getItem('hotel_current_role') as UserRole;
+      return saved && ['admin', 'staff', 'guest'].includes(saved) ? saved : 'staff';
+    } catch (e) {
+      return 'staff';
+    }
+  });
+  const [opMode, setOpModeState] = useState<'receptionist' | 'hr' | 'admin' | 'guest'>(() => {
+    try {
+      const saved = localStorage.getItem('hotel_op_mode') as any;
+      return saved && ['receptionist', 'hr', 'admin', 'guest'].includes(saved) ? saved : 'receptionist';
+    } catch (e) {
+      return 'receptionist';
+    }
+  });
+
+  const setOpMode = (mode: 'receptionist' | 'hr' | 'admin' | 'guest') => {
+    setOpModeState(mode);
+    try {
+      localStorage.setItem('hotel_op_mode', mode);
+    } catch (e) {}
+  };
+
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
@@ -124,6 +154,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const hasSeededRoomsRef = useRef(false);
   const hasSeededBookingsRef = useRef(false);
   const hasSeededServicesRef = useRef(false);
+
+  // Dynamic Active Guests Calculation (Sum of all guests in checked-in / confirmed active stays)
+  const activeGuestsCount = useMemo(() => {
+    return bookings
+      .filter(b => b.status === 'checked-in' || b.status === 'confirmed')
+      .reduce((sum, b) => {
+        const guests = 
+          (b.adultsCount || b.adults || 0) + 
+          (b.kidsCount || b.children || 0) + 
+          (b.additionalGuests?.length || 0) || 
+          b.guestCount || 
+          1;
+        return sum + guests;
+      }, 0);
+  }, [bookings]);
 
   // Initialize and run connection tests
   useEffect(() => {
@@ -156,13 +201,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const emailLower = fbUser.email?.toLowerCase() || '';
           
           if (!fbUser.emailVerified) {
-            setCurrentUser(null);
-            setCurrentRole('guest');
             setIsLoading(false);
             return;
           }
-          
-          let chosenRole: UserRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || (localStorage.getItem('pending_google_role') as UserRole) || 'guest';
+
+          try {
+            const userSnap = await getDocFromServer(doc(db, 'users', fbUser.uid));
+            if (userSnap.exists()) {
+              const uData = userSnap.data() as UserProfile;
+              setCurrentUser(uData);
+              setCurrentRole(uData.role);
+              try {
+                localStorage.setItem('hotel_current_user', JSON.stringify(uData));
+                localStorage.setItem('hotel_current_role', uData.role);
+              } catch (e) {}
+              setIsLoading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn("User profile fetch warning:", e);
+          }
+
+          let chosenRole: UserRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || (localStorage.getItem('pending_google_role') as UserRole) || (localStorage.getItem('hotel_current_role') as UserRole) || 'guest';
           if (!['admin', 'staff', 'guest'].includes(chosenRole)) {
             chosenRole = (emailLower.includes('admin') || emailLower.includes('hr')) ? 'admin'
                        : (emailLower.includes('staff') || emailLower.includes('reception')) ? 'staff'
@@ -182,13 +242,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
           setCurrentUser(profile);
           setCurrentRole(chosenRole);
+          try {
+            localStorage.setItem('hotel_current_user', JSON.stringify(profile));
+            localStorage.setItem('hotel_current_role', chosenRole);
+          } catch (e) {}
           
           setDoc(doc(db, 'users', fbUser.uid), profile).catch(e => {
             console.error("Failed to sync user profile to Firestore:", e);
           });
         } else {
-          setCurrentUser(null);
-          setCurrentRole('guest');
+          // Keep persisted user session from localStorage if available
+          const savedUser = localStorage.getItem('hotel_current_user');
+          const savedRole = localStorage.getItem('hotel_current_role') as UserRole;
+          if (savedUser && savedRole) {
+            try {
+              setCurrentUser(JSON.parse(savedUser));
+              setCurrentRole(savedRole);
+            } catch (e) {
+              setCurrentUser(null);
+              setCurrentRole('guest');
+            }
+          } else {
+            setCurrentUser(null);
+            setCurrentRole('guest');
+          }
         }
         setIsLoading(false);
       });
@@ -349,7 +426,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isFirebaseActive]);
 
-  // Authenticated Firestore Subscriptions for Bookings & Service Requests (Real-time Sync for Staff Dashboards)
+  // Authenticated Firestore Subscriptions for Bookings & Service Requests (Real-time Sync Across All Portals)
   useEffect(() => {
     if (!isFirebaseActive || !db) return;
 
@@ -357,99 +434,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let unsubArchived: (() => void) | null = null;
     let unsubRequests: (() => void) | null = null;
 
-    const isStaffOrAdmin = currentUser?.role === 'staff' || currentUser?.role === 'admin' || currentRole === 'staff' || currentRole === 'admin' || opMode === 'receptionist' || opMode === 'hr' || opMode === 'admin';
-
-    if (isStaffOrAdmin) {
-      // Staff/Admin gets all bookings in real time
-      unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-        if (!snapshot.empty) {
+    // 1. All portals (Staff & Guest View) subscribe to all bookings in real time for instant updates
+    unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+      if (!snapshot.empty) {
+        hasSeededBookingsRef.current = true;
+        const bookingsList: Booking[] = [];
+        snapshot.forEach((docSnap) => {
+          bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+        });
+        setBookings(bookingsList);
+      } else {
+        if (!hasSeededBookingsRef.current) {
           hasSeededBookingsRef.current = true;
-          const bookingsList: Booking[] = [];
-          snapshot.forEach((docSnap) => {
-            bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+          INITIAL_BOOKINGS.forEach(async (b) => {
+            try {
+              await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
+            } catch (e) {
+              console.warn("Failed to seed initial booking:", e);
+            }
           });
-          setBookings(bookingsList);
         } else {
-          if (!hasSeededBookingsRef.current) {
-            hasSeededBookingsRef.current = true;
-            INITIAL_BOOKINGS.forEach(async (b) => {
-              try {
-                await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
-              } catch (e) {
-                console.warn("Failed to seed initial booking:", e);
-              }
-            });
-          } else {
-            setBookings([]);
-          }
+          setBookings([]);
         }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'bookings');
-      });
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'bookings');
+    });
 
-      // Staff/Admin gets archived lifetime records in real time
-      unsubArchived = onSnapshot(collection(db, 'archived_bookings'), (snapshot) => {
-        const archivedList: Booking[] = [];
+    // 2. Staff/Admin gets archived lifetime records in real time
+    unsubArchived = onSnapshot(collection(db, 'archived_bookings'), (snapshot) => {
+      const archivedList: Booking[] = [];
+      snapshot.forEach((docSnap) => {
+        archivedList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+      });
+      setArchivedBookings(archivedList);
+    }, (error) => {
+      console.warn("Archived bookings snapshot warning:", error);
+    });
+
+    // 3. Staff/Admin gets all service requests in real time
+    unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
+      if (!snapshot.empty) {
+        hasSeededServicesRef.current = true;
+        const requestsList: ServiceRequest[] = [];
         snapshot.forEach((docSnap) => {
-          archivedList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+          requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
         });
-        setArchivedBookings(archivedList);
-      }, (error) => {
-        console.warn("Archived bookings snapshot warning:", error);
-      });
-
-      // Staff/Admin gets all service requests in real time
-      unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
-        if (!snapshot.empty) {
+        setServiceRequests(requestsList);
+      } else {
+        if (!hasSeededServicesRef.current) {
           hasSeededServicesRef.current = true;
-          const requestsList: ServiceRequest[] = [];
-          snapshot.forEach((docSnap) => {
-            requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
+          INITIAL_SERVICES.forEach(async (s) => {
+            try {
+              await setDoc(doc(db, 'serviceRequests', s.id), sanitizeFirestoreData(s));
+            } catch (e) {
+              console.warn("Failed to seed initial service request:", e);
+            }
           });
-          setServiceRequests(requestsList);
         } else {
-          if (!hasSeededServicesRef.current) {
-            hasSeededServicesRef.current = true;
-            INITIAL_SERVICES.forEach(async (s) => {
-              try {
-                await setDoc(doc(db, 'serviceRequests', s.id), sanitizeFirestoreData(s));
-              } catch (e) {
-                console.warn("Failed to seed initial service request:", e);
-              }
-            });
-          } else {
-            setServiceRequests([]);
-          }
+          setServiceRequests([]);
         }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'serviceRequests');
-      });
-    } else if (currentUser && currentUser.role === 'guest') {
-      // Guests only subscribe to their own bookings
-      const guestBookingsQuery = query(collection(db, 'bookings'), where('userId', '==', currentUser.uid));
-      unsubBookings = onSnapshot(guestBookingsQuery, (snapshot) => {
-        const bookingsList: Booking[] = [];
-        snapshot.forEach((docSnap) => {
-          bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
-        });
-        setBookings(bookingsList);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'bookings');
-      });
-
-      setServiceRequests([]);
-    } else {
-      // Fallback: subscribe to all bookings to ensure dashboard displays up-to-date live data
-      unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-        const bookingsList: Booking[] = [];
-        snapshot.forEach((docSnap) => {
-          bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
-        });
-        setBookings(bookingsList);
-      }, (error) => {
-        console.warn("Snapshot fallback info:", error);
-      });
-    }
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'serviceRequests');
+    });
 
     return () => {
       if (unsubBookings) unsubBookings();
@@ -1436,6 +1484,7 @@ Islamia Guest House, Dhanmondi`;
       feedbacks,
       currentUser,
       currentRole,
+      activeGuestsCount,
       isFirebaseActive,
       isLoading,
       toggleRole,

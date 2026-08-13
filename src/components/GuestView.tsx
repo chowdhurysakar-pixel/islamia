@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
 import lalbaghFortImg from '../assets/images/lalbagh_fort_dhaka_1785812405532.jpg';
@@ -49,6 +49,7 @@ export const GuestView: React.FC = () => {
     currentRole,
     toggleRole,
     logout,
+    activeGuestsCount,
     createBooking, 
     addBooking,
     updateBookingStatus, 
@@ -260,11 +261,44 @@ export const GuestView: React.FC = () => {
     });
   }, [rooms, roomTypeFilter, adultsCount]);
 
-  // Guest reservations made (filter bookings made by simulated or real user)
+  // Search query state for My Stays
+  const [myStaySearch, setMyStaySearch] = useState<string>(() => {
+    try {
+      return localStorage.getItem('guest_my_stay_query') || '';
+    } catch (e) {
+      return '';
+    }
+  });
+
+  // Guest reservations made (filtered by logged-in user OR phone / NID / email / guest name search)
   const myBookings = useMemo(() => {
-    if (!currentUser) return [];
-    return bookings.filter(b => b.userId === currentUser.uid || b.guestEmail.toLowerCase() === currentUser.email.toLowerCase());
-  }, [bookings, currentUser]);
+    const queryLower = myStaySearch.trim().toLowerCase();
+
+    return bookings.filter(b => {
+      // Direct user match
+      const isUserMatch = Boolean(currentUser && (
+        (b.userId && b.userId === currentUser.uid) ||
+        (b.guestEmail && currentUser.email && b.guestEmail.toLowerCase() === currentUser.email.toLowerCase())
+      ));
+
+      // Just created booking match
+      const isJustCreatedMatch = Boolean(justCompletedBookingId && b.id === justCompletedBookingId);
+
+      // Search field matches
+      const phoneMatch = Boolean(queryLower && b.guestPhone && b.guestPhone.toLowerCase().includes(queryLower));
+      const nidMatch = Boolean(queryLower && b.nidNumber && b.nidNumber.toLowerCase().includes(queryLower));
+      const emailMatch = Boolean(queryLower && b.guestEmail && b.guestEmail.toLowerCase().includes(queryLower));
+      const nameMatch = Boolean(queryLower && b.guestName && b.guestName.toLowerCase().includes(queryLower));
+      const idMatch = Boolean(queryLower && b.id && b.id.toLowerCase().includes(queryLower));
+      const isSearchMatch = phoneMatch || nidMatch || emailMatch || nameMatch || idMatch;
+
+      if (queryLower) {
+        return isSearchMatch || isUserMatch || isJustCreatedMatch;
+      }
+
+      return isUserMatch || isJustCreatedMatch;
+    });
+  }, [bookings, currentUser, myStaySearch, justCompletedBookingId]);
 
   // Memoized repeat guest lookup map by contact info (phone/email/name) to count of bookings
   const guestBookingCounts = useMemo(() => {
@@ -359,6 +393,12 @@ export const GuestView: React.FC = () => {
       const realBookingId = await addFn(bookingPayload);
       if (realBookingId) {
         setJustCompletedBookingId(realBookingId);
+      }
+      if (bookPhone.trim()) {
+        setMyStaySearch(bookPhone.trim());
+        try {
+          localStorage.setItem('guest_my_stay_query', bookPhone.trim());
+        } catch (e) {}
       }
     } catch (error) {
       console.warn("Notice: Database save encountered network/permission delay; using local fallback state:", error);
@@ -1022,20 +1062,73 @@ export const GuestView: React.FC = () => {
 
       {/* 4. Active Guest Reservations Section */}
       <section id="my-stays-section" className="max-w-7xl mx-auto px-6 mb-16">
-        <div className="flex items-center gap-2.5 mb-6 pb-2 border-b border-[#0e2b33]/10">
-          <Ticket className="w-5 h-5 text-[#af8a52]" />
-          <h2 className="font-serif text-2xl font-normal text-[#0e2b33]">
-            My Stays &amp; Room Control
-          </h2>
+        <div className="flex items-center justify-between gap-4 mb-6 pb-2 border-b border-[#0e2b33]/10 flex-wrap">
+          <div className="flex items-center gap-2.5">
+            <Ticket className="w-5 h-5 text-[#af8a52]" />
+            <h2 className="font-serif text-2xl font-normal text-[#0e2b33]">
+              My Stays &amp; Room Control
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-80">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-[#0e2b33]/50" />
+              <input
+                type="text"
+                id="my-stay-search-input-field"
+                value={myStaySearch}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setMyStaySearch(val);
+                  try {
+                    localStorage.setItem('guest_my_stay_query', val);
+                  } catch (err) {}
+                }}
+                placeholder="মোবাইল নম্বর / NID / ইমেইল দিয়ে খুঁজুন..."
+                className="w-full pl-9 pr-8 py-2 bg-white border border-[#0e2b33]/20 rounded-xl text-xs text-[#0e2b33] placeholder:text-slate-400 focus:outline-none focus:border-[#af8a52] focus:ring-1 focus:ring-[#af8a52] shadow-xs"
+              />
+              {myStaySearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMyStaySearch('');
+                    try {
+                      localStorage.removeItem('guest_my_stay_query');
+                    } catch (err) {}
+                  }}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {myBookings.length === 0 ? (
-          <div className="bg-[#efe8d8]/40 p-8 rounded text-center border border-[#0e2b33]/10 max-w-xl">
+          <div className="bg-[#efe8d8]/40 p-8 rounded-2xl text-center border border-[#0e2b33]/10 max-w-xl mx-auto my-4 shadow-xs">
             <HeartHandshake className="w-10 h-10 text-[#af8a52] mx-auto mb-3" />
-            <h4 className="font-medium text-[#0e2b33] text-sm">No Active Booking Records</h4>
-            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Explore our boutique chambers above, choose your stay dates, and secure a reservation to manage in-room services and tickets.
+            <h4 className="font-semibold text-[#0e2b33] text-sm">
+              {myStaySearch ? 'কোনো বুকিং রেকর্ড পাওয়া যায়নি (No Match Found)' : 'কোনো অ্যাক্টিভ বুকিং তথ্য নেই (No Active Booking)'}
+            </h4>
+            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+              {myStaySearch 
+                ? `"${myStaySearch}" দিয়ে কোনো বুকিং খুঁজে পাওয়া যায়নি। অনুগ্রহ করে সঠিক মোবাইল নম্বর বা NID চেক করুন।` 
+                : 'বুকিং করার সময় প্রদত্ত মোবাইল নম্বর বা NID দিয়ে ওপরের সার্চ বক্সে দিয়ে সার্চ করে সহজেই আপনার স্টেই এর রুম সার্ভিস ও তথ্য পরিচালনা করুন।'}
             </p>
+            {myStaySearch && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMyStaySearch('');
+                  try { localStorage.removeItem('guest_my_stay_query'); } catch (e) {}
+                }}
+                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-[#0e2b33] text-[#efe8d8] text-xs font-bold rounded-xl hover:bg-[#af8a52] transition cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>সার্চ রিসেট করুন (Reset Search)</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">
@@ -2157,8 +2250,12 @@ export const GuestView: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="pt-6 text-xs flex flex-col sm:flex-row justify-between items-center gap-4 text-[#efe8d8]/50">
+          <div className="pt-6 text-xs flex flex-col sm:flex-row justify-between items-center gap-4 text-[#efe8d8]/60">
             <span>© 2026 Islamia Guest House, Dhanmondi. All rights reserved.</span>
+            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-[#0e2b33] border border-[#af8a52]/40 rounded-full text-[#d7bd8a] font-mono text-xs shadow-inner">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span>👥 বর্তমান অ্যাক্টিভ গেস্ট (Active Guests): <strong className="text-white font-bold">{activeGuestsCount} জন</strong></span>
+            </div>
             <span className="text-[#d7bd8a]/80 font-mono">Dedicated to Islamia Guest House</span>
           </div>
         </div>
