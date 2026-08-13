@@ -142,10 +142,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           await getDocFromServer(doc(db, 'test', 'connection'));
         } catch (error) {
+          // Graceful fallback when offline or server check is delayed
           console.log("Firestore status: Operating in offline/cached mode until backend reconnected.");
         }
       };
-      testConnection();
+      testConnection().catch(() => {});
 
       // 2. Auth state observer
       const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
@@ -185,12 +186,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         } else {
           setCurrentUser(null);
-          const storedRole = localStorage.getItem('hotel_current_role');
-          if (storedRole === 'admin' || storedRole === 'staff') {
-            setCurrentRole('staff');
-          } else {
-            setCurrentRole('guest');
-          }
+          setCurrentRole('guest');
         }
         setIsLoading(false);
       });
@@ -447,24 +443,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, currentRole, opMode, isFirebaseActive]);
 
-  // Offline local storage caching helper
+  // Local storage offline caching helper
   useEffect(() => {
-    if (!isFirebaseActive && rooms && rooms.length > 0) {
-      localStorage.setItem('hotel_rooms', JSON.stringify(rooms));
+    if (rooms && rooms.length > 0) {
+      try {
+        localStorage.setItem('hotel_rooms', JSON.stringify(rooms));
+      } catch (e) {}
     }
-  }, [rooms, isFirebaseActive]);
+  }, [rooms]);
 
   useEffect(() => {
-    if (!isFirebaseActive && bookings) {
-      localStorage.setItem('hotel_bookings', JSON.stringify(bookings));
+    if (bookings) {
+      try {
+        localStorage.setItem('hotel_bookings', JSON.stringify(bookings));
+      } catch (e) {}
     }
-  }, [bookings, isFirebaseActive]);
+  }, [bookings]);
 
   useEffect(() => {
-    if (!isFirebaseActive && serviceRequests) {
-      localStorage.setItem('hotel_services', JSON.stringify(serviceRequests));
+    if (serviceRequests) {
+      try {
+        localStorage.setItem('hotel_services', JSON.stringify(serviceRequests));
+      } catch (e) {}
     }
-  }, [serviceRequests, isFirebaseActive]);
+  }, [serviceRequests]);
+
+  useEffect(() => {
+    if (feedbacks) {
+      try {
+        localStorage.setItem('hotel_feedbacks', JSON.stringify(feedbacks));
+      } catch (e) {}
+    }
+  }, [feedbacks]);
 
   // Auth Functions
   const loginWithGoogle = async (role?: UserRole) => {
@@ -506,33 +516,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = async () => {
-    try {
-      if (isFirebaseActive && auth) {
+    if (isFirebaseActive && auth) {
+      try {
         await signOut(auth);
+      } catch (error) {
+        console.error("Signout failed:", error);
       }
+    } else {
       setCurrentUser(null);
-      setCurrentRole('staff');
-      setOpMode('receptionist');
-      sessionStorage.removeItem('admin_authorized');
+      setCurrentRole('guest');
       localStorage.removeItem('hotel_current_user');
-      localStorage.setItem('hotel_current_role', 'staff');
-      showToast({
-        type: 'info',
-        message: '👋 Signed out successfully. Redirected to Login Screen.'
-      });
-    } catch (error: any) {
-      console.error("Signout failed:", error);
-      showToast({
-        type: 'error',
-        message: `Sign out failed: ${error?.message || 'Failed to sign out.'}`
-      });
-      // Fallback local cleanup to prevent stuck session
-      setCurrentUser(null);
-      setCurrentRole('staff');
-      setOpMode('receptionist');
-      sessionStorage.removeItem('admin_authorized');
-      localStorage.removeItem('hotel_current_user');
-      localStorage.setItem('hotel_current_role', 'staff');
+      localStorage.setItem('hotel_current_role', 'guest');
     }
   };
 

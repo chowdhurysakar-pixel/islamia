@@ -144,17 +144,11 @@ const MainLayout: React.FC = () => {
                   </div>
                   <button
                     id="auth-logout-btn"
-                    onClick={async () => {
-                      try {
-                        await logout();
-                      } catch (err: any) {
-                        console.error("Signout error in App:", err);
-                      }
-                    }}
+                    onClick={logout}
                     title="Sign out of system"
-                    className="p-1 hover:bg-rose-50 rounded-full transition text-slate-400 hover:text-rose-600 ml-1.5 cursor-pointer flex items-center gap-1"
+                    className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600 ml-1.5"
                   >
-                    <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                    <LogOut className="w-3.5 h-3.5" />
                   </button>
                 </div>
               )}
