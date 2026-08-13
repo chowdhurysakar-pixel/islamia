@@ -118,6 +118,8 @@ export const GuestView: React.FC = () => {
   // Rating & Review Feedback Form State
   const [userRating, setUserRating] = useState<number>(5);
   const [userComment, setUserComment] = useState<string>('');
+  const [guestReviewerName, setGuestReviewerName] = useState<string>('');
+  const [guestReviewerContact, setGuestReviewerContact] = useState<string>('');
   const [submittingFeedback, setSubmittingFeedback] = useState<boolean>(false);
 
   // Voice-to-text input state for Special Room Requests
@@ -302,6 +304,24 @@ export const GuestView: React.FC = () => {
     });
   }, [bookings, currentUser, myStaySearch, justCompletedBookingId]);
 
+  // Auto-fill reviewer details when guest has a booking or currentUser exists
+  React.useEffect(() => {
+    if (!guestReviewerName) {
+      if (currentUser?.name) {
+        setGuestReviewerName(currentUser.name);
+      } else if (myBookings.length > 0 && myBookings[0].guestName) {
+        setGuestReviewerName(myBookings[0].guestName);
+      }
+    }
+    if (!guestReviewerContact) {
+      if (currentUser?.email) {
+        setGuestReviewerContact(currentUser.email);
+      } else if (myBookings.length > 0) {
+        setGuestReviewerContact(myBookings[0].guestPhone || myBookings[0].guestEmail || '');
+      }
+    }
+  }, [currentUser, myBookings]);
+
   // Memoized repeat guest lookup map by contact info (phone/email/name) to count of bookings
   const guestBookingCounts = useMemo(() => {
     const countsByPhone: Record<string, number> = {};
@@ -482,17 +502,23 @@ export const GuestView: React.FC = () => {
   // Submit Guest Rating and Written Review
   const handleFeedbackSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) {
-      showToast({ type: 'error', message: 'Please sign in to publish a guest review.' });
+
+    const finalReviewerName = currentUser?.name || guestReviewerName.trim() || (myBookings.length > 0 ? myBookings[0].guestName : '') || bookName.trim() || 'Verified Guest';
+    const finalReviewerContact = currentUser?.email || guestReviewerContact.trim() || (myBookings.length > 0 ? (myBookings[0].guestPhone || myBookings[0].guestEmail || '') : '') || bookPhone.trim() || '';
+
+    if (!currentUser && !finalReviewerName.trim()) {
+      showToast({ type: 'error', message: 'Please enter your reviewer name.' });
       return;
     }
+
     if (!userComment.trim()) {
       showToast({ type: 'info', message: 'Please enter your stay review details before submitting.' });
       return;
     }
+
     setSubmittingFeedback(true);
     try {
-      await submitFeedback(userRating, userComment.trim());
+      await submitFeedback(userRating, userComment.trim(), finalReviewerName, finalReviewerContact);
       setUserComment('');
       setUserRating(5);
       showToast({ type: 'success', message: '🌟 Thank you! Your review has been published.' });
@@ -1796,86 +1822,117 @@ export const GuestView: React.FC = () => {
           {/* Submit Review Card */}
           <div className="lg:col-span-5 bg-white border border-slate-100 p-6 rounded-2xl shadow-sm space-y-4">
             <h3 className="font-serif text-lg font-bold text-slate-800 font-sans">Write a Review</h3>
-            {currentUser ? (
-              <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+            <form onSubmit={handleFeedbackSubmit} className="space-y-4">
+              {currentUser ? (
                 <p className="text-xs text-slate-500">
                   You are reviewing as <span className="font-semibold text-slate-700">{currentUser.name}</span> ({currentUser.role})
                 </p>
-                
-                {/* Star Rating Input */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600 block">Your Star Rating</label>
-                  <div className="flex items-center gap-1.5 pt-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        id={`star-btn-${star}`}
-                        type="button"
-                        onClick={() => setUserRating(star)}
-                        className="p-1 hover:scale-110 active:scale-95 transition cursor-pointer"
-                      >
-                        <Star
-                          className={`w-8 h-8 transition-colors duration-150 ${
-                            star <= userRating
-                              ? 'text-amber-400 fill-amber-400 filter drop-shadow-[0_1px_2px_rgba(251,191,36,0.2)]'
-                              : 'text-slate-200 hover:text-amber-200'
-                          }`}
-                        />
-                      </button>
-                    ))}
-                    <span className="text-xs font-semibold text-amber-600 font-mono ml-2">
-                      {userRating === 5 ? 'Excellent 🌟' : userRating === 4 ? 'Very Good 👍' : userRating === 3 ? 'Good Ok 🙂' : userRating === 2 ? 'Fair 😐' : 'Poor 😞'}
-                    </span>
+              ) : myBookings.length > 0 ? (
+                <div className="bg-emerald-50 border border-emerald-200/80 p-3 rounded-xl flex items-center justify-between text-xs text-emerald-900">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="font-bold">Verified Reservation Guest:</span> {myBookings[0].guestName} (Chamber #{myBookings[0].roomId})
+                    </div>
                   </div>
                 </div>
-
-                {/* Comment Textarea */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-600 block">Feedback Details</label>
-                  <textarea
-                    id="user-feedback-comment"
-                    required
-                    rows={4}
-                    maxLength={2000}
-                    placeholder="Share details of your room comfort, staff services, and neighborhood accessibility (e.g., proximity to Ibn Sina or Meena Bazar)..."
-                    value={userComment}
-                    onChange={(e) => setUserComment(e.target.value)}
-                    className="w-full text-xs border border-slate-200 rounded-xl p-3 resize-none focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 leading-relaxed"
-                  />
-                  <div className="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
-                    <span>Constructive comments are appreciated.</span>
-                    <span>{userComment.length}/2000</span>
-                  </div>
-                </div>
-
-                <button
-                  id="submit-feedback-btn"
-                  type="submit"
-                  disabled={submittingFeedback}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-                >
-                  {submittingFeedback ? (
-                    <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <MessageSquarePlus className="w-4 h-4" />
-                  )}
-                  <span>Post Verified Review</span>
-                </button>
-              </form>
-            ) : (
-              <div className="bg-amber-50/60 border border-amber-100 rounded-2xl p-5 text-center space-y-3">
-                <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto">
-                  <Info className="w-5 h-5" />
-                </div>
-                <h4 className="text-sm font-semibold text-amber-800">Authentication Required</h4>
-                <p className="text-xs text-amber-700/80 leading-relaxed">
-                  Only signed-in guests can publish star ratings and stay testimonials. 
+              ) : (
+                <p className="text-xs text-slate-500">
+                  Share your stay experience after a reservation or enter your guest details below.
                 </p>
-                <div className="text-[11px] text-slate-500 bg-white/80 p-2.5 rounded-xl border border-slate-100/50">
-                  Please use the **Google Login** or the **Role Switcher / Simulator** at the top bar to authenticate as a Guest.
+              )}
+
+              {/* Guest Name & Contact Inputs (For Guests not signed into a formal account) */}
+              {!currentUser && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">
+                      Your Full Name <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Tanvir Ahmed"
+                      value={guestReviewerName}
+                      onChange={(e) => setGuestReviewerName(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:border-teal-500 transition"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-600 block">
+                      Phone / Email (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="01711223344"
+                      value={guestReviewerContact}
+                      onChange={(e) => setGuestReviewerContact(e.target.value)}
+                      className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:border-teal-500 transition"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Star Rating Input */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600 block">Your Star Rating</label>
+                <div className="flex items-center gap-1.5 pt-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      id={`star-btn-${star}`}
+                      type="button"
+                      onClick={() => setUserRating(star)}
+                      className="p-1 hover:scale-110 active:scale-95 transition cursor-pointer"
+                    >
+                      <Star
+                        className={`w-8 h-8 transition-colors duration-150 ${
+                          star <= userRating
+                            ? 'text-amber-400 fill-amber-400 filter drop-shadow-[0_1px_2px_rgba(251,191,36,0.2)]'
+                            : 'text-slate-200 hover:text-amber-200'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="text-xs font-semibold text-amber-600 font-mono ml-2">
+                    {userRating === 5 ? 'Excellent 🌟' : userRating === 4 ? 'Very Good 👍' : userRating === 3 ? 'Good Ok 🙂' : userRating === 2 ? 'Fair 😐' : 'Poor 😞'}
+                  </span>
                 </div>
               </div>
-            )}
+
+              {/* Comment Textarea */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600 block">Feedback Details</label>
+                <textarea
+                  id="user-feedback-comment"
+                  required
+                  rows={4}
+                  maxLength={2000}
+                  placeholder="Share details of your room comfort, staff services, and neighborhood accessibility..."
+                  value={userComment}
+                  onChange={(e) => setUserComment(e.target.value)}
+                  className="w-full text-xs border border-slate-200 rounded-xl p-3 resize-none focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 leading-relaxed"
+                />
+                <div className="flex justify-between items-center text-[10px] text-slate-400 pt-0.5">
+                  <span>Constructive comments are appreciated.</span>
+                  <span>{userComment.length}/2000</span>
+                </div>
+              </div>
+
+              <button
+                id="submit-feedback-btn"
+                type="submit"
+                disabled={submittingFeedback}
+                className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white rounded-xl text-xs font-semibold transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+              >
+                {submittingFeedback ? (
+                  <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <MessageSquarePlus className="w-4 h-4" />
+                )}
+                <span>Post Verified Review</span>
+              </button>
+            </form>
           </div>
 
           {/* Feedback Feed Column */}

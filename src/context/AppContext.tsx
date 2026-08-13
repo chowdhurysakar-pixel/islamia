@@ -101,7 +101,7 @@ interface AppContextType {
   updateServiceRequestStatus: (requestId: string, status: ServiceRequestStatus) => Promise<void>;
   // Feedback Actions
   feedbacks: Feedback[];
-  submitFeedback: (rating: number, comment: string) => Promise<void>;
+  submitFeedback: (rating: number, comment: string, reviewerName?: string, reviewerEmail?: string) => Promise<void>;
   opMode: 'receptionist' | 'hr' | 'admin' | 'guest';
   setOpMode: (mode: any) => void;
 }
@@ -1433,18 +1433,17 @@ Islamia Guest House, Dhanmondi`;
     }
   };
 
-  const submitFeedback = async (rating: number, comment: string) => {
-    if (!currentUser) {
-      alert("Please log in to submit feedback.");
-      return;
-    }
+  const submitFeedback = async (rating: number, comment: string, reviewerName?: string, reviewerEmail?: string) => {
+    const finalName = reviewerName?.trim() || currentUser?.name || 'Verified Guest';
+    const finalEmail = reviewerEmail?.trim() || currentUser?.email || '';
+    const finalUserId = currentUser?.uid || `guest-${Date.now()}`;
 
     const feedbackId = `F${Date.now().toString().slice(-4)}`;
     const newFeedback: Feedback = {
       id: feedbackId,
-      userId: currentUser.uid,
-      userName: currentUser.name || 'Anonymous Guest',
-      userEmail: currentUser.email || '',
+      userId: finalUserId,
+      userName: finalName,
+      userEmail: finalEmail,
       rating,
       comment,
       createdAt: new Date().toISOString()
