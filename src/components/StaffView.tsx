@@ -12,9 +12,61 @@ import {
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
   Plus, ChevronRight, Receipt, Printer, UserCheck, MapPin, 
-  CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2, Download, FileSpreadsheet, Loader2,
+  CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2, Download, FileSpreadsheet, Loader2, Upload,
   Calendar, RotateCcw, DollarSign, Users, ArrowUpDown
 } from 'lucide-react';
+
+const processUploadedImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('Please upload an image file.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) {
+        reject(new Error('Failed to read image file'));
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1200;
+        const MAX_HEIGHT = 1200;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height = Math.round((height * MAX_WIDTH) / width);
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width = Math.round((width * MAX_HEIGHT) / height);
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(compressedDataUrl);
+        } else {
+          resolve(result);
+        }
+      };
+      img.onerror = () => resolve(result);
+      img.src = result;
+    };
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+};
 
 export const StaffView: React.FC = () => {
   const { 
@@ -129,6 +181,41 @@ export const StaffView: React.FC = () => {
   const [editRoomImages, setEditRoomImages] = useState<string[]>([]);
   const [newAmenity, setNewAmenity] = useState<string>('');
   const [newImage, setNewImage] = useState<string>('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+
+  const handleComputerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      const fileArray = Array.from(files);
+      const newUploadedUrls: string[] = [];
+
+      for (const file of fileArray) {
+        if (!file.type.startsWith('image/')) continue;
+        const dataUrl = await processUploadedImage(file);
+        newUploadedUrls.push(dataUrl);
+      }
+
+      if (newUploadedUrls.length > 0) {
+        setEditRoomImages(prev => [...prev, ...newUploadedUrls]);
+        showToast({
+          type: 'success',
+          message: `📸 ${newUploadedUrls.length} photo(s) uploaded successfully from computer!`
+        });
+      }
+    } catch (err: any) {
+      console.error("Photo upload error:", err);
+      showToast({
+        type: 'error',
+        message: 'Failed to process image file. Please try another image.'
+      });
+    } finally {
+      setIsUploadingPhoto(false);
+      e.target.value = '';
+    }
+  };
 
   React.useEffect(() => {
     if (selectedRoomToManage) {
@@ -835,6 +922,54 @@ export const StaffView: React.FC = () => {
                   onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
                   className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
                 />
+              </div>
+
+              <div className="col-span-2 space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between">
+                  <span>Chamber Photo (From Computer)</span>
+                  {newRoomImage && <span className="text-emerald-600 font-semibold">✓ Photo attached</span>}
+                </label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="file"
+                    id="quick-room-photo-upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const dataUrl = await processUploadedImage(file);
+                          setNewRoomImage(dataUrl);
+                          showToast({ type: 'success', message: '📸 Chamber photo uploaded from computer!' });
+                        } catch (err) {
+                          showToast({ type: 'error', message: 'Failed to upload photo.' });
+                        }
+                      }
+                    }}
+                  />
+                  <label
+                    htmlFor="quick-room-photo-upload"
+                    className="px-3 py-1.5 bg-white border border-slate-300 hover:border-teal-500 text-slate-700 text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-2xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Upload Photo</span>
+                  </label>
+                  {newRoomImage ? (
+                    <div className="flex items-center gap-2">
+                      <img src={newRoomImage} alt="Preview" className="w-7 h-7 rounded-md object-cover border border-slate-200" />
+                      <button
+                        type="button"
+                        onClick={() => setNewRoomImage('')}
+                        className="text-rose-600 hover:text-rose-800 text-[10px] font-bold cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 italic">No photo attached</span>
+                  )}
+                </div>
               </div>
 
               <div className="col-span-2 space-y-1">
@@ -2162,28 +2297,38 @@ export const StaffView: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Add Picture Input */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Paste image URL..."
-                      value={newImage}
-                      onChange={(e) => setNewImage(e.target.value)}
-                      className="flex-1 text-[11px] border border-slate-200 rounded-xl px-2.5 py-1.5 bg-white font-mono"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (newImage.trim()) {
-                          setEditRoomImages([...editRoomImages, newImage.trim()]);
-                          setNewImage('');
-                        }
-                      }}
-                      className="px-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shrink-0"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add</span>
-                    </button>
+                  {/* Upload Photo from Computer Direct */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase block font-mono">
+                      Upload Photo(s) from Computer
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="hr-modal-photo-upload"
+                        accept="image/*"
+                        multiple
+                        disabled={isUploadingPhoto}
+                        onChange={handleComputerPhotoUpload}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="hr-modal-photo-upload"
+                        className="flex items-center justify-center gap-2 px-3 py-3 bg-teal-50 hover:bg-teal-100/80 border-2 border-dashed border-teal-300 hover:border-teal-500 rounded-xl cursor-pointer transition text-teal-900 text-xs font-bold group shadow-2xs"
+                      >
+                        {isUploadingPhoto ? (
+                          <>
+                            <Loader2 className="w-4 h-4 text-teal-600 animate-spin shrink-0" />
+                            <span>Uploading photo(s) from computer...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 text-teal-600 group-hover:scale-110 transition shrink-0" />
+                            <span>Upload Photo from Computer</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
                   </div>
 
                   {/* Premium Image Presets */}
