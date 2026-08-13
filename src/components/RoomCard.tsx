@@ -5,6 +5,8 @@
 
 import React, { useState } from 'react';
 import { Room, RoomStatus } from '../types';
+import { useApp } from '../context/AppContext';
+import { EditRoomModal } from './EditRoomModal';
 import { 
   Users, 
   Wifi, 
@@ -23,22 +25,29 @@ import {
   Lamp,
   Sofa,
   Maximize2,
-  Tag
+  Tag,
+  Edit3
 } from 'lucide-react';
 
 interface RoomCardProps {
   room: Room;
   onBookClick?: (room: Room) => void;
   onStatusChange?: (roomId: string, status: RoomStatus) => void;
-  isStaffMode: boolean;
+  isStaffMode?: boolean;
 }
 
-export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusChange, isStaffMode }) => {
+export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusChange, isStaffMode = false }) => {
+  const { currentRole, opMode, editRoomDetails, showToast } = useApp();
   const [activeImgIndex, setActiveImgIndex] = useState(0);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
   const displayImages = room.images && room.images.length > 0 ? room.images : [room.image];
+
+  const canEdit = isStaffMode || currentRole === 'admin' || currentRole === 'staff' || opMode === 'hr' || opMode === 'admin';
 
   // Helper for human-friendly category name
   const getRoomTitle = (room: Room) => {
+    if (room.title) return room.title;
     switch (room.number) {
       case '101': return 'Double Deluxe';
       case '102': return 'Family Room';
@@ -184,6 +193,21 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
             <h3 className="font-serif text-lg font-bold text-[#0e2b33] leading-snug">
               {roomTitle}
             </h3>
+            {canEdit && (
+              <button
+                type="button"
+                id={`edit-room-${room.id}-btn`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0e2b33] bg-[#efe8d8] hover:bg-[#e2d5bd] px-2.5 py-1 rounded-lg border border-[#0e2b33]/20 shadow-2xs transition shrink-0 cursor-pointer"
+                title="Edit Room Category Details"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-[#af8a52]" />
+                <span>Edit Details</span>
+              </button>
+            )}
           </div>
 
           <div className="inline-flex items-center gap-1.5 text-[#0e2b33] bg-[#efe8d8]/80 border border-[#0e2b33]/10 px-2.5 py-1 rounded-md text-xs font-mono font-semibold">
@@ -265,10 +289,21 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
         {/* Action Button / Staff Controls */}
         <div className="pt-3 border-t border-[#0e2b33]/10 flex flex-col gap-2">
           {isStaffMode ? (
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-mono uppercase text-slate-400 font-bold">
-                Update Status
-              </label>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-mono uppercase text-slate-400 font-bold">
+                  Update Status
+                </label>
+                <button
+                  type="button"
+                  id={`staff-edit-room-${room.id}-btn`}
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="text-[10px] font-bold text-teal-700 hover:text-teal-900 bg-teal-50 px-2 py-0.5 rounded border border-teal-200 transition flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>Edit Category</span>
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-1">
                 {(['available', 'occupied', 'cleaning', 'maintenance'] as RoomStatus[]).map((status) => (
                   <button
@@ -277,7 +312,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
                     onClick={() => onStatusChange && onStatusChange(room.id, status)}
                     className={`text-[10px] font-medium py-1.5 px-2 rounded-lg border transition-all ${
                       room.status === status
-                        ? 'bg-[#0e2b33] text-white border-[#0e2b33]'
+                        ? 'bg-[#0e2b33] text-[#f8f4ec] border-[#0e2b33]'
                         : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'
                     }`}
                   >
@@ -303,6 +338,15 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
         </div>
 
       </div>
+
+      {/* Edit Room Details Modal for HR/Admin */}
+      <EditRoomModal
+        room={room}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={editRoomDetails}
+        showToast={showToast}
+      />
     </div>
   );
 };

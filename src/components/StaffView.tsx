@@ -189,7 +189,7 @@ export const StaffView: React.FC = () => {
 
     setIsUploadingPhoto(true);
     try {
-      const fileArray = Array.from(files);
+      const fileArray = Array.from(files) as File[];
       const newUploadedUrls: string[] = [];
 
       for (const file of fileArray) {

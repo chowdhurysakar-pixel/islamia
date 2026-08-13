@@ -17,6 +17,7 @@ export interface Room {
   price: number;
   status: RoomStatus;
   capacity: number;
+  title?: string;
   capacityText?: string;
   bedSize?: string;
   windows?: string;
