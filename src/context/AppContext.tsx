@@ -185,7 +185,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         } else {
           setCurrentUser(null);
-          setCurrentRole('guest');
+          const storedRole = localStorage.getItem('hotel_current_role');
+          if (storedRole === 'admin' || storedRole === 'staff') {
+            setCurrentRole('staff');
+          } else {
+            setCurrentRole('guest');
+          }
         }
         setIsLoading(false);
       });
@@ -501,17 +506,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = async () => {
-    if (isFirebaseActive && auth) {
-      try {
+    try {
+      if (isFirebaseActive && auth) {
         await signOut(auth);
-      } catch (error) {
-        console.error("Signout failed:", error);
       }
-    } else {
       setCurrentUser(null);
-      setCurrentRole('guest');
+      setCurrentRole('staff');
+      setOpMode('receptionist');
+      sessionStorage.removeItem('admin_authorized');
       localStorage.removeItem('hotel_current_user');
-      localStorage.setItem('hotel_current_role', 'guest');
+      localStorage.setItem('hotel_current_role', 'staff');
+      showToast({
+        type: 'info',
+        message: '👋 Signed out successfully. Redirected to Login Screen.'
+      });
+    } catch (error: any) {
+      console.error("Signout failed:", error);
+      showToast({
+        type: 'error',
+        message: `Sign out failed: ${error?.message || 'Failed to sign out.'}`
+      });
+      // Fallback local cleanup to prevent stuck session
+      setCurrentUser(null);
+      setCurrentRole('staff');
+      setOpMode('receptionist');
+      sessionStorage.removeItem('admin_authorized');
+      localStorage.removeItem('hotel_current_user');
+      localStorage.setItem('hotel_current_role', 'staff');
     }
   };
 

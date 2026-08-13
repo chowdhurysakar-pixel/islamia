@@ -5,13 +5,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Shield, User, Clock, ShieldCheck, Lock, X, Key, AlertCircle } from 'lucide-react';
+import { Shield, User, Clock, ShieldCheck, Lock, X, Key, AlertCircle, LogOut } from 'lucide-react';
 
 const VALID_ADMIN_PASSCODES = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026', 'STAFF789'];
 
 export const Header: React.FC = () => {
-  const { currentRole, toggleRole, currentUser, opMode, setOpMode, showToast } = useApp();
+  const { currentRole, toggleRole, currentUser, opMode, setOpMode, showToast, logout } = useApp();
   const [time, setTime] = useState<string>('');
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   
   // Admin Passcode Modal
   const [showAdminPasscodeModal, setShowAdminPasscodeModal] = useState<boolean>(false);
@@ -61,6 +62,21 @@ export const Header: React.FC = () => {
     }
   };
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+    } catch (err: any) {
+      console.error("Signout error in Header:", err);
+      showToast({
+        type: 'error',
+        message: `Sign out failed: ${err?.message || 'Error logging out.'}`
+      });
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   return (
     <>
       <header className="border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-50">
@@ -98,8 +114,34 @@ export const Header: React.FC = () => {
               </div>
             </div>
 
-            {/* Role & Operational Mode Switcher */}
+            {/* Role & Operational Mode Switcher & User Profile Logout */}
             <div className="flex items-center gap-3">
+              {currentUser && (
+                <div className="flex items-center gap-2 bg-slate-50/90 p-1.5 pl-2.5 pr-2 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="w-6 h-6 rounded-lg bg-teal-700 text-white flex items-center justify-center font-bold text-xs uppercase font-mono">
+                    {currentUser.name ? currentUser.name.slice(0, 1) : 'U'}
+                  </div>
+                  <div className="text-left hidden lg:block pr-1">
+                    <span className="text-[11px] font-semibold text-slate-800 block leading-tight">
+                      {currentUser.name || 'Islamia Executive'}
+                    </span>
+                    <span className="text-[9px] text-teal-700 font-mono font-bold block leading-none mt-0.5">
+                      {opMode === 'admin' ? 'Islamia Admin Executive' : opMode === 'hr' ? 'HR Manager' : 'Front Desk Staff'}
+                    </span>
+                  </div>
+                  <button
+                    id="header-logout-btn"
+                    disabled={isLoggingOut}
+                    onClick={handleLogout}
+                    title="Sign Out / Return to Login"
+                    className="p-1.5 hover:bg-rose-50 text-slate-500 hover:text-rose-600 rounded-lg transition cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-rose-500" />
+                    <span className="text-[10px] font-bold text-rose-600 hidden sm:inline">Logout</span>
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center bg-slate-100/85 p-1 rounded-xl border border-slate-200/50">
                 <button
                   id="role-switch-guest-btn"

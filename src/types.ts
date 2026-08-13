@@ -73,7 +73,7 @@ export interface UserProfile {
 
 export interface ToastInfo {
   message: string;
-  type: 'success' | 'info' | 'warning' | 'email';
+  type: 'success' | 'info' | 'warning' | 'error' | 'email';
   duration?: number;
   emailAction?: {
     recipient: string;
