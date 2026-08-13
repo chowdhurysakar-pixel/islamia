@@ -1269,7 +1269,7 @@ export const AdminPanel: React.FC = () => {
                     title="Clear date filter to view all history"
                   >
                     <RotateCcw className="w-3 h-3 text-rose-600" />
-                    <span>রিসেট (Reset Date)</span>
+                    <span>Reset Date</span>
                   </button>
                 )}
 
@@ -1294,21 +1294,21 @@ export const AdminPanel: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-teal-200 flex items-center gap-2">
-                    <span>দৈনিক রিপোর্ট সামারি (Daily Guest Report)</span>
+                    <span>Daily Guest Report</span>
                     {ledgerSelectedDate ? (
                       <span className="px-2.5 py-0.5 bg-teal-500/25 text-teal-300 rounded-full text-[10px] font-mono border border-teal-500/40 font-bold">
                         📅 {ledgerSelectedDate}
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded-full text-[10px]">
-                        সকল তারিখ (All Records)
+                        All Records
                       </span>
                     )}
                   </h4>
                   <p className="text-[11px] text-slate-300 mt-0.5">
                     {ledgerSelectedDate 
-                      ? `${ledgerSelectedDate} তারিখের গেস্ট বিবরণী, অর্জিত রেভিনিউ এবং চেক-ইন/আউট সামারি` 
-                      : 'নির্দিষ্ট তারিখের গেস্ট হিস্ট্রি ও রিপোর্ট দেখতে উপরের Date Picker সিলেক্ট করুন।'}
+                      ? `Guest details, earned revenue, and check-in/out summary for ${ledgerSelectedDate}` 
+                      : 'Select a specific date from the Date Picker above to filter guest history and summary.'}
                   </p>
                 </div>
               </div>
@@ -1318,8 +1318,8 @@ export const AdminPanel: React.FC = () => {
                 <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
                   <Users className="w-4 h-4 text-sky-400 shrink-0" />
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">মোট গেস্ট (Total Guests)</p>
-                    <p className="text-xs font-bold font-mono text-white">{dailyMetrics.totalGuests} জন</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Total Guests</p>
+                    <p className="text-xs font-bold font-mono text-white">{dailyMetrics.totalGuests} Guests</p>
                   </div>
                 </div>
 
@@ -1327,7 +1327,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
                   <DollarSign className="w-4 h-4 text-emerald-400 shrink-0" />
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">মোট কালেকশন (Revenue)</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Total Revenue</p>
                     <p className="text-xs font-bold font-mono text-emerald-300">৳{dailyMetrics.totalRevenue.toLocaleString()}</p>
                   </div>
                 </div>
@@ -1336,9 +1336,9 @@ export const AdminPanel: React.FC = () => {
                 <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
                   <ArrowUpDown className="w-4 h-4 text-amber-400 shrink-0" />
                   <div>
-                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">চেক-ইন / চেক-আউট</p>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Check-In / Check-Out</p>
                     <p className="text-xs font-bold font-mono text-amber-200">
-                      📥 {dailyMetrics.checkInsCount} চেক-ইন | 📤 {dailyMetrics.checkOutsCount} চেক-আউট
+                      📥 {dailyMetrics.checkInsCount} Check-In | 📤 {dailyMetrics.checkOutsCount} Check-Out
                     </p>
                   </div>
                 </div>
