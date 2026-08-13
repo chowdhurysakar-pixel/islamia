@@ -12,7 +12,7 @@ import {
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
   Plus, ChevronRight, Receipt, Printer, UserCheck, MapPin, 
-  CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2, Download, FileSpreadsheet
+  CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2, Download, FileSpreadsheet, Loader2
 } from 'lucide-react';
 
 export const StaffView: React.FC = () => {
@@ -26,11 +26,17 @@ export const StaffView: React.FC = () => {
     deleteRoom,
     createBooking,
     updateBookingStatus, 
+    checkOutGuest,
     updateServiceRequestStatus,
     opMode,
     setOpMode,
     showToast
   } = useApp();
+
+  // Async Action Loading States
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState<boolean>(false);
+  const [isActionLoading, setIsActionLoading] = useState<boolean>(false);
+  const [loadingBookingId, setLoadingBookingId] = useState<string | null>(null);
 
   // Active logs search and states
   const [bookingSearch, setBookingSearch] = useState<string>('');
@@ -1519,10 +1525,10 @@ export const StaffView: React.FC = () => {
       )}
 
       {/* 4. Active Logs Views & HR Customers Archives */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="space-y-6">
         
-        {/* Left column stays list & Guest log history (depends on opMode) */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Active stays list & Guest log history */}
+        <div className="w-full space-y-6">
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-4">
             
             {/* Header stays log & switch tabs */}
@@ -1668,31 +1674,59 @@ export const StaffView: React.FC = () => {
                           {booking.status === 'confirmed' && (
                             <button
                               id={`check-in-btn-${booking.id}`}
-                              onClick={() => updateBookingStatus(booking.id, 'checked-in')}
-                              className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg font-bold text-[10px] hover:bg-emerald-700 transition"
+                              disabled={loadingBookingId === booking.id}
+                              onClick={async () => {
+                                setLoadingBookingId(booking.id);
+                                try {
+                                  await updateBookingStatus(booking.id, 'checked-in');
+                                } catch (e) {
+                                  console.error("Check-in error:", e);
+                                } finally {
+                                  setLoadingBookingId(null);
+                                }
+                              }}
+                              className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg font-bold text-[10px] hover:bg-emerald-700 transition disabled:opacity-50 inline-flex items-center gap-1"
                             >
-                              Check In
+                              {loadingBookingId === booking.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Check In'}
                             </button>
                           )}
                           {booking.status === 'checked-in' && (
                             <button
                               id={`check-out-btn-${booking.id}`}
+                              disabled={loadingBookingId === booking.id}
                               onClick={async () => {
-                                await updateBookingStatus(booking.id, 'checked-out');
-                                openInvoiceForBooking({ ...booking, status: 'checked-out' }, false);
+                                setLoadingBookingId(booking.id);
+                                try {
+                                  await updateBookingStatus(booking.id, 'checked-out');
+                                  openInvoiceForBooking({ ...booking, status: 'checked-out' }, false);
+                                } catch (e) {
+                                  console.error("Check-out error:", e);
+                                } finally {
+                                  setLoadingBookingId(null);
+                                }
                               }}
-                              className="px-2 py-1.5 bg-rose-600 text-white rounded-lg font-bold text-[10px] hover:bg-rose-700 transition"
+                              className="px-2 py-1.5 bg-rose-600 text-white rounded-lg font-bold text-[10px] hover:bg-rose-700 transition disabled:opacity-50 inline-flex items-center gap-1"
                             >
-                              Check Out & Bill
+                              {loadingBookingId === booking.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Check Out & Bill'}
                             </button>
                           )}
                           {(booking.status === 'confirmed' || booking.status === 'pending') && (
                             <button
                               id={`void-btn-${booking.id}`}
-                              onClick={() => updateBookingStatus(booking.id, 'cancelled')}
-                              className="px-2 py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-500 rounded-lg font-semibold text-[10px] transition ml-1"
+                              disabled={loadingBookingId === booking.id}
+                              onClick={async () => {
+                                setLoadingBookingId(booking.id);
+                                try {
+                                  await updateBookingStatus(booking.id, 'cancelled');
+                                } catch (e) {
+                                  console.error("Void error:", e);
+                                } finally {
+                                  setLoadingBookingId(null);
+                                }
+                              }}
+                              className="px-2 py-1.5 border border-slate-200 hover:bg-slate-100 text-slate-500 rounded-lg font-semibold text-[10px] transition ml-1 disabled:opacity-50 inline-flex items-center gap-1"
                             >
-                              Void
+                              {loadingBookingId === booking.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Void'}
                             </button>
                           )}
                           <button
@@ -1734,92 +1768,6 @@ export const StaffView: React.FC = () => {
                 </div>
               </div>
             )}
-
-          </div>
-        </div>
-
-        {/* Right column active housekeeping tickets */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-3xl border border-slate-150 shadow-sm p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="font-serif text-base font-bold text-slate-800">
-                  Incident Support Tickets
-                </h2>
-                <p className="text-xs text-slate-400">Housekeeping & general service log</p>
-              </div>
-
-              <select
-                id="staff-service-status-filter"
-                value={serviceStatusFilter}
-                onChange={(e) => setServiceStatusFilter(e.target.value as ServiceRequestStatus | 'all')}
-                className="bg-slate-50 text-[10px] font-mono border border-slate-200 rounded-lg px-2 py-1 text-slate-600 focus:outline-none"
-              >
-                <option value="all">All</option>
-                <option value="pending">Pending</option>
-                <option value="in-progress">Active</option>
-                <option value="completed">Done</option>
-              </select>
-            </div>
-
-            <div className="space-y-3">
-              {filteredServices.length === 0 ? (
-                <div className="text-center py-6 bg-slate-50 rounded-xl text-slate-400 text-xs font-semibold">
-                  All guest chambers report clear!
-                </div>
-              ) : (
-                filteredServices.map((req) => (
-                  <div 
-                    key={req.id} 
-                    id={`service-card-${req.id}`}
-                    className="p-3 bg-slate-50 rounded-xl border border-slate-200/50 space-y-2 flex flex-col justify-between"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-slate-800 text-xs">Suite {req.roomId}</span>
-                        <span className="text-[9px] font-mono uppercase bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded block w-max mt-0.5">
-                          {req.type}
-                        </span>
-                      </div>
-                      <span className={`text-[9px] font-semibold px-2 py-0.5 rounded font-mono ${
-                        req.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                        req.status === 'in-progress' ? 'bg-blue-100 text-blue-800' :
-                        'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {req.status}
-                      </span>
-                    </div>
-
-                    <p className="text-slate-600 text-xs leading-relaxed italic">
-                      "{req.description}"
-                    </p>
-
-                    <div className="flex justify-end gap-1.5 pt-2 border-t border-slate-200/40">
-                      {req.status === 'pending' && (
-                        <button
-                          id={`start-service-btn-${req.id}`}
-                          onClick={() => updateServiceRequestStatus(req.id, 'in-progress')}
-                          className="flex items-center gap-1 px-3 py-1 bg-slate-800 text-white rounded-lg text-[10px] font-semibold hover:bg-slate-900 transition"
-                        >
-                          <Play className="w-2.5 h-2.5" />
-                          <span>Dispatch Staff</span>
-                        </button>
-                      )}
-                      {req.status === 'in-progress' && (
-                        <button
-                          id={`complete-service-btn-${req.id}`}
-                          onClick={() => updateServiceRequestStatus(req.id, 'completed')}
-                          className="flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-semibold hover:bg-emerald-700 transition"
-                        >
-                          <CheckCircle2 className="w-2.5 h-2.5" />
-                          <span>Mark Done</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
 
           </div>
         </div>

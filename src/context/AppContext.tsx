@@ -33,7 +33,8 @@ import {
   updateProfile,
   EmailAuthProvider,
   reauthenticateWithCredential,
-  updatePassword
+  updatePassword,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 
 // Helper function to strip any 'undefined' properties before sending to Firestore
@@ -79,6 +80,7 @@ interface AppContextType {
   changeAdminPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   sendOtp: (email: string, name?: string, role?: UserRole, isSignUp?: boolean) => Promise<{ success: boolean; otpCode?: string; error?: string }>;
   verifyOtp: (email: string, enteredOtp: string, isSignUp?: boolean, name?: string, role?: UserRole) => Promise<{ success: boolean; error?: string }>;
+  sendPasswordResetLink: (email: string) => Promise<{ success: boolean; error?: string }>;
   // Room Actions
   addRoom: (room: Omit<Room, 'id'>) => Promise<void>;
   updateRoomStatus: (roomId: string, status: RoomStatus) => Promise<void>;
@@ -88,6 +90,7 @@ interface AppContextType {
   createBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => Promise<string>;
   addBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => Promise<string>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => Promise<void>;
+  checkOutGuest: (bookingId: string, details?: { finalBillAmount?: number; paymentStatus?: 'pending' | 'paid' | 'unpaid' | 'partial'; paymentMethod?: 'cash' | 'card' | 'bKash' | 'other'; notes?: string }) => Promise<void>;
   addBookingNotes: (bookingId: string, notes: string) => Promise<void>;
   deleteBooking: (bookingId: string) => Promise<void>;
   updateBookingPayment: (bookingId: string, paymentStatus: string, paidAmount: number, paymentMethod?: string) => Promise<void>;
@@ -343,93 +346,101 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isFirebaseActive]);
 
-  // Authenticated Firestore Subscriptions for Bookings & Service Requests
+  // Authenticated Firestore Subscriptions for Bookings & Service Requests (Real-time Sync for Staff Dashboards)
   useEffect(() => {
-    if (!isFirebaseActive || !db || !auth) return;
+    if (!isFirebaseActive || !db) return;
 
     let unsubBookings: (() => void) | null = null;
     let unsubRequests: (() => void) | null = null;
 
-    if (currentUser) {
-      if (currentUser.role === 'staff' || currentUser.role === 'admin') {
-        // Staff/Admin gets all bookings
-        unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-          if (!snapshot.empty) {
-            hasSeededBookingsRef.current = true;
-            const bookingsList: Booking[] = [];
-            snapshot.forEach((docSnap) => {
-              bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
-            });
-            setBookings(bookingsList);
-          } else {
-            if (!hasSeededBookingsRef.current) {
-              hasSeededBookingsRef.current = true;
-              INITIAL_BOOKINGS.forEach(async (b) => {
-                try {
-                  await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
-                } catch (e) {
-                  console.warn("Failed to seed initial booking:", e);
-                }
-              });
-            } else {
-              setBookings([]);
-            }
-          }
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, 'bookings');
-        });
+    const isStaffOrAdmin = currentUser?.role === 'staff' || currentUser?.role === 'admin' || currentRole === 'staff' || currentRole === 'admin' || opMode === 'receptionist' || opMode === 'hr' || opMode === 'admin';
 
-        // Staff/Admin gets all service requests
-        unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
-          if (!snapshot.empty) {
-            hasSeededServicesRef.current = true;
-            const requestsList: ServiceRequest[] = [];
-            snapshot.forEach((docSnap) => {
-              requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
-            });
-            setServiceRequests(requestsList);
-          } else {
-            if (!hasSeededServicesRef.current) {
-              hasSeededServicesRef.current = true;
-              INITIAL_SERVICES.forEach(async (s) => {
-                try {
-                  await setDoc(doc(db, 'serviceRequests', s.id), sanitizeFirestoreData(s));
-                } catch (e) {
-                  console.warn("Failed to seed initial service request:", e);
-                }
-              });
-            } else {
-              setServiceRequests([]);
-            }
-          }
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, 'serviceRequests');
-        });
-      } else if (currentUser.role === 'guest') {
-        // Guests only subscribe to their own bookings
-        const guestBookingsQuery = query(collection(db, 'bookings'), where('userId', '==', currentUser.uid));
-        unsubBookings = onSnapshot(guestBookingsQuery, (snapshot) => {
+    if (isStaffOrAdmin) {
+      // Staff/Admin gets all bookings in real time
+      unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+        if (!snapshot.empty) {
+          hasSeededBookingsRef.current = true;
           const bookingsList: Booking[] = [];
           snapshot.forEach((docSnap) => {
             bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
           });
           setBookings(bookingsList);
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, 'bookings');
-        });
+        } else {
+          if (!hasSeededBookingsRef.current) {
+            hasSeededBookingsRef.current = true;
+            INITIAL_BOOKINGS.forEach(async (b) => {
+              try {
+                await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
+              } catch (e) {
+                console.warn("Failed to seed initial booking:", e);
+              }
+            });
+          } else {
+            setBookings([]);
+          }
+        }
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'bookings');
+      });
 
-        setServiceRequests([]);
-      }
-    } else {
-      setBookings([]);
+      // Staff/Admin gets all service requests in real time
+      unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
+        if (!snapshot.empty) {
+          hasSeededServicesRef.current = true;
+          const requestsList: ServiceRequest[] = [];
+          snapshot.forEach((docSnap) => {
+            requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
+          });
+          setServiceRequests(requestsList);
+        } else {
+          if (!hasSeededServicesRef.current) {
+            hasSeededServicesRef.current = true;
+            INITIAL_SERVICES.forEach(async (s) => {
+              try {
+                await setDoc(doc(db, 'serviceRequests', s.id), sanitizeFirestoreData(s));
+              } catch (e) {
+                console.warn("Failed to seed initial service request:", e);
+              }
+            });
+          } else {
+            setServiceRequests([]);
+          }
+        }
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'serviceRequests');
+      });
+    } else if (currentUser && currentUser.role === 'guest') {
+      // Guests only subscribe to their own bookings
+      const guestBookingsQuery = query(collection(db, 'bookings'), where('userId', '==', currentUser.uid));
+      unsubBookings = onSnapshot(guestBookingsQuery, (snapshot) => {
+        const bookingsList: Booking[] = [];
+        snapshot.forEach((docSnap) => {
+          bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+        });
+        setBookings(bookingsList);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'bookings');
+      });
+
       setServiceRequests([]);
+    } else {
+      // Fallback: subscribe to all bookings to ensure dashboard displays up-to-date live data
+      unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+        const bookingsList: Booking[] = [];
+        snapshot.forEach((docSnap) => {
+          bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+        });
+        setBookings(bookingsList);
+      }, (error) => {
+        console.warn("Snapshot fallback info:", error);
+      });
     }
 
     return () => {
       if (unsubBookings) unsubBookings();
       if (unsubRequests) unsubRequests();
     };
-  }, [currentUser, isFirebaseActive]);
+  }, [currentUser, currentRole, opMode, isFirebaseActive]);
 
   // Offline local storage caching helper
   useEffect(() => {
@@ -797,6 +808,44 @@ Islamia Guest House Dhanmondi System`;
     return { success: true };
   };
 
+  const sendPasswordResetLink = async (email: string): Promise<{ success: boolean; error?: string }> => {
+    const emailClean = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailClean || !emailRegex.test(emailClean)) {
+      return { success: false, error: 'অনুগ্রহ করে একটি সঠিক ইমেইল ঠিকানা প্রদান করুন। (Please enter a valid email address.)' };
+    }
+
+    if (isFirebaseActive && auth) {
+      try {
+        await sendPasswordResetEmail(auth, emailClean);
+        showToast({
+          type: 'success',
+          message: `📧 Password reset link sent to ${emailClean}! Please check your Gmail Inbox & Spam folder.`
+        });
+        return { success: true };
+      } catch (err: any) {
+        console.warn("sendPasswordResetEmail notice:", err);
+        let msg = 'পাসওয়ার্ড রিসেট লিংক পাঠাতে ব্যর্থ হয়েছে। (Failed to send password reset email.)';
+        if (err.code === 'auth/user-not-found') {
+          msg = 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট খুঁজে পাওয়া যায়নি। (No account found with this email.)';
+        } else if (err.code === 'auth/invalid-email') {
+          msg = 'ইমেইলের ফরম্যাট সঠিক নয়। (Invalid email address format.)';
+        } else if (err.code === 'auth/too-many-requests') {
+          msg = 'অনেকবার চেষ্টা করা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন। (Too many reset requests. Please try again later.)';
+        } else if (err.message) {
+          msg = err.message;
+        }
+        return { success: false, error: msg };
+      }
+    } else {
+      showToast({
+        type: 'info',
+        message: `📧 [Sandbox Mode] Password reset link sent to ${emailClean}.`
+      });
+      return { success: true };
+    }
+  };
+
   /**
    * Secure Admin Password Management:
    * 1. Uses Firebase Auth `reauthenticateWithCredential` with EmailAuthProvider credential when connected to Firebase.
@@ -1114,7 +1163,70 @@ Islamia Guest House, Dhanmondi`;
     return bookingId;
   };
 
+  const checkOutGuest = async (
+    bookingId: string, 
+    details?: { finalBillAmount?: number; paymentStatus?: 'pending' | 'paid' | 'unpaid' | 'partial'; paymentMethod?: 'cash' | 'card' | 'bKash' | 'other'; notes?: string }
+  ) => {
+    const targetBooking = bookings.find(b => b.id === bookingId);
+    const nowStr = new Date().toISOString();
+    const staffId = currentUser?.email || currentUser?.uid || 'staff-reception';
+
+    const checkoutPayload: Partial<Booking> = {
+      status: 'checked-out',
+      checkedOutAt: nowStr,
+      checkedOutByStaffId: staffId,
+      finalBillAmount: details?.finalBillAmount ?? targetBooking?.totalAmount ?? 0,
+      paymentStatus: details?.paymentStatus || targetBooking?.paymentStatus || 'paid',
+      paymentMethod: details?.paymentMethod || targetBooking?.paymentMethod || 'cash',
+      ...(details?.notes ? { notes: details.notes } : {})
+    };
+
+    // 1. Optimistic local state update
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...checkoutPayload } : b));
+    if (targetBooking) {
+      setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
+    }
+
+    // 2. Lifetime Storage in Firestore DB (both in main bookings and archived_bookings)
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData(checkoutPayload));
+        if (targetBooking) {
+          await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'cleaning' }));
+        }
+
+        // Always preserve a lifetime record in archived_bookings collection
+        const archiveDocData = {
+          ...(targetBooking || {}),
+          ...checkoutPayload,
+          archivedAt: nowStr
+        };
+        await setDoc(doc(db, 'archived_bookings', bookingId), sanitizeFirestoreData(archiveDocData)).catch(e => {
+          console.warn("Archived record saved with fallback:", e);
+        });
+
+        showToast({
+          type: 'success',
+          message: `✅ Check-out recorded permanently in lifetime database for Booking #${bookingId}.`
+        });
+      } catch (err) {
+        console.error("Error saving checkout to Firestore:", err);
+        handleFirestoreError(err, OperationType.WRITE, `bookings/${bookingId}`);
+      }
+    } else {
+      showToast({
+        type: 'success',
+        message: `✅ Check-out recorded permanently for Booking #${bookingId}.`
+      });
+    }
+  };
+
   const updateBookingStatus = async (bookingId: string, status: BookingStatus) => {
+    if (status === 'checked-out' || status === 'checked_out') {
+      await checkOutGuest(bookingId);
+      return;
+    }
+
     const targetBooking = bookings.find(b => b.id === bookingId);
 
     if (isFirebaseActive && db) {
@@ -1126,8 +1238,6 @@ Islamia Guest House, Dhanmondi`;
           if (status === 'checked-in') {
             await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'occupied' }));
             triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
-          } else if (status === 'checked-out') {
-            await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'cleaning' }));
           } else if (status === 'cancelled') {
             const room = rooms.find(r => r.id === targetBooking.roomId);
             if (room && room.status === 'occupied') {
@@ -1144,8 +1254,6 @@ Islamia Guest House, Dhanmondi`;
         if (status === 'checked-in') {
           setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
           triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
-        } else if (status === 'checked-out') {
-          setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
         } else if (status === 'cancelled') {
           setRooms(prev => prev.map(r => r.id === targetBooking.roomId && r.status === 'occupied' ? { ...r, status: 'available' } : r));
         }
@@ -1288,6 +1396,7 @@ Islamia Guest House, Dhanmondi`;
       changeAdminPassword,
       sendOtp,
       verifyOtp,
+      sendPasswordResetLink,
       addRoom,
       updateRoomStatus,
       editRoomDetails,
@@ -1295,6 +1404,7 @@ Islamia Guest House, Dhanmondi`;
       createBooking,
       addBooking: createBooking as any,
       updateBookingStatus,
+      checkOutGuest,
       addBookingNotes,
       deleteBooking,
       updateBookingPayment,

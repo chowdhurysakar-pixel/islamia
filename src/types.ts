@@ -5,7 +5,7 @@
 
 export type RoomType = 'single' | 'double' | 'suite' | 'deluxe';
 export type RoomStatus = 'available' | 'occupied' | 'maintenance' | 'cleaning';
-export type BookingStatus = 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled';
+export type BookingStatus = 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'checked_out' | 'cancelled';
 export type ServiceRequestType = 'housekeeping' | 'room-service' | 'maintenance' | 'concierge';
 export type ServiceRequestStatus = 'pending' | 'in-progress' | 'completed';
 export type UserRole = 'admin' | 'staff' | 'guest';
@@ -45,6 +45,11 @@ export interface Booking {
   status: BookingStatus;
   notes?: string;
   createdAt: string; // ISO String or similar
+  checkedOutAt?: string;
+  checkedOutByStaffId?: string;
+  finalBillAmount?: number;
+  paymentStatus?: 'pending' | 'paid' | 'unpaid' | 'partial';
+  paymentMethod?: 'cash' | 'card' | 'bKash' | 'other';
 }
 
 export interface ServiceRequest {
