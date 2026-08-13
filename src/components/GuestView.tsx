@@ -1156,7 +1156,15 @@ export const GuestView: React.FC = () => {
                   <div className="flex gap-4">
                     {rDetails && (
                       <div className="w-20 h-20 rounded overflow-hidden bg-slate-100 shrink-0 hidden sm:block">
-                        <img src={rDetails.image} alt="Room" className="w-full h-full object-cover" />
+                        <img 
+                          src={rDetails.image} 
+                          alt="Room" 
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                          }}
+                          className="w-full h-full object-cover" 
+                        />
                       </div>
                     )}
                     <div className="space-y-1">
@@ -2136,6 +2144,9 @@ export const GuestView: React.FC = () => {
                 alt="Dhanmondi Road 9/A Islamia Guesthouse Map" 
                 className="w-full h-24 object-cover group-hover:scale-105 transition duration-500"
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=800&q=80';
+                }}
               />
               <div className="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition flex items-center justify-center gap-2 text-xs font-mono text-white font-bold uppercase tracking-wider">
                 <MapPin className="w-4 h-4 text-[#d7bd8a] animate-bounce" />

@@ -1908,7 +1908,14 @@ export const AdminPanel: React.FC = () => {
                   </label>
                   {newRoomImg ? (
                     <div className="flex items-center gap-2">
-                      <img src={newRoomImg} alt="Preview" className="w-8 h-8 rounded-md object-cover border border-slate-300" />
+                      <img 
+                        src={newRoomImg} 
+                        alt="Preview" 
+                        className="w-8 h-8 rounded-md object-cover border border-slate-300" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                        }}
+                      />
                       <button
                         type="button"
                         onClick={() => setNewRoomImg('')}

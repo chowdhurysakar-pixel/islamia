@@ -250,6 +250,19 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
     e.preventDefault();
     if (!room) return;
 
+    if (!title.trim()) {
+      if (showToast) showToast({ type: 'error', message: 'Please enter a room title or category name.' });
+      return;
+    }
+    if (!number.trim()) {
+      if (showToast) showToast({ type: 'error', message: 'Please enter a chamber number.' });
+      return;
+    }
+    if (isNaN(Number(price)) || Number(price) <= 0) {
+      if (showToast) showToast({ type: 'error', message: 'Please enter a valid positive price per night.' });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const mainImage = images.length > 0 ? images[0] : room.image;
@@ -641,7 +654,14 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                 {images.map((imgUrl, idx) => (
                   <div key={idx} className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100">
-                    <img src={imgUrl} alt={`Chamber photo ${idx + 1}`} className="w-full h-full object-cover" />
+                    <img 
+                      src={imgUrl} 
+                      alt={`Chamber photo ${idx + 1}`} 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                      }}
+                    />
                     {idx === 0 && (
                       <span className="absolute top-1 left-1 bg-teal-800/90 text-white text-[9px] font-mono px-1.5 py-0.5 rounded-md font-bold">
                         Main Cover

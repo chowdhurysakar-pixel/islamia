@@ -957,7 +957,14 @@ export const StaffView: React.FC = () => {
                   </label>
                   {newRoomImage ? (
                     <div className="flex items-center gap-2">
-                      <img src={newRoomImage} alt="Preview" className="w-7 h-7 rounded-md object-cover border border-slate-200" />
+                      <img 
+                        src={newRoomImage} 
+                        alt="Preview" 
+                        className="w-7 h-7 rounded-md object-cover border border-slate-200" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                        }}
+                      />
                       <button
                         type="button"
                         onClick={() => setNewRoomImage('')}
@@ -1435,6 +1442,9 @@ export const StaffView: React.FC = () => {
                         alt={`Room ${room.number} preview`}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-105"
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                        }}
                       />
                       <div className="absolute bottom-2 right-2 bg-black/60 text-[10px] font-mono font-bold text-white px-2 py-0.5 rounded-md backdrop-blur-xs flex items-center gap-1 shadow-sm">
                         <span>{galleryCount} Pictures</span>
@@ -2279,7 +2289,15 @@ export const StaffView: React.FC = () => {
                     <div className="grid grid-cols-4 gap-2">
                       {editRoomImages.map((img, idx) => (
                         <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 aspect-video bg-slate-100">
-                          <img src={img} alt={`Room picture ${idx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <img 
+                            src={img} 
+                            alt={`Room picture ${idx + 1}`} 
+                            className="w-full h-full object-cover" 
+                            referrerPolicy="no-referrer" 
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                            }}
+                          />
                           <button
                             type="button"
                             onClick={() => setEditRoomImages(editRoomImages.filter((_, i) => i !== idx))}
