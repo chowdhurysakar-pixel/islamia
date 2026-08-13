@@ -13,13 +13,15 @@ import {
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
   Printer, Receipt, Settings, DollarSign, UserCheck, UserX, Lock, 
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
-  ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound
+  ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
+  Calendar, RotateCcw, ArrowUpDown
 } from 'lucide-react';
 
 export const AdminPanel: React.FC = () => {
   const { 
     rooms, 
     bookings, 
+    archivedBookings,
     serviceRequests, 
     feedbacks,
     addRoom, 
@@ -141,6 +143,7 @@ export const AdminPanel: React.FC = () => {
   const [chamberSearch, setChamberSearch] = useState<string>('');
   const [reservationSearch, setReservationSearch] = useState<string>('');
   const [reservationStatusFilter, setReservationStatusFilter] = useState<BookingStatus | 'all'>('all');
+  const [ledgerSelectedDate, setLedgerSelectedDate] = useState<string>('');
 
   // Chamber Creation / Editing State
   const [isAddRoomOpen, setIsAddRoomOpen] = useState<boolean>(false);
@@ -263,19 +266,85 @@ export const AdminPanel: React.FC = () => {
     );
   }, [rooms, chamberSearch]);
 
-  // Filtered Bookings for Reservations tab
+  // Combined bookings from live state & archived historical storage
+  const allCombinedBookings = useMemo(() => {
+    const map = new Map<string, Booking>();
+    bookings.forEach(b => map.set(b.id, b));
+    (archivedBookings || []).forEach(b => {
+      if (!map.has(b.id)) {
+        map.set(b.id, b);
+      } else {
+        map.set(b.id, { ...map.get(b.id)!, ...b });
+      }
+    });
+    return Array.from(map.values());
+  }, [bookings, archivedBookings]);
+
+  // Filtered Bookings for Reservations tab with Day-by-Day Guest History support
   const filteredBookings = useMemo(() => {
-    return bookings.filter(b => {
+    return allCombinedBookings.filter(b => {
+      const searchLower = reservationSearch.toLowerCase().trim();
       const matchesSearch = 
-        (b.guestName && b.guestName.toLowerCase().includes(reservationSearch.toLowerCase())) ||
-        (b.guestPhone && b.guestPhone.includes(reservationSearch)) ||
-        (b.roomNumber && b.roomNumber.toLowerCase().includes(reservationSearch.toLowerCase())) ||
-        (b.nidNumber && b.nidNumber.includes(reservationSearch));
+        !searchLower ||
+        (b.guestName && b.guestName.toLowerCase().includes(searchLower)) ||
+        (b.guestPhone && b.guestPhone.includes(searchLower)) ||
+        (b.roomNumber && b.roomNumber.toLowerCase().includes(searchLower)) ||
+        (b.nidNumber && b.nidNumber.includes(searchLower)) ||
+        (b.zilaDistrict && b.zilaDistrict.toLowerCase().includes(searchLower));
       
       const matchesStatus = reservationStatusFilter === 'all' || b.status === reservationStatusFilter;
-      return matchesSearch && matchesStatus;
+
+      let matchesDate = true;
+      if (ledgerSelectedDate) {
+        const cin = b.checkIn || b.checkInDate || '';
+        const cout = b.checkOut || b.checkOutDate || cin;
+
+        const inRange = Boolean(cin && cout && cin <= ledgerSelectedDate && cout >= ledgerSelectedDate);
+        const isCin = cin === ledgerSelectedDate;
+        const isCout = cout === ledgerSelectedDate;
+        const isCheckedOutAt = Boolean(b.checkedOutAt && b.checkedOutAt.startsWith(ledgerSelectedDate));
+        const isCreatedAt = Boolean(b.createdAt && b.createdAt.startsWith(ledgerSelectedDate));
+
+        matchesDate = inRange || isCin || isCout || isCheckedOutAt || isCreatedAt;
+      }
+
+      return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [bookings, reservationSearch, reservationStatusFilter]);
+  }, [allCombinedBookings, reservationSearch, reservationStatusFilter, ledgerSelectedDate]);
+
+  // Daily Summary Metrics for Day-by-Day Report Bar
+  const dailyMetrics = useMemo(() => {
+    let totalGuests = 0;
+    let totalRevenue = 0;
+    let checkInsCount = 0;
+    let checkOutsCount = 0;
+
+    filteredBookings.forEach(b => {
+      const guests = 
+        (b.adultsCount || b.adults || 0) + 
+        (b.kidsCount || b.children || 0) + 
+        (b.additionalGuests?.length || 0) || 
+        b.guestCount || 
+        1;
+      totalGuests += guests;
+
+      const rev = b.finalBillAmount ?? b.paidAmount ?? b.totalAmount ?? 0;
+      totalRevenue += rev;
+
+      const cin = b.checkIn || b.checkInDate || '';
+      const cout = b.checkOut || b.checkOutDate || cin;
+
+      if (ledgerSelectedDate) {
+        if (cin === ledgerSelectedDate) checkInsCount++;
+        if (cout === ledgerSelectedDate || (b.checkedOutAt && b.checkedOutAt.startsWith(ledgerSelectedDate))) checkOutsCount++;
+      } else {
+        if (b.status === 'checked-in') checkInsCount++;
+        if (b.status === 'checked-out') checkOutsCount++;
+      }
+    });
+
+    return { totalGuests, totalRevenue, checkInsCount, checkOutsCount };
+  }, [filteredBookings, ledgerSelectedDate]);
 
   // Handle Chamber Add Submit
   const handleAddRoomSubmit = async (e: React.FormEvent) => {
@@ -1177,6 +1246,33 @@ export const AdminPanel: React.FC = () => {
                   <option value="cancelled">Cancelled</option>
                 </select>
 
+                {/* Day-by-Day Date Picker Filter */}
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 focus-within:border-teal-500">
+                  <Calendar className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                  <input
+                    type="date"
+                    id="admin-ledger-date-picker"
+                    value={ledgerSelectedDate}
+                    onChange={(e) => setLedgerSelectedDate(e.target.value)}
+                    className="bg-transparent text-xs text-slate-700 font-medium focus:outline-none cursor-pointer"
+                    title="Filter guest history by specific date"
+                  />
+                </div>
+
+                {/* Date Filter Reset Button */}
+                {ledgerSelectedDate && (
+                  <button
+                    type="button"
+                    id="admin-ledger-date-reset-btn"
+                    onClick={() => setLedgerSelectedDate('')}
+                    className="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                    title="Clear date filter to view all history"
+                  >
+                    <RotateCcw className="w-3 h-3 text-rose-600" />
+                    <span>রিসেট (Reset Date)</span>
+                  </button>
+                )}
+
                 <div className="relative flex-1 sm:w-64">
                   <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
                   <input
@@ -1186,6 +1282,65 @@ export const AdminPanel: React.FC = () => {
                     placeholder="Search by Guest, Phone, or NID..."
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* DAILY REPORT SUMMARY BAR */}
+            <div className="bg-gradient-to-r from-teal-950 via-slate-900 to-slate-950 text-white rounded-2xl p-4 border border-teal-800/40 shadow-sm flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-500/30 flex items-center justify-center shrink-0">
+                  <Calendar className="w-4 h-4 text-teal-300" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-teal-200 flex items-center gap-2">
+                    <span>দৈনিক রিপোর্ট সামারি (Daily Guest Report)</span>
+                    {ledgerSelectedDate ? (
+                      <span className="px-2.5 py-0.5 bg-teal-500/25 text-teal-300 rounded-full text-[10px] font-mono border border-teal-500/40 font-bold">
+                        📅 {ledgerSelectedDate}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded-full text-[10px]">
+                        সকল তারিখ (All Records)
+                      </span>
+                    )}
+                  </h4>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    {ledgerSelectedDate 
+                      ? `${ledgerSelectedDate} তারিখের গেস্ট বিবরণী, অর্জিত রেভিনিউ এবং চেক-ইন/আউট সামারি` 
+                      : 'নির্দিষ্ট তারিখের গেস্ট হিস্ট্রি ও রিপোর্ট দেখতে উপরের Date Picker সিলেক্ট করুন।'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Metric 1: Total Guests */}
+                <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
+                  <Users className="w-4 h-4 text-sky-400 shrink-0" />
+                  <div>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">মোট গেস্ট (Total Guests)</p>
+                    <p className="text-xs font-bold font-mono text-white">{dailyMetrics.totalGuests} জন</p>
+                  </div>
+                </div>
+
+                {/* Metric 2: Total Revenue / Collections */}
+                <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
+                  <DollarSign className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <div>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">মোট কালেকশন (Revenue)</p>
+                    <p className="text-xs font-bold font-mono text-emerald-300">৳{dailyMetrics.totalRevenue.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Metric 3: Total Check-Ins & Check-Outs */}
+                <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
+                  <ArrowUpDown className="w-4 h-4 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">চেক-ইন / চেক-আউট</p>
+                    <p className="text-xs font-bold font-mono text-amber-200">
+                      📥 {dailyMetrics.checkInsCount} চেক-ইন | 📤 {dailyMetrics.checkOutsCount} চেক-আউট
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

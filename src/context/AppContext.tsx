@@ -60,6 +60,7 @@ function sanitizeFirestoreData<T>(obj: T): T {
 interface AppContextType {
   rooms: Room[];
   bookings: Booking[];
+  archivedBookings: Booking[];
   serviceRequests: ServiceRequest[];
   currentUser: UserProfile | null;
   currentRole: UserRole;
@@ -109,6 +110,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [archivedBookings, setArchivedBookings] = useState<Booking[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -352,6 +354,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!isFirebaseActive || !db) return;
 
     let unsubBookings: (() => void) | null = null;
+    let unsubArchived: (() => void) | null = null;
     let unsubRequests: (() => void) | null = null;
 
     const isStaffOrAdmin = currentUser?.role === 'staff' || currentUser?.role === 'admin' || currentRole === 'staff' || currentRole === 'admin' || opMode === 'receptionist' || opMode === 'hr' || opMode === 'admin';
@@ -382,6 +385,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }, (error) => {
         handleFirestoreError(error, OperationType.GET, 'bookings');
+      });
+
+      // Staff/Admin gets archived lifetime records in real time
+      unsubArchived = onSnapshot(collection(db, 'archived_bookings'), (snapshot) => {
+        const archivedList: Booking[] = [];
+        snapshot.forEach((docSnap) => {
+          archivedList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+        });
+        setArchivedBookings(archivedList);
+      }, (error) => {
+        console.warn("Archived bookings snapshot warning:", error);
       });
 
       // Staff/Admin gets all service requests in real time
@@ -439,6 +453,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     return () => {
       if (unsubBookings) unsubBookings();
+      if (unsubArchived) unsubArchived();
       if (unsubRequests) unsubRequests();
     };
   }, [currentUser, currentRole, opMode, isFirebaseActive]);
@@ -1416,6 +1431,7 @@ Islamia Guest House, Dhanmondi`;
     <AppContext.Provider value={{
       rooms,
       bookings,
+      archivedBookings,
       serviceRequests,
       feedbacks,
       currentUser,
