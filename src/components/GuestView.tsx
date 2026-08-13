@@ -8,7 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, ServiceRequestType, BookingStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
 import lalbaghFortImg from '../assets/images/lalbagh_fort_dhaka_1785812405532.jpg';
@@ -491,14 +491,16 @@ export const GuestView: React.FC = () => {
               bKash: 01832-841818
             </span>
             {currentUser && (
-              <div className="flex items-center gap-1.5 bg-[#e8e0d2] px-2 py-0.5 rounded text-[10px] border border-[#af8a52]/30 text-[#0e2b33]">
-                <span className="text-[#0e2b33] font-bold">{currentUser.name}</span>
+              <div className="flex items-center gap-2 bg-[#e8e0d2] px-2.5 py-1 rounded-lg border border-[#af8a52]/30 text-[#0e2b33]">
+                <span className="text-[#0e2b33] font-bold text-[11px]">{currentUser.name}</span>
                 <button 
+                  id="guest-logout-btn"
                   onClick={logout}
-                  className="text-slate-500 hover:text-slate-800 text-[9px] underline ml-1"
-                  title="Sign Out"
+                  className="inline-flex items-center gap-1 bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded text-[10px] font-bold transition shadow-xs cursor-pointer ml-1"
+                  title="Sign Out of Islamia System"
                 >
-                  Exit
+                  <LogOut className="w-3 h-3" />
+                  <span>Log Out</span>
                 </button>
               </div>
             )}

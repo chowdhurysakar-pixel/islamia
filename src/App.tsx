@@ -146,9 +146,10 @@ const MainLayout: React.FC = () => {
                     id="auth-logout-btn"
                     onClick={logout}
                     title="Sign out of system"
-                    className="p-1 hover:bg-slate-100 rounded-full transition text-slate-400 hover:text-slate-600 ml-1.5"
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-full text-xs font-semibold transition-all cursor-pointer ml-1.5 active:scale-95"
                   >
                     <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
                   </button>
                 </div>
               )}

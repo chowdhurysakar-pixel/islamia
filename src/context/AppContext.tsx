@@ -516,18 +516,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = async () => {
-    if (isFirebaseActive && auth) {
+    // 1. Reset user state & opMode
+    setCurrentUser(null);
+    setCurrentRole('guest');
+    setOpMode('receptionist');
+
+    // 2. Clear all local/session storage items
+    try {
+      localStorage.removeItem('hotel_current_user');
+      localStorage.setItem('hotel_current_role', 'guest');
+      sessionStorage.removeItem('admin_authorized');
+      localStorage.removeItem('pending_google_role');
+      
+      // Clean up any pending verification or role keys
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('pending_role_') || key.startsWith('pending_name_')) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (e) {
+      console.error("Storage clear error on logout:", e);
+    }
+
+    // 3. Sign out of Firebase Auth
+    if (auth) {
       try {
         await signOut(auth);
       } catch (error) {
-        console.error("Signout failed:", error);
+        console.error("Signout error:", error);
       }
-    } else {
-      setCurrentUser(null);
-      setCurrentRole('guest');
-      localStorage.removeItem('hotel_current_user');
-      localStorage.setItem('hotel_current_role', 'guest');
     }
+
+    // 4. Show confirmation notification
+    showToast({
+      type: 'info',
+      message: 'Logged out successfully.'
+    });
   };
 
   const sendOtp = async (email: string, name?: string, role?: UserRole, isSignUp?: boolean): Promise<{ success: boolean; otpCode?: string; error?: string }> => {
