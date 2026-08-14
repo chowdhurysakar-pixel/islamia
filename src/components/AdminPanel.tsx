@@ -14,7 +14,7 @@ import {
   Printer, Receipt, Settings, DollarSign, UserCheck, UserX, Lock, 
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
   ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
-  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2
+  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -81,6 +81,7 @@ export const AdminPanel: React.FC = () => {
     editRoomDetails,
     deleteRoom,
     updateBookingStatus,
+    deleteFeedback,
     opMode,
     setOpMode,
     isFirebaseActive,
@@ -89,7 +90,7 @@ export const AdminPanel: React.FC = () => {
   } = useApp();
 
   // Admin Active Tab
-  const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'chambers' | 'reservations' | 'settings'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'chambers' | 'reservations' | 'reviews' | 'settings'>('analytics');
 
   // Change Admin Password State & Toggles
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
@@ -195,6 +196,8 @@ export const AdminPanel: React.FC = () => {
   const [chamberSearch, setChamberSearch] = useState<string>('');
   const [reservationSearch, setReservationSearch] = useState<string>('');
   const [reservationStatusFilter, setReservationStatusFilter] = useState<BookingStatus | 'all'>('all');
+  const [reviewSearch, setReviewSearch] = useState<string>('');
+  const [reviewRatingFilter, setReviewRatingFilter] = useState<'all' | '5' | '4' | '3' | '2' | '1'>('all');
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
   });
@@ -455,6 +458,50 @@ export const AdminPanel: React.FC = () => {
 
     return { totalGuests, totalRevenue, checkInsCount, checkOutsCount };
   }, [filteredBookings, ledgerSelectedDate]);
+
+  // Review Stats & Filtered Reviews
+  const reviewStats = useMemo(() => {
+    const list = feedbacks || [];
+    const total = list.length;
+    if (total === 0) return { total: 0, avg: '5.0', fiveStars: 0, fourStars: 0, threeOrLess: 0 };
+    const sum = list.reduce((acc, f) => acc + (Number(f.rating) || 5), 0);
+    const avg = (sum / total).toFixed(1);
+    const fiveStars = list.filter(f => Number(f.rating) === 5).length;
+    const fourStars = list.filter(f => Number(f.rating) === 4).length;
+    const threeOrLess = list.filter(f => Number(f.rating) <= 3).length;
+    return { total, avg, fiveStars, fourStars, threeOrLess };
+  }, [feedbacks]);
+
+  const filteredReviews = useMemo(() => {
+    return (feedbacks || []).filter(f => {
+      const matchesRating = reviewRatingFilter === 'all' || Number(f.rating) === Number(reviewRatingFilter);
+      const search = reviewSearch.toLowerCase().trim();
+      const matchesSearch = !search ||
+        (f.userName && f.userName.toLowerCase().includes(search)) ||
+        (f.userEmail && f.userEmail.toLowerCase().includes(search)) ||
+        (f.comment && f.comment.toLowerCase().includes(search));
+      return matchesRating && matchesSearch;
+    });
+  }, [feedbacks, reviewSearch, reviewRatingFilter]);
+
+  // Delete Guest Review handler
+  const handleDeleteReview = async (review: { id: string; userName?: string }) => {
+    const guestLabel = review.userName || 'Verified Guest';
+    if (window.confirm(`Are you sure you want to permanently delete this review submitted by "${guestLabel}"?`)) {
+      try {
+        await deleteFeedback(review.id);
+        showToast({
+          type: 'info',
+          message: `🗑️ Review by ${guestLabel} deleted successfully.`
+        });
+      } catch (err: any) {
+        showToast({
+          type: 'error',
+          message: err?.message || 'Failed to delete review.'
+        });
+      }
+    }
+  };
 
   // Handle Chamber Add Submit
   const handleAddRoomSubmit = async (e: React.FormEvent) => {
@@ -915,7 +962,7 @@ export const AdminPanel: React.FC = () => {
             {metrics.pendingServicesCount} Pending
           </div>
           <p className="text-[11px] text-slate-500">
-            Guest Reviews: <span className="font-semibold text-slate-700">{feedbacks.length} Submissions</span>
+            Guest Reviews: <button onClick={() => setActiveTab('reviews')} className="font-semibold text-teal-700 hover:underline cursor-pointer">{feedbacks.length} Submissions</button>
           </p>
         </div>
       </div>
@@ -924,7 +971,7 @@ export const AdminPanel: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-2xl p-2 flex flex-wrap items-center gap-1 shadow-sm">
         <button
           onClick={() => setActiveTab('analytics')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeTab === 'analytics'
               ? 'bg-slate-900 text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-100'
@@ -936,7 +983,7 @@ export const AdminPanel: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('staff')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition relative ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition relative cursor-pointer ${
             activeTab === 'staff'
               ? 'bg-slate-900 text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-100'
@@ -951,7 +998,7 @@ export const AdminPanel: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('chambers')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeTab === 'chambers'
               ? 'bg-slate-900 text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-100'
@@ -963,7 +1010,7 @@ export const AdminPanel: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('reservations')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeTab === 'reservations'
               ? 'bg-slate-900 text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-100'
@@ -974,8 +1021,20 @@ export const AdminPanel: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('reviews')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activeTab === 'reviews'
+              ? 'bg-slate-900 text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+          <span>Guest Reviews ({feedbacks.length})</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('settings')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
             activeTab === 'settings'
               ? 'bg-slate-900 text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-100'
@@ -1058,7 +1117,13 @@ export const AdminPanel: React.FC = () => {
 
                 <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200/60">
                   <span className="text-slate-600 font-medium">Total Feedback Reviews:</span>
-                  <span className="font-bold text-slate-800 font-mono">{feedbacks.length} Submissions</span>
+                  <button 
+                    onClick={() => setActiveTab('reviews')}
+                    className="font-bold text-teal-700 font-mono hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <span>{feedbacks.length} Submissions</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
 
                 <div className="p-3 bg-teal-50 border border-teal-200/60 rounded-xl space-y-1">
@@ -1560,7 +1625,7 @@ export const AdminPanel: React.FC = () => {
                           #{b.roomNumber || 'N/A'}
                         </td>
                         <td className="p-3 text-[11px] font-mono text-slate-600">
-                          {b.checkInDate} &rarr; {b.checkOutDate}
+                          {b.checkIn || b.checkInDate || 'N/A'} &rarr; {b.checkOut || b.checkOutDate || 'N/A'}
                         </td>
                         <td className="p-3 text-[11px] text-slate-600">
                           <div>
@@ -1603,7 +1668,265 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: SYSTEM SETTINGS & PROPERTY AUDIT */}
+      {/* TAB 5: GUEST REVIEWS & FEEDBACK MANAGEMENT */}
+      {activeTab === 'reviews' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Review Analytics & Overview Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm space-y-1">
+              <div className="flex justify-between items-center text-slate-400">
+                <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Total Reviews</span>
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                  <MessageSquare className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold font-mono text-slate-850">
+                {reviewStats.total}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Across all guest reservations
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm space-y-1">
+              <div className="flex justify-between items-center text-slate-400">
+                <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Average Rating</span>
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                  <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold font-mono text-slate-850 flex items-center gap-2">
+                <span>{reviewStats.avg}</span>
+                <span className="text-xs text-amber-500 font-sans font-bold flex">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`w-3.5 h-3.5 ${
+                        i < Math.round(Number(reviewStats.avg))
+                          ? 'text-amber-400 fill-amber-400'
+                          : 'text-slate-200 fill-slate-100'
+                      }`}
+                    />
+                  ))}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Out of 5.0 maximum score
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm space-y-1">
+              <div className="flex justify-between items-center text-slate-400">
+                <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">5-Star Ratings</span>
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold font-mono text-emerald-700 flex items-center gap-2">
+                <span>{reviewStats.fiveStars}</span>
+                <span className="text-xs font-sans font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full">
+                  {reviewStats.total > 0 ? `${Math.round((reviewStats.fiveStars / reviewStats.total) * 100)}%` : '0%'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Top rated guest stays
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm space-y-1">
+              <div className="flex justify-between items-center text-slate-400">
+                <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Other Ratings</span>
+                <div className="p-2 bg-sky-50 text-sky-600 rounded-xl">
+                  <BarChart3 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold font-mono text-slate-850">
+                {reviewStats.fourStars + reviewStats.threeOrLess}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {reviewStats.fourStars} (4★) · {reviewStats.threeOrLess} (≤3★)
+              </p>
+            </div>
+          </div>
+
+          {/* Search, Rating Filter & Action Header */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+              <div>
+                <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                  <span>Guest Reviews &amp; Feedback Management</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  View, filter, audit, and permanently delete guest testimonials and feedback submissions.
+                </p>
+              </div>
+
+              <div className="text-xs font-mono text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                Showing <span className="font-bold text-slate-850">{filteredReviews.length}</span> of {feedbacks.length} Reviews
+              </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row items-center gap-3">
+              {/* Search Bar */}
+              <div className="relative flex-1 w-full">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search by reviewer name, contact email/phone, or review keywords..."
+                  value={reviewSearch}
+                  onChange={(e) => setReviewSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition"
+                />
+                {reviewSearch && (
+                  <button
+                    onClick={() => setReviewSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Star Rating Filter */}
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <Filter className="w-4 h-4 text-slate-400 shrink-0" />
+                <select
+                  value={reviewRatingFilter}
+                  onChange={(e) => setReviewRatingFilter(e.target.value as any)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-600 transition cursor-pointer w-full md:w-auto"
+                >
+                  <option value="all">All Star Ratings (★ 1-5)</option>
+                  <option value="5">⭐⭐⭐⭐⭐ 5 Stars Only</option>
+                  <option value="4">⭐⭐⭐⭐ 4 Stars</option>
+                  <option value="3">⭐⭐⭐ 3 Stars</option>
+                  <option value="2">⭐⭐ 2 Stars</option>
+                  <option value="1">⭐ 1 Star</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Reviews List */}
+          {filteredReviews.length === 0 ? (
+            <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center shadow-sm space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center mx-auto">
+                <Star className="w-6 h-6" />
+              </div>
+              <h4 className="text-sm font-bold text-slate-800">No Guest Reviews Found</h4>
+              <p className="text-xs text-slate-500 max-w-md mx-auto">
+                {reviewSearch || reviewRatingFilter !== 'all'
+                  ? 'No reviews match your current search or star filter criteria. Try clearing your filters.'
+                  : 'No reviews have been submitted by guests yet. When guests submit ratings from the guest view, they will appear here for admin moderation.'}
+              </p>
+              {(reviewSearch || reviewRatingFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setReviewSearch('');
+                    setReviewRatingFilter('all');
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Review Filters</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredReviews.map((review) => {
+                const initial = (review.userName || 'G').charAt(0).toUpperCase();
+                const formattedDate = review.createdAt
+                  ? new Date(review.createdAt).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })
+                  : 'Recent Stay';
+
+                return (
+                  <div
+                    key={review.id}
+                    className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition flex flex-col justify-between space-y-4"
+                  >
+                    {/* Review Header */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-slate-900 text-teal-400 flex items-center justify-center font-bold font-mono text-sm shrink-0 shadow-sm">
+                          {initial}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-slate-850">
+                              {review.userName || 'Verified Guest'}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-teal-50 text-teal-700 border border-teal-200/60 rounded-full">
+                              Verified
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2 mt-0.5">
+                            {review.userEmail && <span>{review.userEmail}</span>}
+                            <span>•</span>
+                            <span className="text-slate-400">{formattedDate}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Star Rating Badge */}
+                      <div className="flex flex-col items-end shrink-0">
+                        <div className="flex items-center gap-1 bg-amber-50 border border-amber-200/80 px-2.5 py-1 rounded-xl">
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                          <span className="text-xs font-bold font-mono text-amber-900">
+                            {review.rating}.0
+                          </span>
+                        </div>
+                        <div className="flex gap-0.5 mt-1">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-3 h-3 ${
+                                i < (review.rating || 5)
+                                  ? 'text-amber-400 fill-amber-400'
+                                  : 'text-slate-200 fill-slate-100'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Review Comment Body */}
+                    <div className="bg-slate-50/80 border border-slate-100 rounded-xl p-3.5 text-slate-700 text-xs leading-relaxed italic relative">
+                      <span className="text-slate-300 font-serif text-lg leading-none absolute top-2 left-2 select-none">“</span>
+                      <p className="pl-3.5 relative z-10 font-normal">
+                        {review.comment || 'No written text comment provided.'}
+                      </p>
+                    </div>
+
+                    {/* Footer Actions: ID & Delete Button */}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                      <span className="text-[10px] font-mono text-slate-400">
+                        ID: {review.id}
+                      </span>
+
+                      <button
+                        onClick={() => handleDeleteReview(review)}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 border border-rose-200/80 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer text-[11px]"
+                        title="Delete this guest review permanently"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Delete Review</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 6: SYSTEM SETTINGS & PROPERTY AUDIT */}
       {activeTab === 'settings' && (
         <div className="space-y-6 animate-fadeIn">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -101,7 +101,8 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
   }, [rooms, booking]);
 
   // Helpers
-  const calcNights = (inD: string, outD: string) => {
+  const calcNights = (inD?: string, outD?: string) => {
+    if (!inD || !outD) return 1;
     const start = new Date(inD);
     const end = new Date(outD);
     const diff = end.getTime() - start.getTime();

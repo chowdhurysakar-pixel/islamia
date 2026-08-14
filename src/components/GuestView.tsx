@@ -10,7 +10,7 @@ import { RoomCard } from './RoomCard';
 import { Chambers } from './Chambers';
 import { PrintableInvoice } from './PrintableInvoice';
 import { WhyChooseUs } from './WhyChooseUs';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw, Trash2 } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
 import lalbaghFortImg from '../assets/images/lalbagh_fort_dhaka_1785812405532.jpg';
@@ -57,6 +57,7 @@ export const GuestView: React.FC = () => {
     updateBookingStatus, 
     createServiceRequest,
     submitFeedback,
+    deleteFeedback,
     showToast
   } = useApp();
 
@@ -1996,6 +1997,29 @@ export const GuestView: React.FC = () => {
                       <p className="text-xs text-slate-600 leading-relaxed pl-1.5 border-l-2 border-slate-100 italic">
                         "{f.comment}"
                       </p>
+
+                      {currentRole === 'admin' && (
+                        <div className="pt-1.5 flex justify-end border-t border-slate-100/80">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (window.confirm(`Admin action: Delete review from "${f.userName || 'Guest'}"?`)) {
+                                try {
+                                  await deleteFeedback(f.id);
+                                  showToast({ type: 'info', message: 'Review deleted by admin.' });
+                                } catch (e: any) {
+                                  showToast({ type: 'error', message: e?.message || 'Failed to delete review.' });
+                                }
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2.5 py-1 rounded-lg transition cursor-pointer border border-rose-200/60"
+                            title="Delete review as Admin"
+                          >
+                            <Trash2 className="w-3 h-3 text-rose-600" />
+                            <span>Delete Review (Admin)</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

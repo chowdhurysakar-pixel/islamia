@@ -102,6 +102,7 @@ interface AppContextType {
   // Feedback Actions
   feedbacks: Feedback[];
   submitFeedback: (rating: number, comment: string, reviewerName?: string, reviewerEmail?: string) => Promise<void>;
+  deleteFeedback: (feedbackId: string) => Promise<void>;
   opMode: 'receptionist' | 'hr' | 'admin' | 'guest';
   setOpMode: (mode: any) => void;
 }
@@ -1241,7 +1242,7 @@ Islamia Guest House, Dhanmondi`;
 
     // Optimistically update local state immediately so UI updates instantly
     setBookings(prev => [newBooking, ...prev.filter(b => b.id !== bookingId)]);
-    if ((bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
+    if ((bookingData.checkIn && bookingData.checkOut && bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
       setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
     }
 
@@ -1249,7 +1250,7 @@ Islamia Guest House, Dhanmondi`;
       const bookingPath = `bookings/${bookingId}`;
       try {
         await setDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData(newBooking));
-        if ((bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
+        if ((bookingData.checkIn && bookingData.checkOut && bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
           await updateDoc(doc(db, 'rooms', bookingData.roomId), sanitizeFirestoreData({ status: 'occupied' }));
         }
       } catch (error) {
@@ -1330,6 +1331,17 @@ Islamia Guest House, Dhanmondi`;
 
     const targetBooking = bookings.find(b => b.id === bookingId);
 
+    // Optimistic local state update
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
+    if (targetBooking) {
+      if (status === 'checked-in') {
+        setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
+        triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
+      } else if (status === 'cancelled') {
+        setRooms(prev => prev.map(r => r.id === targetBooking.roomId && r.status === 'occupied' ? { ...r, status: 'available' } : r));
+      }
+    }
+
     if (isFirebaseActive && db) {
       const bookingPath = `bookings/${bookingId}`;
       try {
@@ -1338,7 +1350,6 @@ Islamia Guest House, Dhanmondi`;
         if (targetBooking) {
           if (status === 'checked-in') {
             await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'occupied' }));
-            triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
           } else if (status === 'cancelled') {
             const room = rooms.find(r => r.id === targetBooking.roomId);
             if (room && room.status === 'occupied') {
@@ -1347,55 +1358,44 @@ Islamia Guest House, Dhanmondi`;
           }
         }
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, bookingPath);
-      }
-    } else {
-      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
-      if (targetBooking) {
-        if (status === 'checked-in') {
-          setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
-          triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
-        } else if (status === 'cancelled') {
-          setRooms(prev => prev.map(r => r.id === targetBooking.roomId && r.status === 'occupied' ? { ...r, status: 'available' } : r));
-        }
+        console.warn("Notice updating booking status in Firestore (using local fallback):", error);
       }
     }
   };
 
   const addBookingNotes = async (bookingId: string, notes: string) => {
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, notes } : b));
+
     if (isFirebaseActive && db) {
-      const bookingPath = `bookings/${bookingId}`;
       try {
         await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData({ notes }));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, bookingPath);
+        console.warn("Notice updating booking notes in Firestore (using local fallback):", error);
       }
-    } else {
-      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, notes } : b));
     }
   };
 
   const deleteBooking = async (bookingId: string) => {
+    setBookings(prev => prev.filter(b => b.id !== bookingId));
+
     if (isFirebaseActive && db) {
       try {
         await deleteDoc(doc(db, 'bookings', bookingId));
       } catch (e) {
         console.warn("Firestore delete booking error:", e);
       }
-    } else {
-      setBookings(prev => prev.filter(b => b.id !== bookingId));
     }
   };
 
   const updateBookingPayment = async (bookingId: string, paymentStatus: string, paidAmount: number, paymentMethod?: string) => {
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b));
+
     if (isFirebaseActive && db) {
       try {
         await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData({ paymentStatus, paidAmount, paymentMethod }));
       } catch (e) {
         console.warn("Firestore update booking payment warning:", e);
       }
-    } else {
-      setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b));
     }
   };
 
@@ -1408,28 +1408,26 @@ Islamia Guest House, Dhanmondi`;
       createdAt: new Date().toISOString()
     };
 
+    setServiceRequests(prev => [newRequest, ...prev]);
+
     if (isFirebaseActive && db) {
-      const requestPath = `serviceRequests/${reqId}`;
       try {
         await setDoc(doc(db, 'serviceRequests', reqId), sanitizeFirestoreData(newRequest));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, requestPath);
+        console.warn("Notice saving service request in Firestore (using local fallback):", error);
       }
-    } else {
-      setServiceRequests(prev => [newRequest, ...prev]);
     }
   };
 
   const updateServiceRequestStatus = async (requestId: string, status: ServiceRequestStatus) => {
+    setServiceRequests(prev => prev.map(s => s.id === requestId ? { ...s, status } : s));
+
     if (isFirebaseActive && db) {
-      const requestPath = `serviceRequests/${requestId}`;
       try {
         await updateDoc(doc(db, 'serviceRequests', requestId), sanitizeFirestoreData({ status }));
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, requestPath);
+        console.warn("Notice updating service request in Firestore (using local fallback):", error);
       }
-    } else {
-      setServiceRequests(prev => prev.map(s => s.id === requestId ? { ...s, status } : s));
     }
   };
 
@@ -1469,6 +1467,35 @@ Islamia Guest House, Dhanmondi`;
       showToast({
         message: "⭐ Thank you! Your feedback has been saved locally.",
         type: 'success'
+      });
+    }
+  };
+
+  const deleteFeedback = async (feedbackId: string) => {
+    // Optimistically update local state immediately
+    setFeedbacks(prev => {
+      const updated = prev.filter(f => f.id !== feedbackId);
+      try {
+        localStorage.setItem('hotel_feedbacks', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    if (isFirebaseActive && db) {
+      const feedbackPath = `feedbacks/${feedbackId}`;
+      try {
+        await deleteDoc(doc(db, 'feedbacks', feedbackId));
+        showToast({
+          message: "🗑️ Guest review removed from database.",
+          type: 'info'
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, feedbackPath);
+      }
+    } else {
+      showToast({
+        message: "🗑️ Guest review removed.",
+        type: 'info'
       });
     }
   };
@@ -1513,6 +1540,7 @@ Islamia Guest House, Dhanmondi`;
       createServiceRequest,
       updateServiceRequestStatus,
       submitFeedback,
+      deleteFeedback,
       opMode,
       setOpMode
     }}>

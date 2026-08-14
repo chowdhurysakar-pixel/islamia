@@ -586,7 +586,7 @@ export const StaffView: React.FC = () => {
         ) || false;
         return matchesMainPhone || matchesAdditional;
       })
-      .sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime());
+      .sort((a, b) => (new Date(a.checkIn || 0).getTime() || 0) - (new Date(b.checkIn || 0).getTime() || 0));
   }, [bookings, selectedHistoryGuestPhone]);
 
   const filteredServices = useMemo(() => {
