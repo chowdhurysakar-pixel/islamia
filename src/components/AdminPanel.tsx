@@ -1057,7 +1057,7 @@ export const AdminPanel: React.FC = () => {
                     <TrendingUp className="w-4 h-4 text-teal-600" />
                     <span>Earnings Distribution by Room Category</span>
                   </h3>
-                  <p className="text-xs text-slate-400">Gross income generated across room tiers in Dhanmondi.</p>
+                  <p className="text-xs text-slate-400">Gross income generated across room tiers in Islamia.</p>
                 </div>
                 <span className="text-xs font-mono font-bold text-teal-700 bg-teal-50 px-3 py-1 rounded-full border border-teal-200/50">
                   Total: ৳{metrics.totalEarnings.toLocaleString()}
