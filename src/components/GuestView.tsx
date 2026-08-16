@@ -10,7 +10,7 @@ import { RoomCard } from './RoomCard';
 import { Chambers } from './Chambers';
 import { PrintableInvoice } from './PrintableInvoice';
 import { WhyChooseUs } from './WhyChooseUs';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw, Trash2 } from 'lucide-react';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw, Trash2, Smartphone, Copy } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import nationalParliamentImg from '../assets/images/national_parliament_dhaka_1785812392106.jpg';
 import lalbaghFortImg from '../assets/images/lalbagh_fort_dhaka_1785812405532.jpg';
@@ -58,8 +58,14 @@ export const GuestView: React.FC = () => {
     createServiceRequest,
     submitFeedback,
     deleteFeedback,
+    triggerSmsConfirmation,
+    getBookingSmsText,
     showToast
   } = useApp();
+
+  // Instant Text confirmation states
+  const [copiedSms, setCopiedSms] = useState<boolean>(false);
+  const [showSmsPreviewModal, setShowSmsPreviewModal] = useState<boolean>(false);
 
   // Guest Search state
   const [roomTypeFilter, setRoomTypeFilter] = useState<RoomType | 'all'>('all');
@@ -1345,29 +1351,142 @@ export const GuestView: React.FC = () => {
               </button>
             </div>
 
-            {/* If completed booking, show success screen inside modal */}
-            {justCompletedBookingId ? (
-              <div className="p-8 text-center space-y-4">
-                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto text-emerald-600">
-                  <CheckCircle2 className="w-8 h-8" />
+            {/* If completed booking, show success screen inside modal with instant phone text confirmation */}
+            {justCompletedBookingId ? (() => {
+              const completedBooking = bookings.find(b => b.id === justCompletedBookingId) || {
+                id: justCompletedBookingId,
+                roomId: selectedRoom.id,
+                roomNumber: selectedRoom.number,
+                roomType: selectedRoom.type,
+                guestName: bookName || 'Valued Guest',
+                guestPhone: bookPhone || '',
+                guestEmail: bookEmail || '',
+                checkIn: bookCheckIn,
+                checkOut: bookCheckOut,
+                totalAmount: computedTotal,
+                status: 'confirmed' as BookingStatus,
+                createdAt: new Date().toISOString()
+              };
+
+              const smsText = getBookingSmsText(completedBooking);
+              const cleanPhone = (bookPhone || '').replace(/[^\d+]/g, '');
+              let waNumber = cleanPhone.replace(/^\+/, '');
+              if (waNumber.startsWith('01')) waNumber = '88' + waNumber;
+              else if (!waNumber.startsWith('880') && waNumber.length === 10 && waNumber.startsWith('1')) waNumber = '880' + waNumber;
+
+              const smsUrl = `sms:${cleanPhone}?&body=${encodeURIComponent(smsText)}`;
+              const whatsappUrl = `https://wa.me/${waNumber || '8801799148408'}?text=${encodeURIComponent(smsText)}`;
+
+              const handleCopy = () => {
+                navigator.clipboard.writeText(smsText);
+                setCopiedSms(true);
+                setTimeout(() => setCopiedSms(false), 2500);
+              };
+
+              return (
+                <div className="p-6 text-center space-y-4 max-h-[85vh] overflow-y-auto">
+                  <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto text-emerald-600 shadow-sm shadow-emerald-500/10">
+                    <CheckCircle2 className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h4 className="font-serif text-xl font-bold text-slate-800">Reservation Confirmed!</h4>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed mt-1">
+                      Room {selectedRoom.number} ({selectedRoom.type}) is booked for <span className="font-bold text-slate-700">{bookName || 'you'}</span>.
+                    </p>
+                  </div>
+
+                  {/* Instant SMS Confirmation Card */}
+                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50/60 border border-emerald-200/80 rounded-2xl p-4 text-left space-y-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                          <Smartphone className="w-5 h-5 animate-pulse" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-emerald-950 font-sans">Instant Text Confirmation</span>
+                            <span className="px-2 py-0.5 bg-emerald-200/80 text-emerald-900 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider">
+                              Sent to Mobile
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-800 font-mono mt-0.5">
+                            {bookPhone ? `📱 ${bookPhone}` : '📱 Guest Mobile Phone'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      An instant booking confirmation text has been dispatched for your phone with reference <span className="font-mono font-bold text-emerald-900">#{justCompletedBookingId}</span>, complete room details, invoice amount, and Dhanmondi address.
+                    </p>
+
+                    {/* Quick Instant Message Actions */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                      <a
+                        id="open-sms-text-btn"
+                        href={smsUrl}
+                        className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm text-center active:scale-95"
+                      >
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span>Open SMS</span>
+                      </a>
+
+                      <a
+                        id="open-whatsapp-text-btn"
+                        href={whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-2.5 px-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm text-center active:scale-95"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>WhatsApp</span>
+                      </a>
+
+                      <button
+                        id="copy-sms-text-btn"
+                        type="button"
+                        onClick={handleCopy}
+                        className="py-2.5 px-3 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 text-center active:scale-95 cursor-pointer"
+                      >
+                        {copiedSms ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedSms ? 'Copied!' : 'Copy Text'}</span>
+                      </button>
+                    </div>
+
+                    {/* Toggleable Text Message Preview */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowSmsPreviewModal(!showSmsPreviewModal)}
+                        className="text-[11px] text-teal-700 hover:text-teal-900 font-semibold underline flex items-center gap-1"
+                      >
+                        {showSmsPreviewModal ? 'Hide Text Message Details ▲' : 'View Text Message Sent to Phone ▼'}
+                      </button>
+
+                      {showSmsPreviewModal && (
+                        <div className="mt-2 p-3 bg-white/90 border border-emerald-200 rounded-xl font-mono text-[10.5px] text-slate-700 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto shadow-inner">
+                          {smsText}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Return to Lobby / Main View */}
+                  <div className="pt-2 flex flex-col gap-2 max-w-sm mx-auto">
+                    <button
+                      id="finish-booking-btn"
+                      onClick={() => {
+                        setSelectedRoom(null);
+                        setShowSmsPreviewModal(false);
+                      }}
+                      className="w-full py-3 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md active:scale-[0.98]"
+                    >
+                      <span>Return to Lobby</span>
+                    </button>
+                  </div>
                 </div>
-                <h4 className="font-serif text-xl font-semibold text-slate-800">Reservation Confirmed!</h4>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-                  Excellent choice. Room {selectedRoom.number} is scheduled for you. Your booking reference code token is <span className="font-mono font-bold text-slate-800">{justCompletedBookingId}</span>.
-                </p>
-                
-                {/* Action Buttons in Confirmation Popup */}
-                <div className="pt-4 flex flex-col gap-2.5 max-w-sm mx-auto">
-                  <button
-                    id="finish-booking-btn"
-                    onClick={() => setSelectedRoom(null)}
-                    className="w-full py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-teal-600/10 active:scale-[0.98]"
-                  >
-                    <span>Return to Lobby</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
+              );
+            })() : (
               <form noValidate onSubmit={handleBookingSubmit} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
                   <div className="text-xs font-medium text-slate-500">

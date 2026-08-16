@@ -13,7 +13,7 @@ import {
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
   Plus, ChevronRight, Receipt, Printer, UserCheck, MapPin, 
   CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2, Download, FileSpreadsheet, Loader2, Upload,
-  Calendar, RotateCcw, DollarSign, Users, ArrowUpDown
+  Calendar, RotateCcw, DollarSign, Users, ArrowUpDown, Smartphone
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -82,6 +82,7 @@ export const StaffView: React.FC = () => {
     updateBookingStatus, 
     checkOutGuest,
     updateServiceRequestStatus,
+    triggerSmsConfirmation,
     opMode,
     setOpMode,
     showToast
@@ -2027,6 +2028,15 @@ export const StaffView: React.FC = () => {
                               {loadingBookingId === booking.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Void'}
                             </button>
                           )}
+                          <button
+                            id={`send-sms-row-btn-${booking.id}`}
+                            onClick={() => triggerSmsConfirmation(booking)}
+                            className="px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold text-[10px] font-mono transition inline-flex items-center gap-1 border border-emerald-150 ml-1"
+                            title="Send instant SMS confirmation text to guest phone"
+                          >
+                            <Smartphone className="w-3 h-3" />
+                            <span>SMS Text</span>
+                          </button>
                           <button
                             id={`show-bill-row-btn-${booking.id}`}
                             onClick={() => openInvoiceForBooking(booking, false)}

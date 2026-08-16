@@ -68,13 +68,15 @@ interface AppContextType {
   isFirebaseActive: boolean;
   isLoading: boolean;
   toggleRole: () => void;
-  // Toast notifications & Automated Email drafted actions
+  // Toast notifications & Automated Email / SMS drafted actions
   activeToast: ToastInfo | null;
   toasts: ToastInfo[];
   showToast: (toast: ToastInfo) => void;
   dismissToast: () => void;
   removeToast: (id?: string) => void;
   triggerEmailDraft: (booking: Booking) => void;
+  triggerSmsConfirmation: (booking: Booking, autoOpenSmsApp?: boolean) => void;
+  getBookingSmsText: (booking: Booking) => string;
   // Auth Functions
   loginWithGoogle: (role?: UserRole) => Promise<void>;
   localLogin: (role: UserRole, email: string, name: string) => void;
@@ -1167,6 +1169,79 @@ Islamia Guest House Dhanmondi System`;
     setActiveToast(null);
   };
 
+  const getBookingSmsText = (booking: Booking): string => {
+    const room = rooms.find(r => r.id === booking.roomId);
+    const roomNum = booking.roomNumber || room?.number || 'Assigned on Arrival';
+    const roomTypeStr = (booking.roomType || room?.type || 'Standard').toUpperCase();
+    const guestName = booking.guestName || 'Valued Guest';
+    const bookingId = booking.id;
+    const checkIn = booking.checkIn;
+    const checkOut = booking.checkOut;
+    const totalAmount = booking.totalAmount;
+
+    return `ISLAMIA GUEST HOUSE - BOOKING CONFIRMATION
+Dear ${guestName},
+Your booking is confirmed!
+
+Booking ID: #${bookingId}
+Room: Room ${roomNum} (${roomTypeStr})
+Check-in: ${checkIn}
+Check-out: ${checkOut}
+Total Invoice: ৳${totalAmount}
+
+Location:
+House No: 55/C/1, Road No: 9/A, Dhanmondi-1209, Dhaka
+(Opposite Ibne Sina 9/A, Behind Meena Bazar)
+
+Hotline & bKash: 01832-841818
+Call: 01909-806960
+WhatsApp: 01799-148408
+Thank you for choosing Islamia Guest House!`;
+  };
+
+  const triggerSmsConfirmation = (booking: Booking, autoOpenSmsApp: boolean = false) => {
+    const guestPhone = booking.guestPhone?.trim() || '';
+    const guestName = booking.guestName || 'Valued Guest';
+    const bookingId = booking.id;
+    const smsBody = getBookingSmsText(booking);
+
+    // Clean phone number for tel/sms protocols
+    const cleanPhone = guestPhone.replace(/[^\d+]/g, '');
+    
+    // Format WhatsApp international number (default to Bangladesh 880 prefix if starting with 01...)
+    let waNumber = cleanPhone.replace(/^\+/, '');
+    if (waNumber.startsWith('01')) {
+      waNumber = '88' + waNumber;
+    } else if (!waNumber.startsWith('880') && waNumber.length === 10 && waNumber.startsWith('1')) {
+      waNumber = '880' + waNumber;
+    }
+
+    const smsUrl = `sms:${cleanPhone}?&body=${encodeURIComponent(smsBody)}`;
+    const whatsappUrl = `https://wa.me/${waNumber || '8801799148408'}?text=${encodeURIComponent(smsBody)}`;
+
+    if (autoOpenSmsApp && cleanPhone) {
+      try {
+        window.location.href = smsUrl;
+      } catch (e) {
+        console.warn("Direct SMS launch blocked/unsupported:", e);
+      }
+    }
+
+    showToast({
+      message: `📱 Instant confirmation text sent to ${guestName} (${guestPhone || 'Mobile Phone'}) for Booking #${bookingId}.`,
+      type: 'sms',
+      duration: 15000,
+      smsAction: {
+        phoneNumber: guestPhone || 'Direct Phone SMS',
+        smsText: smsBody,
+        smsUrl,
+        whatsappUrl,
+        bookingId,
+        guestName
+      }
+    });
+  };
+
   const triggerEmailDraft = (booking: Booking) => {
     const room = rooms.find(r => r.id === booking.roomId);
     const roomNum = booking.roomNumber || room?.number || 'N/A';
@@ -1258,6 +1333,9 @@ Islamia Guest House, Dhanmondi`;
       }
     }
 
+    // Always trigger instant SMS confirmation for every booking
+    triggerSmsConfirmation(newBooking);
+
     if (bookingData.status === 'checked-in') {
       triggerEmailDraft(newBooking);
     }
@@ -1337,6 +1415,9 @@ Islamia Guest House, Dhanmondi`;
       if (status === 'checked-in') {
         setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
         triggerEmailDraft({ ...targetBooking, status: 'checked-in' });
+        triggerSmsConfirmation({ ...targetBooking, status: 'checked-in' });
+      } else if (status === 'confirmed') {
+        triggerSmsConfirmation({ ...targetBooking, status: 'confirmed' });
       } else if (status === 'cancelled') {
         setRooms(prev => prev.map(r => r.id === targetBooking.roomId && r.status === 'occupied' ? { ...r, status: 'available' } : r));
       }
@@ -1519,6 +1600,8 @@ Islamia Guest House, Dhanmondi`;
       dismissToast,
       removeToast: dismissToast,
       triggerEmailDraft,
+      triggerSmsConfirmation,
+      getBookingSmsText,
       loginWithGoogle,
       localLogin,
       logout,

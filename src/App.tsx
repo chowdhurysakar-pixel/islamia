@@ -10,14 +10,16 @@ import { GuestView } from './components/GuestView';
 import { StaffView } from './components/StaffView';
 import { AdminPanel } from './components/AdminPanel';
 import { SecureGateway } from './components/SecureGateway';
-import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink } from 'lucide-react';
+import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink, Smartphone, MessageSquare, Copy, Check } from 'lucide-react';
 import { UserRole } from './types';
 
 const ToastNotification: React.FC = () => {
   const { activeToast, dismissToast } = useApp();
+  const [copied, setCopied] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
 
   React.useEffect(() => {
-    if (activeToast && activeToast.type !== 'email') {
+    if (activeToast && activeToast.type !== 'email' && activeToast.type !== 'sms') {
       const timer = setTimeout(() => {
         dismissToast();
       }, activeToast.duration || 5000);
@@ -25,22 +27,45 @@ const ToastNotification: React.FC = () => {
     }
   }, [activeToast, dismissToast]);
 
+  const handleCopySms = () => {
+    if (activeToast?.smsAction?.smsText) {
+      navigator.clipboard.writeText(activeToast.smsAction.smsText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
   if (!activeToast) return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-50 max-w-md w-full p-4 bg-slate-900 border border-slate-800 text-white rounded-2xl shadow-2xl flex flex-col gap-3 animate-scaleUp">
       <div className="flex items-start gap-3">
-        <div className="p-2.5 bg-teal-500/10 text-teal-400 rounded-xl shrink-0">
-          {activeToast.type === 'email' ? (
+        <div className={`p-2.5 rounded-xl shrink-0 ${
+          activeToast.type === 'sms' 
+            ? 'bg-emerald-500/20 text-emerald-400' 
+            : activeToast.type === 'email' 
+            ? 'bg-teal-500/10 text-teal-400' 
+            : 'bg-teal-500/10 text-teal-400'
+        }`}>
+          {activeToast.type === 'sms' ? (
+            <Smartphone className="w-5 h-5 text-emerald-400 animate-bounce" />
+          ) : activeToast.type === 'email' ? (
             <Mail className="w-5 h-5 text-teal-400" />
           ) : (
             <CheckCircle className="w-5 h-5 text-teal-400" />
           )}
         </div>
         <div className="flex-1 space-y-1">
-          <p className="text-[10px] font-bold font-mono text-slate-400 tracking-wider uppercase">
-            {activeToast.type === 'email' ? 'System Notification' : 'Success'}
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] font-bold font-mono text-slate-400 tracking-wider uppercase">
+              {activeToast.type === 'sms' ? '📱 Instant Mobile SMS' : activeToast.type === 'email' ? '📧 Email Notification' : 'Success'}
+            </p>
+            {activeToast.type === 'sms' && (
+              <span className="inline-flex items-center px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                Dispatched
+              </span>
+            )}
+          </div>
           <p className="text-xs text-slate-200 font-sans leading-relaxed">
             {activeToast.message}
           </p>
@@ -52,6 +77,55 @@ const ToastNotification: React.FC = () => {
           <X className="w-4 h-4" />
         </button>
       </div>
+
+      {activeToast.smsAction && (
+        <div className="space-y-2 pt-2 border-t border-slate-800">
+          <div className="flex flex-wrap items-center gap-2">
+            {activeToast.smsAction.smsUrl && (
+              <a
+                href={activeToast.smsAction.smsUrl}
+                className="flex-1 min-w-[120px] text-center py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-slate-950" />
+                <span>Open SMS Text</span>
+              </a>
+            )}
+            {activeToast.smsAction.whatsappUrl && (
+              <a
+                href={activeToast.smsAction.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2 px-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>WhatsApp</span>
+              </a>
+            )}
+            <button
+              onClick={handleCopySms}
+              className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition"
+              title="Copy SMS text to clipboard"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copied ? 'Copied!' : 'Copy'}</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowPreview(!showPreview)}
+            className="text-[10px] text-slate-400 hover:text-slate-200 underline block text-left"
+          >
+            {showPreview ? 'Hide SMS Text Preview ▲' : 'View Instant SMS Text Preview ▼'}
+          </button>
+
+          {showPreview && (
+            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 font-mono text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+              {activeToast.smsAction.smsText}
+            </div>
+          )}
+        </div>
+      )}
 
       {activeToast.emailAction && (
         <div className="flex items-center gap-2 pt-2 border-t border-slate-800">

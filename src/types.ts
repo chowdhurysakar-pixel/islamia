@@ -80,13 +80,21 @@ export interface UserProfile {
 
 export interface ToastInfo {
   message: string;
-  type: 'success' | 'info' | 'warning' | 'email';
+  type: 'success' | 'info' | 'warning' | 'email' | 'sms';
   duration?: number;
   emailAction?: {
     recipient: string;
     subject: string;
     body: string;
     mailtoUrl: string;
+  };
+  smsAction?: {
+    phoneNumber: string;
+    smsText: string;
+    smsUrl: string;
+    whatsappUrl: string;
+    bookingId?: string;
+    guestName?: string;
   };
 }
 
