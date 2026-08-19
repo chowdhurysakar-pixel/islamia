@@ -22,12 +22,10 @@ import {
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 const VALID_STAFF_PASSCODES = [
-  'ISLAMIA-STAFF-2026', 'STAFF789', 'ISLAMIA-DESK-55', 'ISLAMIA2026', '123456', 
-  'STAFF-SECRET', 'STAFF123', 'STAFF', 'ISLAMIA', 'ISLAMIAGUESTHOUSE@GMAIL.COM'
+  'ISLAMIA-STAFF-2026', 'STAFF789', 'ISLAMIA-DESK-55', 'STAFF2026'
 ];
 const VALID_ADMIN_PASSCODES = [
-  'ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026', 
-  'ADMIN', 'ISLAMIA', 'ADMIN123', 'ISLAMIA-GUESTHOUSE', 'ISLAMIAGUESTHOUSE@GMAIL.COM'
+  'ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', 'ADMIN-IGH-2026'
 ];
 
 export const SecureGateway: React.FC = () => {
@@ -107,7 +105,7 @@ export const SecureGateway: React.FC = () => {
       const isStaffKey = VALID_STAFF_PASSCODES.includes(cleanKey);
 
       if (!isAdminKey && !isStaffKey) {
-        setForgotError('Invalid Admin Master Key or Staff Passcode. Try ISLAMIA2026, ADMIN2026, or STAFF789.');
+        setForgotError('Invalid Admin Master Key or Staff Passcode. Try ADMIN2026 or STAFF789.');
         setForgotLoading(false);
         return;
       }
@@ -115,14 +113,19 @@ export const SecureGateway: React.FC = () => {
       const roleToUse: UserRole = isAdminKey ? 'admin' : 'staff';
       const defaultName = isAdminKey ? 'Islamia Admin Executive' : 'Front Desk Staff';
 
-      sessionStorage.setItem('admin_authorized', 'true');
+      if (roleToUse === 'admin') {
+        sessionStorage.setItem('admin_authorized', 'true');
+        setOpMode('admin');
+      } else {
+        sessionStorage.removeItem('admin_authorized');
+        setOpMode('receptionist');
+      }
       localLogin(roleToUse, emailToReset, defaultName);
-      if (roleToUse === 'admin') setOpMode('admin');
 
       setShowForgotPasswordModal(false);
       showToast({
         type: 'success',
-        message: `🔓 Account Unlocked via Master Key Verification! Welcome back (${emailToReset}).`
+        message: `🔓 Account Unlocked via ${isAdminKey ? 'Admin Master' : 'Staff'} Key Verification! Welcome back (${emailToReset}).`
       });
       setForgotLoading(false);
       return;
@@ -236,9 +239,14 @@ export const SecureGateway: React.FC = () => {
             
             await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
             
-            sessionStorage.setItem('admin_authorized', 'true');
+            if (role === 'admin') {
+              sessionStorage.setItem('admin_authorized', 'true');
+              setOpMode('admin');
+            } else {
+              sessionStorage.removeItem('admin_authorized');
+              setOpMode('receptionist');
+            }
             localLogin(role, emailLower, name);
-            if (role === 'admin') setOpMode('admin');
 
             showToast({
               type: 'success',
@@ -254,8 +262,8 @@ export const SecureGateway: React.FC = () => {
 
             if (docSnap.exists()) {
               const data = docSnap.data() as UserProfile;
-              loggedInName = data.name;
-              loggedInRole = data.role;
+              loggedInName = data.name || loggedInName;
+              loggedInRole = data.role || loggedInRole;
             } else {
               const newUser: UserProfile = {
                 uid: userCredential.user.uid,
@@ -267,9 +275,14 @@ export const SecureGateway: React.FC = () => {
               await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
             }
 
-            sessionStorage.setItem('admin_authorized', 'true');
+            if (loggedInRole === 'admin') {
+              sessionStorage.setItem('admin_authorized', 'true');
+              setOpMode('admin');
+            } else {
+              sessionStorage.removeItem('admin_authorized');
+              setOpMode('receptionist');
+            }
             localLogin(loggedInRole, emailLower, loggedInName);
-            if (loggedInRole === 'admin') setOpMode('admin');
 
             showToast({
               type: 'success',
@@ -288,13 +301,18 @@ export const SecureGateway: React.FC = () => {
           let loggedInName = name || (isAdmin ? 'Islamia Admin Executive' : 'Front Desk Staff');
           let loggedInRole: UserRole = role;
 
-          sessionStorage.setItem('admin_authorized', 'true');
+          if (loggedInRole === 'admin') {
+            sessionStorage.setItem('admin_authorized', 'true');
+            setOpMode('admin');
+          } else {
+            sessionStorage.removeItem('admin_authorized');
+            setOpMode('receptionist');
+          }
           localLogin(loggedInRole, emailLower, loggedInName);
-          if (loggedInRole === 'admin') setOpMode('admin');
 
           showToast({
             type: 'success',
-            message: `🔑 Master Key Passcode Verified! Logged in as ${loggedInName}.`
+            message: `🔑 ${loggedInRole === 'admin' ? 'Admin Master' : 'Staff'} Key Verified! Logged in as ${loggedInName}.`
           });
           setIsLoading(false);
           return;
@@ -304,7 +322,9 @@ export const SecureGateway: React.FC = () => {
         if (err.code === 'auth/email-already-in-use') {
           msg = 'This email is already registered. Try signing in instead!';
         } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-          msg = 'Incorrect password. Enter your Admin Master Key or Staff Passcode (e.g. ISLAMIA2026) to sign in immediately.';
+          msg = isAdmin 
+            ? 'Incorrect password. Enter your Admin Master Key (e.g. ADMIN2026) to sign in.' 
+            : 'Incorrect password. Enter your Staff Passcode (e.g. STAFF789) to sign in.';
         } else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
           msg = 'No user account found with this email. Please check your details or register first.';
         }
@@ -337,9 +357,14 @@ export const SecureGateway: React.FC = () => {
           usersList.push(newUser);
           localStorage.setItem('hotel_registered_users', JSON.stringify(usersList));
           
-          sessionStorage.setItem('admin_authorized', 'true');
+          if (role === 'admin') {
+            sessionStorage.setItem('admin_authorized', 'true');
+            setOpMode('admin');
+          } else {
+            sessionStorage.removeItem('admin_authorized');
+            setOpMode('receptionist');
+          }
           localLogin(role, emailLower, name);
-          if (role === 'admin') setOpMode('admin');
 
           showToast({
             type: 'success',
@@ -348,10 +373,16 @@ export const SecureGateway: React.FC = () => {
         } else {
           const found = usersList.find(u => u.email === emailLower);
           const resolvedName = found ? found.name : (isAdmin ? 'Admin Administrator' : 'Front Desk Specialist');
+          const resolvedRole: UserRole = found ? found.role : role;
           
-          sessionStorage.setItem('admin_authorized', 'true');
-          localLogin(role, emailLower, resolvedName);
-          if (role === 'admin') setOpMode('admin');
+          if (resolvedRole === 'admin') {
+            sessionStorage.setItem('admin_authorized', 'true');
+            setOpMode('admin');
+          } else {
+            sessionStorage.removeItem('admin_authorized');
+            setOpMode('receptionist');
+          }
+          localLogin(resolvedRole, emailLower, resolvedName);
 
           showToast({
             type: 'success',

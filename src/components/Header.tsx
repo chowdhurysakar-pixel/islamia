@@ -7,7 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Shield, User, Clock, ShieldCheck, Lock, X, Key, AlertCircle } from 'lucide-react';
 
-const VALID_ADMIN_PASSCODES = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026', 'STAFF789'];
+const VALID_ADMIN_PASSCODES = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', 'ADMIN-IGH-2026'];
 
 export const Header: React.FC = () => {
   const { currentRole, toggleRole, currentUser, opMode, setOpMode, showToast, activeGuestsCount } = useApp();
@@ -32,7 +32,7 @@ export const Header: React.FC = () => {
     const isAlreadyAdminUser = currentUser?.role === 'admin';
     const isSessionUnlocked = sessionStorage.getItem('admin_authorized') === 'true';
 
-    if (isAlreadyAdminUser || isSessionUnlocked) {
+    if (isAlreadyAdminUser || (isSessionUnlocked && currentUser?.role !== 'staff')) {
       if (currentRole === 'guest') toggleRole();
       setOpMode('admin');
     } else {
@@ -57,7 +57,7 @@ export const Header: React.FC = () => {
         message: '🔓 Admin Control Center unlocked successfully.'
       });
     } else {
-      setAdminPasscodeError('Access Denied: Invalid Admin Passcode. Guest, regular Staff, and HR accounts cannot access Admin controls without authorization.');
+      setAdminPasscodeError('Access Denied: Invalid Admin Passcode. Front Desk Staff cannot visit or access the Admin Panel without Executive authorization.');
     }
   };
 

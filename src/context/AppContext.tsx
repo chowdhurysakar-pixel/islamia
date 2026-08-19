@@ -128,9 +128,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentRole, setCurrentRole] = useState<UserRole>(() => {
     try {
       const saved = localStorage.getItem('hotel_current_role') as UserRole;
-      return saved && ['admin', 'staff', 'guest'].includes(saved) ? saved : 'staff';
+      return saved && ['admin', 'staff', 'guest'].includes(saved) ? saved : 'guest';
     } catch (e) {
-      return 'staff';
+      return 'guest';
     }
   });
   const [opMode, setOpModeState] = useState<'receptionist' | 'hr' | 'admin' | 'guest'>(() => {
@@ -214,6 +214,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               const uData = userSnap.data() as UserProfile;
               setCurrentUser(uData);
               setCurrentRole(uData.role);
+              if (uData.role === 'admin') {
+                sessionStorage.setItem('admin_authorized', 'true');
+                setOpMode('admin');
+              } else {
+                sessionStorage.removeItem('admin_authorized');
+                setOpMode('receptionist');
+              }
               try {
                 localStorage.setItem('hotel_current_user', JSON.stringify(uData));
                 localStorage.setItem('hotel_current_role', uData.role);
@@ -225,16 +232,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.warn("User profile fetch warning:", e);
           }
 
-          let chosenRole: UserRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || (localStorage.getItem('pending_google_role') as UserRole) || (localStorage.getItem('hotel_current_role') as UserRole) || 'guest';
+          let chosenRole: UserRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || (localStorage.getItem('pending_google_role') as UserRole) || 'guest';
           if (!['admin', 'staff', 'guest'].includes(chosenRole)) {
-            chosenRole = (emailLower.includes('admin') || emailLower.includes('hr')) ? 'admin'
-                       : (emailLower.includes('staff') || emailLower.includes('reception')) ? 'staff'
-                       : 'guest';
+            chosenRole = 'guest';
           }
           localStorage.removeItem('pending_google_role');
           localStorage.removeItem(`pending_role_${emailLower}`);
 
-          const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || fbUser.displayName || (chosenRole === 'admin' ? 'HR Manager' : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User');
+          const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || fbUser.displayName || (chosenRole === 'admin' ? 'Admin Executive' : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User');
           localStorage.removeItem(`pending_name_${emailLower}`);
 
           const profile: UserProfile = {
@@ -245,6 +250,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
           setCurrentUser(profile);
           setCurrentRole(chosenRole);
+          if (chosenRole === 'admin') {
+            sessionStorage.setItem('admin_authorized', 'true');
+            setOpMode('admin');
+          } else {
+            sessionStorage.removeItem('admin_authorized');
+            setOpMode('receptionist');
+          }
           try {
             localStorage.setItem('hotel_current_user', JSON.stringify(profile));
             localStorage.setItem('hotel_current_role', chosenRole);
@@ -1041,27 +1053,10 @@ Islamia Guest House Dhanmondi System`;
   const toggleRole = () => {
     const nextRole: UserRole = currentRole === 'staff' ? 'guest' : 'staff';
     setCurrentRole(nextRole);
-    if (!isFirebaseActive) {
-      localStorage.setItem('hotel_current_role', nextRole);
-      if (nextRole === 'staff') {
-        const staffProfile: UserProfile = {
-          uid: 'local-staff-1',
-          email: 'reception@luxuryhotel.com',
-          name: 'Reception Desk',
-          role: 'staff'
-        };
-        setCurrentUser(staffProfile);
-        localStorage.setItem('hotel_current_user', JSON.stringify(staffProfile));
-      } else {
-        const guestProfile: UserProfile = {
-          uid: 'local-guest-1',
-          email: 'guest@leisure.com',
-          name: 'Simulated Guest',
-          role: 'guest'
-        };
-        setCurrentUser(guestProfile);
-        localStorage.setItem('hotel_current_user', JSON.stringify(guestProfile));
-      }
+    localStorage.setItem('hotel_current_role', nextRole);
+    if (nextRole === 'guest') {
+      sessionStorage.removeItem('admin_authorized');
+      setOpMode('receptionist');
     }
   };
 

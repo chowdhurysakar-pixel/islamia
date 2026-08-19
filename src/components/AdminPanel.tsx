@@ -629,7 +629,9 @@ export const AdminPanel: React.FC = () => {
 
   const { currentUser } = useApp();
   const [panelUnlocked, setPanelUnlocked] = useState<boolean>(() => {
-    return currentUser?.role === 'admin' || sessionStorage.getItem('admin_authorized') === 'true';
+    if (currentUser?.role === 'admin') return true;
+    if (currentUser?.role === 'staff') return false;
+    return sessionStorage.getItem('admin_authorized') === 'true';
   });
   const [gatePasscode, setGatePasscode] = useState<string>('');
   const [gateError, setGateError] = useState<string>('');
@@ -638,7 +640,7 @@ export const AdminPanel: React.FC = () => {
     e.preventDefault();
     setGateError('');
     const clean = gatePasscode.trim().toUpperCase();
-    const validCodes = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', '123456', 'ISLAMIA2026', masterPasscode];
+    const validCodes = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', 'ADMIN-IGH-2026', masterPasscode].filter(Boolean);
 
     if (validCodes.includes(clean)) {
       sessionStorage.setItem('admin_authorized', 'true');
@@ -648,16 +650,17 @@ export const AdminPanel: React.FC = () => {
         message: '🔓 Executive Admin Panel unlocked.'
       });
     } else {
-      setGateError('Access Denied: Invalid Admin Passcode. Guests, regular Staff, and HR users cannot view Admin controls without authorization.');
+      setGateError('Access Denied: Invalid Admin Master Passcode. Staff and non-admin users cannot view Admin controls without Executive authorization.');
     }
   };
 
   const handleLockPanel = () => {
     sessionStorage.removeItem('admin_authorized');
     setPanelUnlocked(false);
+    setOpMode('receptionist');
     showToast({
       type: 'info',
-      message: '🔒 Admin Panel locked.'
+      message: '🔒 Admin Panel locked. Returned to Front Desk.'
     });
   };
 

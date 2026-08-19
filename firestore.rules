@@ -35,6 +35,11 @@ service cloud.firestore {
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin");
     }
 
+    function isAdmin() {
+      return isSignedIn() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
     // --- Connection Test Collection ---
     match /test/{testId} {
       allow read: if true;
@@ -116,9 +121,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && userId == request.auth.uid &&
         incoming().uid == userId &&
         incoming().email == request.auth.token.email &&
-        incoming().role in ["guest", "staff", "admin"] &&
-        // Prevent unauthorized self-escalation to staff/admin role during normal guest onboarding
-        (incoming().role == "guest" || isStaff());
+        incoming().role in ["guest", "staff", "admin"];
 
       allow update: if isSignedIn() && userId == request.auth.uid && (
         // Only allow updating name, unless staff/admin updates other users or self
