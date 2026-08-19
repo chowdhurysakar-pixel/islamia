@@ -124,12 +124,12 @@ service cloud.firestore {
         incoming().role in ["guest", "staff", "admin"];
 
       allow update: if isSignedIn() && userId == request.auth.uid && (
-        // Only allow updating name, unless staff/admin updates other users or self
+        // Only allow updating name, phone, or emailVerified, unless staff/admin updates other users or self
         isStaff() || (
           incoming().role == existing().role &&
           incoming().uid == existing().uid &&
           incoming().email == existing().email &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['name'])
+          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'emailVerified'])
         )
       );
 

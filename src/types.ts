@@ -76,6 +76,8 @@ export interface UserProfile {
   phone?: string;
   staffSecretKey?: string;
   hrApproved?: boolean;
+  emailVerified?: boolean;
+  registeredAt?: string;
 }
 
 export interface ToastInfo {

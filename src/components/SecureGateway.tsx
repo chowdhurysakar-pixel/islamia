@@ -3,20 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserRole, UserProfile } from '../types';
 import { 
   Mail, Key, User, Users, Hotel, 
   ArrowRight, Loader2, CheckCircle2, 
   AlertCircle, ShieldCheck, Phone, KeyRound,
-  Eye, EyeOff, X
+  Eye, EyeOff, X, RefreshCw, Sparkles, Inbox, Lock, ArrowLeft
 } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
-  sendPasswordResetEmail,
+  sendEmailVerification,
+  signOut,
   updateProfile 
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -28,8 +29,23 @@ const VALID_ADMIN_PASSCODES = [
   'ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', 'ADMIN-IGH-2026'
 ];
 
+// Allowed corporate email domains for Staff & Admin registration
+const ALLOWED_STAFF_DOMAINS = [
+  'islamiaguesthouse.com',
+  'islamiahotel.com',
+  'gmail.com',
+  'googlemail.com'
+];
+
+const isAllowedEmailDomain = (email: string): boolean => {
+  const parts = email.trim().toLowerCase().split('@');
+  if (parts.length !== 2) return false;
+  const domain = parts[1];
+  return ALLOWED_STAFF_DOMAINS.includes(domain);
+};
+
 export const SecureGateway: React.FC = () => {
-  const { isFirebaseActive, localLogin, showToast, setOpMode, sendPasswordResetLink } = useApp();
+  const { isFirebaseActive, localLogin, showToast, setOpMode, sendPasswordResetLink, sendOtp, verifyOtp } = useApp();
   
   // Role tabs: 'staff' | 'admin'
   const [activeRoleTab, setActiveRoleTab] = useState<'staff' | 'admin'>('staff');
@@ -51,6 +67,19 @@ export const SecureGateway: React.FC = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminMasterKey, setAdminMasterKey] = useState('');
 
+  // Email Verification Screen & Resend State
+  const [showVerificationScreen, setShowVerificationScreen] = useState(false);
+  const [pendingVerifyEmail, setPendingVerifyEmail] = useState('');
+  const [pendingVerifyPassword, setPendingVerifyPassword] = useState('');
+  const [pendingVerifyRole, setPendingVerifyRole] = useState<UserRole>('staff');
+  const [pendingVerifyName, setPendingVerifyName] = useState('');
+  const [otpCodeInput, setOtpCodeInput] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [isResendingEmail, setIsResendingEmail] = useState(false);
+  const [unverifiedNoticeEmail, setUnverifiedNoticeEmail] = useState<string | null>(null);
+
   // Forgot Password / Reset Account Modal States
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetMethod, setResetMethod] = useState<'master_key' | 'email'>('master_key');
@@ -66,6 +95,17 @@ export const SecureGateway: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Resend cooldown timer effect
+  useEffect(() => {
+    let timer: any;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown(prev => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
   // Clear notices and states when switching tabs
   const handleTabChange = (role: 'staff' | 'admin') => {
     setActiveRoleTab(role);
@@ -73,6 +113,7 @@ export const SecureGateway: React.FC = () => {
     setSuccess('');
     setAuthMode('signin');
     setShowPassword(false);
+    setUnverifiedNoticeEmail(null);
   };
 
   // Open Forgot Password Dialog
@@ -83,6 +124,158 @@ export const SecureGateway: React.FC = () => {
     setForgotStatus('');
     setForgotError('');
     setShowForgotPasswordModal(true);
+  };
+
+  // Handle Resending Verification Email
+  const handleResendVerificationEmail = async (targetEmail?: string, targetPassword?: string) => {
+    const emailToSend = (targetEmail || pendingVerifyEmail || (activeRoleTab === 'admin' ? adminEmail : staffEmail)).trim().toLowerCase();
+    const pwd = targetPassword || pendingVerifyPassword || (activeRoleTab === 'admin' ? adminPassword : staffPassword);
+    
+    if (!emailToSend) {
+      showToast({ type: 'error', message: 'No email address found to resend verification link.' });
+      return;
+    }
+
+    if (resendCooldown > 0) {
+      showToast({ type: 'info', message: `Please wait ${resendCooldown}s before requesting another verification email.` });
+      return;
+    }
+
+    setIsResendingEmail(true);
+    setError('');
+
+    try {
+      if (isFirebaseActive && auth) {
+        if (pwd) {
+          // Temporarily sign in to get the User object, dispatch email, then sign out immediately
+          const userCred = await signInWithEmailAndPassword(auth, emailToSend, pwd);
+          if (userCred.user) {
+            await sendEmailVerification(userCred.user);
+            await signOut(auth);
+          }
+        } else if (auth.currentUser && auth.currentUser.email === emailToSend) {
+          await sendEmailVerification(auth.currentUser);
+          await signOut(auth);
+        } else {
+          // Trigger OTP backup email
+          await sendOtp(emailToSend, pendingVerifyName || 'Staff Member', pendingVerifyRole, false);
+        }
+      } else {
+        // Local sandbox fallback
+        await sendOtp(emailToSend, pendingVerifyName || 'Staff Member', pendingVerifyRole, false);
+      }
+
+      setResendCooldown(60);
+      showToast({
+        type: 'success',
+        message: `✉️ Verification link re-sent to ${emailToSend}! Please check your Inbox and Spam folder.`
+      });
+    } catch (err: any) {
+      console.warn("Resend email verification notice:", err);
+      // Fallback: send simulated OTP
+      await sendOtp(emailToSend, pendingVerifyName || 'Staff Member', pendingVerifyRole, false);
+      setResendCooldown(60);
+      showToast({
+        type: 'info',
+        message: `✉️ Verification code re-sent to ${emailToSend}.`
+      });
+    } finally {
+      setIsResendingEmail(false);
+    }
+  };
+
+  // Verify OTP alternative on verification screen
+  const handleVerifyOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOtpError('');
+    if (!otpCodeInput.trim()) {
+      setOtpError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setOtpLoading(true);
+    try {
+      const res = await verifyOtp(pendingVerifyEmail, otpCodeInput.trim(), true, pendingVerifyName, pendingVerifyRole);
+      if (res.success) {
+        setShowVerificationScreen(false);
+        showToast({
+          type: 'success',
+          message: `🎉 Email verified successfully! You can now log in with your credentials.`
+        });
+        setAuthMode('signin');
+        if (pendingVerifyRole === 'admin') {
+          setActiveRoleTab('admin');
+          setAdminEmail(pendingVerifyEmail);
+        } else {
+          setActiveRoleTab('staff');
+          setStaffEmail(pendingVerifyEmail);
+        }
+      } else {
+        setOtpError(res.error || 'Invalid or expired verification code. Please check and try again.');
+      }
+    } catch (err: any) {
+      setOtpError(err?.message || 'Verification failed. Please try again.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  // Check if user has clicked link and is verified
+  const handleCheckEmailVerified = async () => {
+    setIsLoading(true);
+    setError('');
+    const emailLower = pendingVerifyEmail.toLowerCase();
+    const pwd = pendingVerifyPassword;
+
+    try {
+      if (isFirebaseActive && auth && pwd) {
+        const userCred = await signInWithEmailAndPassword(auth, emailLower, pwd);
+        await userCred.user.reload();
+        
+        if (userCred.user.emailVerified) {
+          // Success! User is verified
+          const docSnap = await getDoc(doc(db, 'users', userCred.user.uid));
+          let loggedInName = userCred.user.displayName || pendingVerifyName || 'Team Member';
+          let loggedInRole: UserRole = pendingVerifyRole;
+
+          if (docSnap.exists()) {
+            const data = docSnap.data() as UserProfile;
+            loggedInName = data.name || loggedInName;
+            loggedInRole = data.role || loggedInRole;
+          }
+
+          if (loggedInRole === 'admin') {
+            sessionStorage.setItem('admin_authorized', 'true');
+            setOpMode('admin');
+          } else {
+            sessionStorage.removeItem('admin_authorized');
+            setOpMode('receptionist');
+          }
+          localLogin(loggedInRole, emailLower, loggedInName);
+          setShowVerificationScreen(false);
+          showToast({
+            type: 'success',
+            message: `🎉 Email confirmed! Welcome to Islamia Guest House, ${loggedInName}.`
+          });
+          return;
+        } else {
+          await signOut(auth);
+          setError('Email is not verified yet. Please check your email inbox and click the verification link, then click this button again.');
+        }
+      } else {
+        // Sandbox fallback
+        setShowVerificationScreen(false);
+        setAuthMode('signin');
+        showToast({
+          type: 'info',
+          message: 'Please sign in with your credentials to verify.'
+        });
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Could not confirm email verification yet. Please ensure you clicked the link in your email.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Submit Password Reset Request
@@ -151,6 +344,7 @@ export const SecureGateway: React.FC = () => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setUnverifiedNoticeEmail(null);
 
     const isAdmin = activeRoleTab === 'admin';
     const email = isAdmin ? adminEmail.trim() : staffEmail.trim();
@@ -164,11 +358,11 @@ export const SecureGateway: React.FC = () => {
       return;
     }
     if (!email) {
-      setError('Please enter your email address.');
+      setError('Please enter your corporate email address.');
       return;
     }
     if (authMode === 'signup' && !phone) {
-      setError('Please enter your phone number.');
+      setError('Please enter your contact phone number.');
       return;
     }
     if (!password || password.length < 6) {
@@ -178,13 +372,21 @@ export const SecureGateway: React.FC = () => {
 
     const emailLower = email.toLowerCase();
 
-    // Security Verification:
+    // 1. Restricted Domain Check on Registration
+    if (authMode === 'signup') {
+      if (!isAllowedEmailDomain(emailLower)) {
+        setError('Registration Restricted: Staff and Admin accounts must use an official corporate email (@islamiaguesthouse.com) or a valid Google/Gmail account (@gmail.com).');
+        return;
+      }
+    }
+
+    // 2. Security Passcode Verification:
     if (isAdmin) {
       const cleanAdminKey = adminMasterKey.trim().toUpperCase();
       const isKeyValid = VALID_ADMIN_PASSCODES.includes(cleanAdminKey);
 
       if (authMode === 'signup' && !isKeyValid) {
-        setError('Access Denied: Creating an Admin account requires a valid Admin Master Key.');
+        setError('Access Denied: Creating an Admin account requires a valid Admin Master Key (e.g. ADMIN2026).');
         return;
       }
 
@@ -203,7 +405,7 @@ export const SecureGateway: React.FC = () => {
       const isSecretValid = VALID_STAFF_PASSCODES.includes(cleanSecretPasscode);
       
       if (authMode === 'signup' && !isSecretValid) {
-        setError('Access Denied: Staff registration requires a valid Staff Secret Passcode.');
+        setError('Access Denied: Staff registration requires a valid Staff Secret Passcode (e.g. STAFF789).');
         return;
       }
 
@@ -224,38 +426,81 @@ export const SecureGateway: React.FC = () => {
     if (isFirebaseActive && auth && db) {
       try {
         if (authMode === 'signup') {
+          // --- SIGN UP FLOW: CREATE ACCOUNT & DISPATCH EMAIL VERIFICATION ---
           const userCredential = await createUserWithEmailAndPassword(auth, emailLower, password);
+          
           if (userCredential.user) {
             await updateProfile(userCredential.user, { displayName: name });
             
+            // Send verification email link via Firebase Auth
+            await sendEmailVerification(userCredential.user);
+
             const newUser: UserProfile = {
               uid: userCredential.user.uid,
               email: emailLower,
               name: name,
               role: role,
               phone: phone,
-              hrApproved: true
+              emailVerified: false,
+              hrApproved: true,
+              registeredAt: new Date().toISOString()
             };
             
             await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
-            
-            if (role === 'admin') {
-              sessionStorage.setItem('admin_authorized', 'true');
-              setOpMode('admin');
-            } else {
-              sessionStorage.removeItem('admin_authorized');
-              setOpMode('receptionist');
-            }
-            localLogin(role, emailLower, name);
+
+            // CRITICAL: DO NOT automatically log in unverified user! Sign out immediately!
+            await signOut(auth);
+            sessionStorage.removeItem('admin_authorized');
+
+            // Dispatch secondary OTP code as fallback
+            await sendOtp(emailLower, name, role, true);
+
+            // Transition to dedicated Email Verification Notification Screen
+            setPendingVerifyEmail(emailLower);
+            setPendingVerifyPassword(password);
+            setPendingVerifyRole(role);
+            setPendingVerifyName(name);
+            setResendCooldown(60);
+            setShowVerificationScreen(true);
 
             showToast({
-              type: 'success',
-              message: `🔑 ${role === 'admin' ? 'Admin' : 'Staff'} account created successfully! Logged in as ${name}.`
+              type: 'info',
+              message: `✉️ Verification link sent to ${emailLower}! Please check your email inbox and click the verification link before logging in.`,
+              duration: 12000
             });
           }
         } else {
+          // --- SIGN IN FLOW: STRICT EMAIL VERIFICATION ENFORCEMENT ---
           const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
+          
           if (userCredential.user) {
+            // Reload user state to fetch latest emailVerified token
+            await userCredential.user.reload();
+
+            // STRICT PROTECTION: If email is NOT verified, block sign-in immediately!
+            if (!userCredential.user.emailVerified) {
+              // Sign out immediately
+              await signOut(auth);
+              sessionStorage.removeItem('admin_authorized');
+              
+              setUnverifiedNoticeEmail(emailLower);
+              setPendingVerifyEmail(emailLower);
+              setPendingVerifyPassword(password);
+              setPendingVerifyRole(role);
+              setPendingVerifyName(userCredential.user.displayName || name || 'Team Member');
+
+              setError(`⚠️ Email Verification Required: Your email address (${emailLower}) has not been verified yet. Please check your inbox and verify your email before logging in.`);
+              
+              showToast({
+                type: 'warning',
+                message: `⚠️ Access Blocked: Please verify your email (${emailLower}) before logging in.`,
+                duration: 10000
+              });
+              setIsLoading(false);
+              return;
+            }
+
+            // User is verified! Fetch or update profile
             const docSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
             let loggedInName = userCredential.user.displayName || (isAdmin ? 'Admin Executive' : 'Front Desk Staff');
             let loggedInRole: UserRole = role;
@@ -270,6 +515,7 @@ export const SecureGateway: React.FC = () => {
                 email: emailLower,
                 name: loggedInName,
                 role: loggedInRole,
+                emailVerified: true,
                 hrApproved: true
               };
               await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
@@ -291,49 +537,26 @@ export const SecureGateway: React.FC = () => {
           }
         }
       } catch (err: any) {
-        // Master Key Override Check on Sign In Failure
-        const cleanKey = (isAdmin ? adminMasterKey : staffSecretPasscode).trim().toUpperCase();
-        const isMasterKeyValid = isAdmin
-          ? VALID_ADMIN_PASSCODES.includes(cleanKey)
-          : VALID_STAFF_PASSCODES.includes(cleanKey);
-
-        if (authMode === 'signin' && isMasterKeyValid) {
-          let loggedInName = name || (isAdmin ? 'Islamia Admin Executive' : 'Front Desk Staff');
-          let loggedInRole: UserRole = role;
-
-          if (loggedInRole === 'admin') {
-            sessionStorage.setItem('admin_authorized', 'true');
-            setOpMode('admin');
-          } else {
-            sessionStorage.removeItem('admin_authorized');
-            setOpMode('receptionist');
-          }
-          localLogin(loggedInRole, emailLower, loggedInName);
-
-          showToast({
-            type: 'success',
-            message: `🔑 ${loggedInRole === 'admin' ? 'Admin Master' : 'Staff'} Key Verified! Logged in as ${loggedInName}.`
-          });
-          setIsLoading(false);
-          return;
-        }
-
+        console.error("Auth error:", err);
         let msg = err.message || 'Authentication failed.';
+        
         if (err.code === 'auth/email-already-in-use') {
           msg = 'This email is already registered. Try signing in instead!';
         } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
           msg = isAdmin 
-            ? 'Incorrect password. Enter your Admin Master Key (e.g. ADMIN2026) to sign in.' 
-            : 'Incorrect password. Enter your Staff Passcode (e.g. STAFF789) to sign in.';
+            ? 'Incorrect email or password. Please verify your credentials.' 
+            : 'Incorrect email or password. Please verify your credentials.';
         } else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
-          msg = 'No user account found with this email. Please check your details or register first.';
+          msg = 'No account found with this email. Please register your profile first.';
+        } else if (err.code === 'auth/too-many-requests') {
+          msg = 'Too many failed login attempts. Please wait a moment and try again.';
         }
         setError(msg);
       } finally {
         setIsLoading(false);
       }
     } else {
-      // Local Sandbox Mode
+      // Local Sandbox Fallback Mode (Offline)
       try {
         const storedUsers = localStorage.getItem('hotel_registered_users');
         const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
@@ -351,25 +574,19 @@ export const SecureGateway: React.FC = () => {
             email: emailLower,
             name: name,
             role: role,
+            emailVerified: true,
             hrApproved: true
           };
 
           usersList.push(newUser);
           localStorage.setItem('hotel_registered_users', JSON.stringify(usersList));
           
-          if (role === 'admin') {
-            sessionStorage.setItem('admin_authorized', 'true');
-            setOpMode('admin');
-          } else {
-            sessionStorage.removeItem('admin_authorized');
-            setOpMode('receptionist');
-          }
-          localLogin(role, emailLower, name);
+          setPendingVerifyEmail(emailLower);
+          setPendingVerifyRole(role);
+          setPendingVerifyName(name);
+          setShowVerificationScreen(true);
 
-          showToast({
-            type: 'success',
-            message: `🔑 ${role === 'admin' ? 'Admin' : 'Staff'} account created! Welcome, ${name}.`
-          });
+          await sendOtp(emailLower, name, role, true);
         } else {
           const found = usersList.find(u => u.email === emailLower);
           const resolvedName = found ? found.name : (isAdmin ? 'Admin Administrator' : 'Front Desk Specialist');
@@ -396,6 +613,133 @@ export const SecureGateway: React.FC = () => {
       }
     }
   };
+
+  // --- DEDICATED EMAIL VERIFICATION NOTIFICATION SCREEN ---
+  if (showVerificationScreen) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans animate-fadeIn">
+        <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-teal-50/80 via-slate-50/50 to-slate-50 pointer-events-none" />
+        
+        <div className="relative z-10 bg-white border border-slate-200/90 rounded-3xl w-full max-w-lg shadow-2xl p-8 sm:p-10 text-center space-y-6">
+          
+          {/* Animated Email Icon Badge */}
+          <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+            <div className="absolute inset-0 bg-teal-500/10 rounded-full animate-ping pointer-events-none" />
+            <div className="w-20 h-20 bg-teal-50 border border-teal-200 rounded-full flex items-center justify-center text-teal-600 shadow-sm relative z-10">
+              <Mail className="w-10 h-10" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200/80 rounded-full text-xs font-bold font-mono">
+              <Lock className="w-3.5 h-3.5" />
+              <span>Email Verification Required</span>
+            </span>
+            <h2 className="text-2xl font-serif font-black text-slate-900">
+              Check Your Email Inbox
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-sm mx-auto">
+              We sent a secure verification link to activate your account to:
+            </p>
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl inline-block text-xs font-mono font-bold text-teal-800">
+              {pendingVerifyEmail}
+            </div>
+          </div>
+
+          {error && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-start gap-2 text-left">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Verification Instructions */}
+          <div className="p-4 bg-slate-50/80 border border-slate-200/80 rounded-2xl text-left text-xs text-slate-600 space-y-2">
+            <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+              <Inbox className="w-4 h-4 text-teal-600" />
+              <span>Instructions:</span>
+            </p>
+            <ol className="list-decimal pl-4 space-y-1 text-slate-600">
+              <li>Open your email provider (check <strong>Inbox</strong> & <strong>Spam/Junk</strong>).</li>
+              <li>Click the verification link from <strong>Google Firebase / Islamia Guest House</strong>.</li>
+              <li>Return to this page and click <strong>"I Have Verified My Email"</strong>.</li>
+            </ol>
+          </div>
+
+          {/* Main Action Buttons */}
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={handleCheckEmailVerified}
+              disabled={isLoading}
+              className="w-full py-3.5 px-4 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+            >
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              <span>I Have Verified My Email — Complete Sign In</span>
+            </button>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleResendVerificationEmail(pendingVerifyEmail, pendingVerifyPassword)}
+                disabled={isResendingEmail || resendCooldown > 0}
+                className="flex-1 py-2.5 px-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isResendingEmail ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5 text-teal-600" />
+                )}
+                <span>
+                  {resendCooldown > 0 ? `Resend Email (${resendCooldown}s)` : 'Resend Verification Email'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowVerificationScreen(false);
+                  setAuthMode('signin');
+                  setError('');
+                }}
+                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          </div>
+
+          {/* OTP Code Alternative Option */}
+          <div className="pt-4 border-t border-slate-100 space-y-3">
+            <p className="text-[11px] text-slate-400">
+              Or enter the 6-digit verification code sent to your inbox:
+            </p>
+            {otpError && (
+              <p className="text-[11px] text-rose-600 font-medium">{otpError}</p>
+            )}
+            <form onSubmit={handleVerifyOtpSubmit} className="flex gap-2 max-w-xs mx-auto">
+              <input
+                type="text"
+                maxLength={6}
+                value={otpCodeInput}
+                onChange={(e) => setOtpCodeInput(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="6-Digit OTP"
+                className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 rounded-xl text-xs font-mono font-bold tracking-widest text-center focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={otpLoading || otpCodeInput.length < 6}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition disabled:opacity-50 cursor-pointer"
+              >
+                {otpLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Verify Code'}
+              </button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans">
@@ -456,8 +800,50 @@ export const SecureGateway: React.FC = () => {
         {/* Modal Content */}
         <div className="p-6 md:p-8 space-y-5 bg-white">
           
-          {/* Error and Success Notices */}
-          {error && (
+          {/* Unverified Email Warning Banner with Instant Resend Button */}
+          {unverifiedNoticeEmail && (
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-3 animate-fadeIn">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1 flex-1">
+                  <p className="font-bold text-amber-900">Email Verification Required</p>
+                  <p className="text-amber-800 leading-relaxed">
+                    You cannot sign in until your email address (<span className="font-mono font-bold">{unverifiedNoticeEmail}</span>) has been verified.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1 pl-7">
+                <button
+                  type="button"
+                  onClick={() => handleResendVerificationEmail(unverifiedNoticeEmail)}
+                  disabled={isResendingEmail || resendCooldown > 0}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {isResendingEmail ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-3.5 h-3.5" />
+                  )}
+                  <span>
+                    {resendCooldown > 0 ? `Resend Verification Email (${resendCooldown}s)` : 'Resend Verification Email'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingVerifyEmail(unverifiedNoticeEmail);
+                    setShowVerificationScreen(true);
+                  }}
+                  className="px-3.5 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 rounded-xl text-xs font-semibold transition cursor-pointer"
+                >
+                  Enter Verification Code
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Standard Error Notice */}
+          {error && !unverifiedNoticeEmail && (
             <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 flex items-start gap-3">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
               <div className="leading-relaxed font-medium flex-1 space-y-2">
@@ -504,7 +890,7 @@ export const SecureGateway: React.FC = () => {
             </h3>
             <p className="text-xs text-slate-500">
               {activeRoleTab === 'admin'
-                ? 'Enter your credentials and Admin Master Key to access executive controls.'
+                ? 'Enter your verified corporate credentials and Admin Master Key to access executive controls.'
                 : 'Access Front Desk room allocation, booking checkout, and bill printing.'}
             </p>
 
@@ -512,7 +898,11 @@ export const SecureGateway: React.FC = () => {
             <div className="inline-flex p-1 bg-slate-100 rounded-xl mt-3 text-xs font-bold">
               <button
                 type="button"
-                onClick={() => setAuthMode('signin')}
+                onClick={() => {
+                  setAuthMode('signin');
+                  setError('');
+                  setUnverifiedNoticeEmail(null);
+                }}
                 className={`px-8 py-1.5 rounded-lg transition ${
                   authMode === 'signin' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
                 }`}
@@ -521,7 +911,11 @@ export const SecureGateway: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setAuthMode('signup')}
+                onClick={() => {
+                  setAuthMode('signup');
+                  setError('');
+                  setUnverifiedNoticeEmail(null);
+                }}
                 className={`px-8 py-1.5 rounded-lg transition ${
                   authMode === 'signup' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
                 }`}
@@ -551,9 +945,16 @@ export const SecureGateway: React.FC = () => {
               </div>
             )}
 
-            {/* Email Address */}
+            {/* Email Address with Domain Recommendation */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-700">Corporate Email *</label>
+              <div className="flex justify-between items-center">
+                <label className="block text-xs font-semibold text-slate-700">Corporate Email *</label>
+                {authMode === 'signup' && (
+                  <span className="text-[10px] text-teal-600 font-medium">
+                    @islamiaguesthouse.com or @gmail.com
+                  </span>
+                )}
+              </div>
               <div className="relative">
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
@@ -570,7 +971,7 @@ export const SecureGateway: React.FC = () => {
             {/* Phone Number (Registration only) */}
             {authMode === 'signup' && (
               <div className="space-y-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Phone Number *</label>
+                <label className="block text-xs font-semibold text-slate-700">Contact Phone Number *</label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                   <input
@@ -612,7 +1013,7 @@ export const SecureGateway: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -621,9 +1022,14 @@ export const SecureGateway: React.FC = () => {
 
             {/* Passcode / Master Key */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-semibold text-slate-700">
-                {activeRoleTab === 'admin' ? 'Admin Master Key *' : 'Staff Passcode Key *'}
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="block text-xs font-semibold text-slate-700">
+                  {activeRoleTab === 'admin' ? 'Admin Master Key *' : 'Staff Passcode Key *'}
+                </label>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {activeRoleTab === 'admin' ? 'E.G. ADMIN2026' : 'E.G. STAFF789'}
+                </span>
+              </div>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
@@ -631,7 +1037,7 @@ export const SecureGateway: React.FC = () => {
                   required
                   value={activeRoleTab === 'admin' ? adminMasterKey : staffSecretPasscode}
                   onChange={(e) => activeRoleTab === 'admin' ? setAdminMasterKey(e.target.value) : setStaffSecretPasscode(e.target.value)}
-                  placeholder={activeRoleTab === 'admin' ? 'E.G. ADMIN2026' : 'E.G. STAFF123'}
+                  placeholder={activeRoleTab === 'admin' ? 'E.G. ADMIN2026' : 'E.G. STAFF789'}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none uppercase font-mono"
                 />
               </div>
@@ -641,13 +1047,13 @@ export const SecureGateway: React.FC = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer mt-2"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs transition shadow-md cursor-pointer mt-2 active:scale-[0.99] disabled:opacity-60"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <span>{authMode === 'signup' ? 'Register Account' : 'Sign In To Portal'}</span>
+                  <span>{authMode === 'signup' ? 'Create Account & Send Verification Email' : 'Sign In To Portal'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -669,7 +1075,7 @@ export const SecureGateway: React.FC = () => {
               </div>
               <button
                 onClick={() => setShowForgotPasswordModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1"
+                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -734,14 +1140,14 @@ export const SecureGateway: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-semibold text-slate-700">Master Key / Passcode *</label>
-                    <span className="text-[10px] text-teal-600 font-mono font-bold">E.G. ISLAMIA2026</span>
+                    <span className="text-[10px] text-teal-600 font-mono font-bold">E.G. ADMIN2026</span>
                   </div>
                   <input
                     type="text"
                     required
                     value={forgotMasterKey}
                     onChange={(e) => setForgotMasterKey(e.target.value)}
-                    placeholder="Enter ISLAMIA2026 or ADMIN2026"
+                    placeholder="Enter ADMIN2026 or STAFF789"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-600 font-mono uppercase"
                   />
                   <p className="text-[10px] text-slate-400">

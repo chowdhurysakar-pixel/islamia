@@ -687,8 +687,8 @@ export const GuestView: React.FC = () => {
       {/* 0.2 Promo Strip */}
       <div className="bg-[#efe8d8] border-b border-[#0e2b33]/10 py-2.5 px-4 text-xs text-[#0e2b33] text-center">
         <div className="max-w-7xl mx-auto flex flex-wrap justify-center items-center gap-2">
-          <span>
-            Stay 3, pay for 2 on Suites &amp; Deluxe Rooms across our Dhanmondi location. Extend your stay — valid through 2026.
+          <span className="font-serif font-medium text-slate-850">
+            Dhanmondi's Most Thoughtful Stay, Where Comfort Meets Conscience
           </span>
           <a 
             href="https://wa.me/8801799148408" 

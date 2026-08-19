@@ -204,6 +204,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const emailLower = fbUser.email?.toLowerCase() || '';
           
           if (!fbUser.emailVerified) {
+            setCurrentUser(null);
+            setCurrentRole('guest');
+            sessionStorage.removeItem('admin_authorized');
             setIsLoading(false);
             return;
           }
@@ -266,10 +269,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             console.error("Failed to sync user profile to Firestore:", e);
           });
         } else {
-          // Keep persisted user session from localStorage if available
+          // When Firebase user is null (signed out or unverified):
           const savedUser = localStorage.getItem('hotel_current_user');
           const savedRole = localStorage.getItem('hotel_current_role') as UserRole;
-          if (savedUser && savedRole) {
+          if (savedUser && savedRole && savedRole !== 'admin' && savedRole !== 'staff') {
             try {
               setCurrentUser(JSON.parse(savedUser));
               setCurrentRole(savedRole);
