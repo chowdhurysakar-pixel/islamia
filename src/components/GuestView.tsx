@@ -555,9 +555,15 @@ export const GuestView: React.FC = () => {
             <a href="#my-stays-section" className="hover:text-[#905e38] font-medium text-[#0e2b33]">
               My Stays ({myBookings.length})
             </a>
-            <span className="bg-[#af8a52] text-white px-2.5 py-0.5 rounded text-[10px] font-bold tracking-wider shadow-sm">
-              bKash: 01832-841818
-            </span>
+            <a
+              href="tel:+8801832841818"
+              id="top-bkash-header-badge"
+              className="inline-flex items-center gap-1.5 bg-[#f6f4ee] hover:bg-[#ece8dc] text-[#0e2b33] px-2.5 py-1 rounded border border-[#e5dfd3] text-[10.5px] font-bold tracking-tight shadow-2xs transition active:scale-95 cursor-pointer"
+              title="Official bKash Merchant & Hotline: 01832-841818"
+            >
+              <BkashLogo className="w-3.5 h-3.5 shrink-0 rounded-xs" />
+              <span>bKash: <span className="font-mono text-slate-900">01832-841818</span></span>
+            </a>
             {currentUser && (
               <div className="flex items-center gap-2 bg-[#e8e0d2] px-2.5 py-1 rounded-lg border border-[#af8a52]/30 text-[#0e2b33]">
                 <span className="text-[#0e2b33] font-bold text-[11px]">{currentUser.name}</span>
