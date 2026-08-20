@@ -7,16 +7,9 @@ import {
   Hash, ShieldCheck, HelpCircle, Info, Smartphone
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { BkashLogo } from './BkashLogo';
 
 // Custom contact icon/badge components
-const BkashLogo: React.FC<{ className?: string }> = ({ className = "w-3.5 h-3.5" }) => (
-  <svg className={className} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-    <rect width="40" height="40" rx="8" fill="#E2136E" />
-    <path d="M10 16 L20 10 L30 16 L20 23 Z" fill="white" />
-    <path d="M20 23 L28 30 L30 16 Z" fill="#F1F1F1" />
-    <path d="M20 23 L12 30 L10 16 Z" fill="#E1E1E1" />
-  </svg>
-);
 
 const CallLogo: React.FC<{ className?: string }> = ({ className = "w-2.5 h-2.5" }) => (
   <span className="inline-flex items-center justify-center bg-slate-900 text-white rounded-full p-0.5 w-4 h-4 shrink-0" style={{ verticalAlign: 'middle' }}>

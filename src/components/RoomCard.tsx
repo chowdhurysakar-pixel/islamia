@@ -274,7 +274,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
         {/* Room Amenities Badges */}
         <div className="mt-auto pt-2">
           <p className="text-[10px] font-mono font-bold text-[#0e2b33]/60 uppercase tracking-wider mb-2">
-            Included Amenities:
+            Amenities:
           </p>
           <div className="flex flex-wrap gap-1.5">
             {room.amenities.map((amenity, idx) => (
