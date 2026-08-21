@@ -102,7 +102,7 @@ export const WhyChooseUs: React.FC = () => {
         {/* Closing Tagline */}
         <div className="pt-4 border-t border-[#0e2b33]/15 text-center">
           <p className="font-serif text-sm sm:text-base font-semibold text-[#0e2b33] italic">
-            Dhanmondi's Most Thoughtful Stay, Where Comfort Meets Conscience
+            Your Sanctuary of Safety & Serenity
           </p>
         </div>
 
