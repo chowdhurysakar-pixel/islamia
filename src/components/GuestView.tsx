@@ -954,7 +954,7 @@ export const GuestView: React.FC = () => {
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           <div className="lg:col-span-5 space-y-4">
             <div className="text-[11px] tracking-[0.28em] text-[#d7bd8a] font-bold uppercase">
-              EXPLORE HISTORIC DHANMONDI
+              EXPLORE AROUND ISLAMIA GUEST HOUSE DHANMONDI
             </div>
             <h2 className="font-serif text-3xl sm:text-4xl text-white leading-tight">
               Discover Dhanmondi's Heritage & Iconic Landmarks
