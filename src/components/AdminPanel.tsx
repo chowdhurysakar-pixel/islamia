@@ -156,9 +156,23 @@ export const AdminPanel: React.FC = () => {
       const stored = localStorage.getItem('hotel_registered_users');
       return stored ? JSON.parse(stored) : [
         {
+          uid: 'local-admin-0',
+          email: 'islamiaguesthouse@gmail.com',
+          name: 'Mr. Sajjad (Admin)',
+          role: 'admin',
+          hrApproved: true
+        },
+        {
           uid: 'local-admin-1',
+          email: 'chowdhurysakar@gmail.com',
+          name: 'Sakar Chowdhury (Admin)',
+          role: 'admin',
+          hrApproved: true
+        },
+        {
+          uid: 'local-admin-2',
           email: 'hr.manager@islamiaguesthouse.com',
-          name: 'Sakar Chowdhury (HR Manager)',
+          name: 'HR Manager',
           role: 'admin',
           hrApproved: true
         },

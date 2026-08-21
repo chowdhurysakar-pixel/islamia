@@ -42,6 +42,8 @@ export const GuestView: React.FC = () => {
     feedbacks,
     currentUser, 
     currentRole,
+    setCurrentRole,
+    setOpMode,
     toggleRole,
     logout,
     activeGuestsCount,
@@ -564,9 +566,52 @@ export const GuestView: React.FC = () => {
               <BkashLogo className="w-3.5 h-3.5 shrink-0 rounded-xs" />
               <span>bKash: <span className="font-mono text-slate-900">01832-841818</span></span>
             </a>
-            {currentUser && (
-              <div className="flex items-center gap-2 bg-[#e8e0d2] px-2.5 py-1 rounded-lg border border-[#af8a52]/30 text-[#0e2b33]">
-                <span className="text-[#0e2b33] font-bold text-[11px]">{currentUser.name}</span>
+            {currentUser ? (
+              <div className="flex items-center gap-1.5 bg-[#e8e0d2] px-2.5 py-1 rounded-lg border border-[#af8a52]/30 text-[#0e2b33]">
+                <span className="text-[#0e2b33] font-bold text-[11px] flex items-center gap-1">
+                  {currentUser.role === 'admin' ? (
+                    <>
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-amber-600 text-white text-[9px] font-extrabold uppercase tracking-wider">ADMIN</span>
+                      <span>{currentUser.name}</span>
+                    </>
+                  ) : currentUser.role === 'staff' ? (
+                    <>
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-teal-800 text-white text-[9px] font-extrabold uppercase tracking-wider">STAFF</span>
+                      <span>{currentUser.name}</span>
+                    </>
+                  ) : (
+                    <span>{currentUser.name}</span>
+                  )}
+                </span>
+
+                {currentUser.role === 'admin' && (
+                  <button
+                    id="guest-header-admin-panel-btn"
+                    onClick={() => {
+                      setCurrentRole('admin');
+                      setOpMode('admin');
+                    }}
+                    className="bg-amber-600 hover:bg-amber-700 text-white px-2 py-0.5 rounded text-[10px] font-bold transition shadow-xs cursor-pointer ml-1"
+                    title="Open Executive Admin Control Center"
+                  >
+                    Admin Panel →
+                  </button>
+                )}
+
+                {currentUser.role === 'staff' && (
+                  <button
+                    id="guest-header-staff-desk-btn"
+                    onClick={() => {
+                      setCurrentRole('staff');
+                      setOpMode('receptionist');
+                    }}
+                    className="bg-[#0e2b33] hover:bg-[#905e38] text-white px-2 py-0.5 rounded text-[10px] font-bold transition shadow-xs cursor-pointer ml-1"
+                    title="Open Front Desk Staff Portal"
+                  >
+                    Front Desk →
+                  </button>
+                )}
+
                 <button 
                   id="guest-logout-btn"
                   onClick={logout}
@@ -577,14 +622,16 @@ export const GuestView: React.FC = () => {
                   <span>Log Out</span>
                 </button>
               </div>
+            ) : (
+              <button
+                id="guest-header-signin-btn"
+                onClick={() => toggleRole()}
+                className="bg-[#0e2b33] hover:bg-[#905e38] text-white px-2.5 py-1 rounded text-[10px] font-bold transition-all shadow-sm cursor-pointer"
+                title="Staff / Admin Sign In"
+              >
+                Sign In →
+              </button>
             )}
-            <button
-              onClick={() => toggleRole()}
-              className="bg-[#0e2b33] hover:bg-[#905e38] text-white px-2.5 py-1 rounded text-[10px] font-bold transition-all shadow-sm cursor-pointer"
-              title="Sign In"
-            >
-              Sign In →
-            </button>
           </div>
         </div>
       </div>
@@ -672,12 +719,28 @@ export const GuestView: React.FC = () => {
               My Stays ({myBookings.length})
             </a>
             <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
-              <button
-                onClick={() => { setMobileMenuOpen(false); toggleRole(); }}
-                className="bg-[#0e2b33] text-white px-3 py-1.5 rounded-md text-[11px] font-bold hover:bg-[#af8a52] transition"
-              >
-                Sign In →
-              </button>
+              {currentUser?.role === 'admin' ? (
+                <button
+                  onClick={() => { setMobileMenuOpen(false); setCurrentRole('admin'); setOpMode('admin'); }}
+                  className="bg-amber-600 text-white px-3 py-1.5 rounded-md text-[11px] font-bold hover:bg-amber-700 transition"
+                >
+                  👑 Admin Panel →
+                </button>
+              ) : currentUser?.role === 'staff' ? (
+                <button
+                  onClick={() => { setMobileMenuOpen(false); setCurrentRole('staff'); setOpMode('receptionist'); }}
+                  className="bg-[#0e2b33] text-white px-3 py-1.5 rounded-md text-[11px] font-bold hover:bg-[#af8a52] transition"
+                >
+                  💼 Staff Desk →
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setMobileMenuOpen(false); toggleRole(); }}
+                  className="bg-[#0e2b33] text-white px-3 py-1.5 rounded-md text-[11px] font-bold hover:bg-[#af8a52] transition"
+                >
+                  Sign In →
+                </button>
+              )}
             </div>
           </div>
         )}
