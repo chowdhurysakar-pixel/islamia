@@ -109,6 +109,13 @@ interface AppContextType {
   opMode: 'receptionist' | 'hr' | 'admin' | 'guest';
   setOpMode: (mode: any) => void;
   setCurrentRole: (role: UserRole) => void;
+  // Real-time Staff & HR Registry & Presence Management
+  registeredUsers: UserProfile[];
+  updateStaffApproval: (email: string, approved: boolean, uid?: string) => Promise<void>;
+  deleteStaffAccount: (email: string, uid?: string) => Promise<void>;
+  recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
+  masterStaffPasscode: string;
+  updateMasterStaffPasscode: (passcode: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -119,6 +126,76 @@ const ADMIN_EMAIL_WHITELIST = [
   'admin@islamiaguesthouse.com',
   'hr.manager@islamiaguesthouse.com'
 ];
+
+export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
+  {
+    uid: 'local-admin-0',
+    email: 'islamiaguesthouse@gmail.com',
+    name: 'Mr. Sajjad (Admin)',
+    role: 'admin',
+    hrApproved: true,
+    emailVerified: true
+  },
+  {
+    uid: 'local-admin-1',
+    email: 'chowdhurysakar@gmail.com',
+    name: 'Sakar Chowdhury (Admin)',
+    role: 'admin',
+    hrApproved: true,
+    emailVerified: true
+  },
+  {
+    uid: 'local-admin-2',
+    email: 'hr.manager@islamiaguesthouse.com',
+    name: 'HR Manager',
+    role: 'admin',
+    hrApproved: true,
+    emailVerified: true
+  },
+  {
+    uid: 'local-admin-3',
+    email: 'admin@islamiaguesthouse.com',
+    name: 'Islamia Admin Executive',
+    role: 'admin',
+    hrApproved: true,
+    emailVerified: true
+  },
+  {
+    uid: 'local-staff-1',
+    email: 'frontdesk.receptionist@islamiaguesthouse.com',
+    name: 'Front Desk Reception Team',
+    role: 'staff',
+    staffSecretKey: 'ISLAMIA-STAFF-2026',
+    hrApproved: true,
+    emailVerified: true
+  },
+  {
+    uid: 'local-staff-2',
+    email: 'cleaning.supervisor@islamiaguesthouse.com',
+    name: 'Kamrul Hasan (Housekeeping)',
+    role: 'staff',
+    staffSecretKey: 'ISLAMIA-STAFF-2026',
+    hrApproved: false,
+    emailVerified: true
+  }
+];
+
+export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[]): UserProfile[] => {
+  const map = new Map<string, UserProfile>();
+  DEFAULT_SYSTEM_USERS.forEach(u => map.set(u.email.toLowerCase(), u));
+  (fetchedList || []).forEach(u => {
+    const emailLower = u.email ? u.email.toLowerCase() : '';
+    if (emailLower) {
+      const existing = map.get(emailLower);
+      if (existing) {
+        map.set(emailLower, { ...existing, ...u });
+      } else {
+        map.set(emailLower, u);
+      }
+    }
+  });
+  return Array.from(map.values());
+};
 
 const getAdminNameForEmail = (email: string, fallbackName?: string): string => {
   const emailLower = email.trim().toLowerCase();
@@ -212,6 +289,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('hotel_op_mode', mode);
     } catch (e) {}
   };
+
+  // Staff registry & master passcode states
+  const [masterStaffPasscode, setMasterStaffPasscodeState] = useState<string>(() => {
+    return localStorage.getItem('master_staff_passcode') || 'ISLAMIA-STAFF-2026';
+  });
+
+  const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_registered_users');
+      return stored ? mergeWithDefaultRegisteredUsers(JSON.parse(stored)) : DEFAULT_SYSTEM_USERS;
+    } catch (e) {
+      return DEFAULT_SYSTEM_USERS;
+    }
+  });
 
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -649,12 +740,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       handleFirestoreError(error, OperationType.GET, 'serviceRequests');
     });
 
+    // 4. Real-time Live Staff & HR Approvals sync from Firestore users collection
+    let unsubUsers: (() => void) | null = null;
+    try {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const usersList: UserProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as UserProfile;
+          usersList.push({ uid: docSnap.id, ...data });
+        });
+        const merged = mergeWithDefaultRegisteredUsers(usersList);
+        setRegisteredUsers(merged);
+        try {
+          localStorage.setItem('hotel_registered_users', JSON.stringify(merged));
+        } catch (e) {}
+      }, (error) => {
+        console.warn("Users realtime snapshot notice:", error);
+      });
+    } catch (e) {
+      console.warn("Could not attach users snapshot listener:", e);
+    }
+
     return () => {
       if (unsubBookings) unsubBookings();
       if (unsubArchived) unsubArchived();
       if (unsubRequests) unsubRequests();
+      if (unsubUsers) unsubUsers();
     };
   }, [currentUser, currentRole, opMode, isFirebaseActive]);
+
+  // Presence Heartbeat: Keeps user online status refreshed in Firestore
+  useEffect(() => {
+    if (!currentUser || !currentUser.email) return;
+
+    const emailLower = currentUser.email.toLowerCase();
+    const userUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+    const pingOnline = async () => {
+      const now = new Date().toISOString();
+      if (isFirebaseActive && db && userUid) {
+        try {
+          await setDoc(doc(db, 'users', userUid), {
+            isOnline: true,
+            lastActiveAt: now
+          }, { merge: true });
+        } catch (e) {}
+      }
+    };
+
+    // Ping immediately on mount/login
+    pingOnline();
+
+    // Ping every 30 seconds
+    const interval = setInterval(pingOnline, 30000);
+
+    const handleOffline = async () => {
+      if (isFirebaseActive && db && userUid) {
+        try {
+          await setDoc(doc(db, 'users', userUid), {
+            isOnline: false,
+            lastActiveAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (e) {}
+      }
+    };
+
+    window.addEventListener('beforeunload', handleOffline);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleOffline);
+    };
+  }, [currentUser, isFirebaseActive]);
+
+  // Sync with local storage events across browser tabs
+  useEffect(() => {
+    const handleStorageOrCustom = () => {
+      const stored = localStorage.getItem('hotel_registered_users');
+      if (stored) {
+        try {
+          setRegisteredUsers(mergeWithDefaultRegisteredUsers(JSON.parse(stored)));
+        } catch (err) {}
+      }
+      const storedMaster = localStorage.getItem('master_staff_passcode');
+      if (storedMaster) {
+        setMasterStaffPasscodeState(storedMaster);
+      }
+    };
+
+    window.addEventListener('storage', handleStorageOrCustom);
+    window.addEventListener('hotel_presence_updated', handleStorageOrCustom);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageOrCustom);
+      window.removeEventListener('hotel_presence_updated', handleStorageOrCustom);
+    };
+  }, []);
 
   // Local storage offline caching helper
   useEffect(() => {
@@ -688,6 +869,132 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {}
     }
   }, [feedbacks]);
+
+  // Staff & HR Real-time Registry Actions
+  const recordStaffSignIn = async (
+    email: string,
+    name: string,
+    role: UserRole = 'staff',
+    loginMethod: 'passcode' | 'password' | 'google' | 'master_key' | 'offline' = 'passcode',
+    passcodeUsed?: string
+  ) => {
+    const emailLower = email.trim().toLowerCase();
+    const now = new Date().toISOString();
+    const isAdmin = isAdminEmail(emailLower) || role === 'admin';
+    const finalRole: UserRole = isAdmin ? 'admin' : role;
+    const finalName = isAdmin ? getAdminNameForEmail(emailLower, name) : (name || 'Staff Member');
+    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
+
+    const userProfile: UserProfile = {
+      uid: userUid,
+      email: emailLower,
+      name: finalName,
+      role: finalRole,
+      staffSecretKey: passcodeUsed || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+      hrApproved: true,
+      emailVerified: true,
+      isOnline: true,
+      lastLoginAt: now,
+      lastActiveAt: now,
+      loginMethod: loginMethod,
+      registeredAt: now
+    };
+
+    setRegisteredUsers(prev => {
+      const next = [...prev];
+      const idx = next.findIndex(u => u.email.toLowerCase() === emailLower);
+      if (idx >= 0) {
+        next[idx] = { ...next[idx], ...userProfile, isOnline: true, lastLoginAt: now, lastActiveAt: now };
+      } else {
+        next.unshift(userProfile);
+      }
+      try {
+        localStorage.setItem('hotel_registered_users', JSON.stringify(next));
+        window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: userProfile }));
+      } catch (e) {}
+      return next;
+    });
+
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, 'users', userUid), sanitizeFirestoreData(userProfile), { merge: true });
+      } catch (e) {
+        console.warn("Could not sync user presence to Firestore:", e);
+      }
+    }
+  };
+
+  const updateStaffApproval = async (email: string, approved: boolean, uid?: string) => {
+    const emailLower = email.trim().toLowerCase();
+    
+    // 1. Update local state immediately
+    setRegisteredUsers(prev => {
+      const updated = prev.map(u => {
+        if (u.email.toLowerCase() === emailLower) {
+          return { ...u, hrApproved: approved };
+        }
+        return u;
+      });
+      try {
+        localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: { email: emailLower, hrApproved: approved } }));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 2. Update Firestore document in real-time
+    if (isFirebaseActive && db) {
+      try {
+        const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
+        const targetUid = uid || targetUser?.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        await setDoc(doc(db, 'users', targetUid), { hrApproved: approved }, { merge: true });
+      } catch (e) {
+        console.warn("Failed to update HR approval in Firestore:", e);
+      }
+    }
+  };
+
+  const deleteStaffAccount = async (email: string, uid?: string) => {
+    const emailLower = email.trim().toLowerCase();
+    
+    setRegisteredUsers(prev => {
+      const updated = prev.filter(u => u.email.toLowerCase() !== emailLower);
+      try {
+        localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: { email: emailLower, deleted: true } }));
+      } catch (e) {}
+      return updated;
+    });
+
+    if (isFirebaseActive && db) {
+      try {
+        const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
+        const targetUid = uid || targetUser?.uid;
+        if (targetUid) {
+          await deleteDoc(doc(db, 'users', targetUid));
+        }
+      } catch (e) {
+        console.warn("Failed to delete user doc in Firestore:", e);
+      }
+    }
+  };
+
+  const updateMasterStaffPasscode = async (passcode: string) => {
+    const clean = passcode.trim().toUpperCase();
+    if (!clean) return;
+    setMasterStaffPasscodeState(clean);
+    localStorage.setItem('master_staff_passcode', clean);
+    window.dispatchEvent(new CustomEvent('hotel_presence_updated'));
+
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, 'settings', 'master_passcode'), {
+          passcode: clean,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (e) {}
+    }
+  };
 
   // Auth Functions
   const loginWithGoogle = async (role?: UserRole) => {
@@ -729,7 +1036,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       uid: `local-${finalRole}-${Date.now().toString().slice(-4)}`,
       email,
       name: finalName,
-      role: finalRole
+      role: finalRole,
+      isOnline: true,
+      lastLoginAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+      hrApproved: true,
+      emailVerified: true
     };
     setCurrentUser(fakeProfile);
     setCurrentRole(finalRole);
@@ -737,25 +1049,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sessionStorage.setItem('admin_authorized', 'true');
       setOpMode('admin');
     } else if (finalRole === 'staff') {
+      sessionStorage.removeItem('admin_authorized');
       setOpMode('receptionist');
     }
     localStorage.setItem('hotel_current_user', JSON.stringify(fakeProfile));
     localStorage.setItem('hotel_current_role', finalRole);
 
-    try {
-      const storedUsers = localStorage.getItem('hotel_registered_users');
-      const list: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
-      const idx = list.findIndex(u => u.email.toLowerCase() === emailLower);
-      if (idx >= 0) {
-        list[idx] = { ...list[idx], role: finalRole, name: finalName };
-      } else {
-        list.push(fakeProfile);
-      }
-      localStorage.setItem('hotel_registered_users', JSON.stringify(list));
-    } catch (e) {}
+    recordStaffSignIn(email, finalName, finalRole, 'passcode');
   };
 
   const logout = async () => {
+    // 0. Update online status in Firestore before logging out
+    if (currentUser?.email) {
+      const emailLower = currentUser.email.toLowerCase();
+      const targetUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      if (isFirebaseActive && db) {
+        try {
+          await updateDoc(doc(db, 'users', targetUid), {
+            isOnline: false,
+            lastActiveAt: new Date().toISOString()
+          });
+        } catch (e) {}
+      }
+      setRegisteredUsers(prev => {
+        const next = prev.map(u => u.email.toLowerCase() === emailLower ? { ...u, isOnline: false } : u);
+        try {
+          localStorage.setItem('hotel_registered_users', JSON.stringify(next));
+          window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: { email: emailLower, isOnline: false } }));
+        } catch (e) {}
+        return next;
+      });
+    }
+
     // 1. Reset user state & opMode
     setCurrentUser(null);
     setCurrentRole('guest');
@@ -1794,7 +2119,13 @@ Islamia Guest House, Dhanmondi`;
       deleteFeedback,
       opMode,
       setOpMode,
-      setCurrentRole
+      setCurrentRole,
+      registeredUsers,
+      updateStaffApproval,
+      deleteStaffAccount,
+      recordStaffSignIn,
+      masterStaffPasscode,
+      updateMasterStaffPasscode
     }}>
       {children}
     </AppContext.Provider>

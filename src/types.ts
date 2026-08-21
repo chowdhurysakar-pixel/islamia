@@ -78,6 +78,11 @@ export interface UserProfile {
   hrApproved?: boolean;
   emailVerified?: boolean;
   registeredAt?: string;
+  isOnline?: boolean;
+  lastLoginAt?: string;
+  lastActiveAt?: string;
+  loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline';
+  deviceInfo?: string;
 }
 
 export interface ToastInfo {

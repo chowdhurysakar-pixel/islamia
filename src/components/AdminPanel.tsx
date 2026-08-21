@@ -86,7 +86,12 @@ export const AdminPanel: React.FC = () => {
     setOpMode,
     isFirebaseActive,
     showToast,
-    changeAdminPassword
+    changeAdminPassword,
+    registeredUsers,
+    updateStaffApproval,
+    deleteStaffAccount,
+    masterStaffPasscode,
+    updateMasterStaffPasscode
   } = useApp();
 
   // Admin Active Tab
@@ -150,60 +155,10 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  // Registered Staff Management State
-  const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_registered_users');
-      return stored ? JSON.parse(stored) : [
-        {
-          uid: 'local-admin-0',
-          email: 'islamiaguesthouse@gmail.com',
-          name: 'Mr. Sajjad (Admin)',
-          role: 'admin',
-          hrApproved: true
-        },
-        {
-          uid: 'local-admin-1',
-          email: 'chowdhurysakar@gmail.com',
-          name: 'Sakar Chowdhury (Admin)',
-          role: 'admin',
-          hrApproved: true
-        },
-        {
-          uid: 'local-admin-2',
-          email: 'hr.manager@islamiaguesthouse.com',
-          name: 'HR Manager',
-          role: 'admin',
-          hrApproved: true
-        },
-        {
-          uid: 'local-staff-1',
-          email: 'frontdesk.receptionist@islamiaguesthouse.com',
-          name: 'Front Desk Reception Team',
-          role: 'staff',
-          staffSecretKey: 'ISLAMIA-STAFF-2026',
-          hrApproved: true
-        },
-        {
-          uid: 'local-staff-2',
-          email: 'cleaning.supervisor@islamiaguesthouse.com',
-          name: 'Kamrul Hasan (Housekeeping)',
-          role: 'staff',
-          staffSecretKey: 'ISLAMIA-STAFF-2026',
-          hrApproved: false
-        }
-      ];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  // Master Secret Passcode state
-  const [masterPasscode, setMasterPasscode] = useState<string>(() => {
-    return localStorage.getItem('master_staff_passcode') || 'ISLAMIA-STAFF-2026';
-  });
-  const [editingPasscode, setEditingPasscode] = useState<string>(masterPasscode);
+  // Master Secret Passcode editing state
+  const [editingPasscode, setEditingPasscode] = useState<string>(masterStaffPasscode || 'ISLAMIA-STAFF-2026');
   const [isEditingPasscode, setIsEditingPasscode] = useState<boolean>(false);
+  const [staffFilterTab, setStaffFilterTab] = useState<'all' | 'online' | 'pending' | 'admins' | 'staff'>('all');
 
   // Search & Filter States
   const [staffSearch, setStaffSearch] = useState<string>('');
@@ -242,31 +197,25 @@ export const AdminPanel: React.FC = () => {
   });
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
-  // Update staff HR Approval status
-  const toggleStaffApproval = (email: string) => {
-    const updated = registeredUsers.map(user => {
-      if (user.email.toLowerCase() === email.toLowerCase()) {
-        const nextApproved = !user.hrApproved;
-        showToast({
-          type: 'success',
-          message: nextApproved 
-            ? `✅ Staff account for ${user.name} approved by HR/Admin!` 
-            : `⚠️ HR authorization revoked for ${user.name}.`
-        });
-        return { ...user, hrApproved: nextApproved };
-      }
-      return user;
+  // Update staff HR Approval status with instant Firestore sync
+  const toggleStaffApproval = async (email: string) => {
+    const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!targetUser) return;
+    const nextApproved = !targetUser.hrApproved;
+    await updateStaffApproval(email, nextApproved, targetUser.uid);
+    showToast({
+      type: 'success',
+      message: nextApproved 
+        ? `✅ Staff account for ${targetUser.name} approved by HR/Admin!` 
+        : `⚠️ HR authorization revoked for ${targetUser.name}.`
     });
-    setRegisteredUsers(updated);
-    localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
   };
 
-  // Delete staff user profile
-  const deleteStaffUser = (email: string) => {
+  // Delete staff user profile with instant Firestore sync
+  const deleteStaffUser = async (email: string) => {
+    const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (window.confirm(`Are you sure you want to remove user account ${email}?`)) {
-      const updated = registeredUsers.filter(u => u.email.toLowerCase() !== email.toLowerCase());
-      setRegisteredUsers(updated);
-      localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
+      await deleteStaffAccount(email, targetUser?.uid);
       showToast({
         type: 'info',
         message: `User record for ${email} removed from system registry.`
@@ -275,12 +224,11 @@ export const AdminPanel: React.FC = () => {
   };
 
   // Save Master Staff Secret Passcode
-  const handleSaveMasterPasscode = (e: React.FormEvent) => {
+  const handleSaveMasterPasscode = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = editingPasscode.trim().toUpperCase();
     if (!clean) return;
-    setMasterPasscode(clean);
-    localStorage.setItem('master_staff_passcode', clean);
+    await updateMasterStaffPasscode(clean);
     setIsEditingPasscode(false);
     showToast({
       type: 'success',
@@ -288,14 +236,24 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
-  // Filtered Users for Staff tab
+  // Filtered Users for Staff tab with live presence filters
   const filteredStaff = useMemo(() => {
-    return registeredUsers.filter(u => 
-      u.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(staffSearch.toLowerCase()) ||
-      (u.phone && u.phone.includes(staffSearch))
-    );
-  }, [registeredUsers, staffSearch]);
+    return registeredUsers.filter(u => {
+      const matchesSearch = 
+        u.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(staffSearch.toLowerCase()) ||
+        (u.phone && u.phone.includes(staffSearch)) ||
+        (u.staffSecretKey && u.staffSecretKey.toLowerCase().includes(staffSearch.toLowerCase()));
+
+      if (!matchesSearch) return false;
+
+      if (staffFilterTab === 'online') return !!u.isOnline;
+      if (staffFilterTab === 'pending') return u.role === 'staff' && !u.hrApproved;
+      if (staffFilterTab === 'admins') return u.role === 'admin';
+      if (staffFilterTab === 'staff') return u.role === 'staff';
+      return true;
+    });
+  }, [registeredUsers, staffSearch, staffFilterTab]);
 
   // Filtered Chambers for Chambers tab
   const filteredChambers = useMemo(() => {
@@ -654,7 +612,7 @@ export const AdminPanel: React.FC = () => {
     e.preventDefault();
     setGateError('');
     const clean = gatePasscode.trim().toUpperCase();
-    const validCodes = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', 'ADMIN-IGH-2026', masterPasscode].filter(Boolean);
+    const validCodes = ['ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', 'ADMIN-IGH-2026', masterStaffPasscode].filter(Boolean);
 
     if (validCodes.includes(clean)) {
       sessionStorage.setItem('admin_authorized', 'true');
@@ -963,7 +921,7 @@ export const AdminPanel: React.FC = () => {
             )}
           </div>
           <p className="text-[11px] text-slate-500">
-            Master Key: <span className="font-mono font-bold text-slate-700">{masterPasscode}</span>
+            Master Key: <span className="font-mono font-bold text-slate-700">{masterStaffPasscode}</span>
           </p>
         </div>
 
@@ -1129,7 +1087,7 @@ export const AdminPanel: React.FC = () => {
 
                 <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200/60">
                   <span className="text-slate-600 font-medium">Master Staff Passcode:</span>
-                  <span className="font-bold text-teal-700 font-mono">{masterPasscode}</span>
+                  <span className="font-bold text-teal-700 font-mono">{masterStaffPasscode}</span>
                 </div>
 
                 <div className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-200/60">
@@ -1158,30 +1116,75 @@ export const AdminPanel: React.FC = () => {
       {/* TAB 2: STAFF & HR APPROVALS */}
       {activeTab === 'staff' && (
         <div className="space-y-6 animate-fadeIn">
-          {/* Master Staff ID Secret Key Configurator */}
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-xl text-white space-y-4">
+          {/* Live Real-time Status Banner */}
+          <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-slate-950 border border-teal-800/40 rounded-3xl p-6 shadow-xl text-white space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Key className="w-5 h-5 text-amber-400" />
-                  <h3 className="text-base font-bold text-white">Master Staff ID Secret Passcode Configurator</h3>
+                  <span className="flex h-3 w-3 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                  </span>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    <span>Real-Time Staff Presence &amp; HR Approvals</span>
+                  </h3>
+                  <span className="px-2.5 py-0.5 bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 font-mono text-[10px] font-bold rounded-full">
+                    🟢 Live Sync Active
+                  </span>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Staff members must provide this Secret Passcode during sign up or sign in to request HR authorization.
+                <p className="text-xs text-slate-300">
+                  Instant real-time presence, passcode sign-ins, and HR authorization across all reception desks.
                 </p>
+              </div>
+
+              {/* Quick Summary Metrics */}
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <div className="flex-1 sm:flex-initial px-4 py-2 bg-slate-950/80 border border-slate-800 rounded-2xl flex items-center gap-2.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Online Now</div>
+                    <div className="text-sm font-bold text-emerald-400 font-mono">
+                      {registeredUsers.filter(u => u.isOnline).length} Active
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex-1 sm:flex-initial px-4 py-2 bg-slate-950/80 border border-slate-800 rounded-2xl flex items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Pending HR</div>
+                    <div className="text-sm font-bold text-amber-400 font-mono">
+                      {registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length} Pending
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Master Staff Passcode Configurator inside Card */}
+            <div className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-2.5">
+                <Key className="w-4 h-4 text-amber-400" />
+                <div>
+                  <span className="text-xs font-semibold text-slate-200">Front Desk Master Passcode:</span>
+                  <span className="text-xs text-slate-400 ml-1.5 hidden sm:inline">Staff use this passcode to instantly sign in at reception.</span>
+                </div>
               </div>
 
               {!isEditingPasscode ? (
                 <div className="flex items-center gap-3">
-                  <div className="px-4 py-2 bg-slate-950 border border-slate-800 text-amber-400 font-mono font-bold rounded-xl text-sm tracking-wider">
-                    {masterPasscode}
+                  <div className="px-3.5 py-1.5 bg-slate-950 border border-amber-500/30 text-amber-300 font-mono font-bold rounded-xl text-xs tracking-wider flex items-center gap-2">
+                    <span>{masterStaffPasscode || 'ISLAMIA-STAFF-2026'}</span>
                   </div>
                   <button
-                    onClick={() => setIsEditingPasscode(true)}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5"
+                    onClick={() => {
+                      setEditingPasscode(masterStaffPasscode || 'ISLAMIA-STAFF-2026');
+                      setIsEditingPasscode(true);
+                    }}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm"
                   >
                     <Edit3 className="w-3.5 h-3.5" />
-                    <span>Change Key</span>
+                    <span>Change Passcode</span>
                   </button>
                 </div>
               ) : (
@@ -1191,19 +1194,19 @@ export const AdminPanel: React.FC = () => {
                     required
                     value={editingPasscode}
                     onChange={(e) => setEditingPasscode(e.target.value.toUpperCase())}
-                    className="px-3 py-2 bg-slate-950 border border-amber-500/50 text-amber-300 font-mono font-bold rounded-xl text-xs focus:outline-none uppercase"
-                    placeholder="Enter New Passcode"
+                    className="px-3 py-1.5 bg-slate-950 border border-amber-500 text-amber-300 font-mono font-bold rounded-xl text-xs focus:outline-none uppercase"
+                    placeholder="Enter Passcode"
                   />
                   <button
                     type="submit"
-                    className="px-3 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer"
+                    className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer"
                   >
                     Save
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsEditingPasscode(false)}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition cursor-pointer"
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-xs transition cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -1214,24 +1217,57 @@ export const AdminPanel: React.FC = () => {
 
           {/* Registered Staff Accounts & HR Approvals Table */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
                   <UserCheck className="w-4 h-4 text-teal-600" />
-                  <span>Staff &amp; Receptionist User Registry</span>
+                  <span>Staff &amp; Receptionist Registry</span>
+                  <span className="text-xs font-normal text-slate-400">({filteredStaff.length} of {registeredUsers.length})</span>
                 </h3>
-                <p className="text-xs text-slate-400">Manage HR approval status, grant or revoke staff login permissions.</p>
+                <p className="text-xs text-slate-400">Live presence monitor, passcode sign-in audits, and 1-click HR access approval.</p>
               </div>
 
-              <div className="relative max-w-xs w-full">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
-                <input
-                  type="text"
-                  value={staffSearch}
-                  onChange={(e) => setStaffSearch(e.target.value)}
-                  placeholder="Search staff by Name or Email..."
-                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
-                />
+              {/* Filter Tabs & Search */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs">
+                  <button
+                    onClick={() => setStaffFilterTab('all')}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                      staffFilterTab === 'all' ? 'bg-white text-slate-850 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                  >
+                    All ({registeredUsers.length})
+                  </button>
+                  <button
+                    onClick={() => setStaffFilterTab('online')}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                      staffFilterTab === 'online' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-emerald-700'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>Online ({registeredUsers.filter(u => u.isOnline).length})</span>
+                  </button>
+                  <button
+                    onClick={() => setStaffFilterTab('pending')}
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                      staffFilterTab === 'pending' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500 hover:text-amber-700'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span>Pending HR ({registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length})</span>
+                  </button>
+                </div>
+
+                <div className="relative min-w-[200px]">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                  <input
+                    type="text"
+                    value={staffSearch}
+                    onChange={(e) => setStaffSearch(e.target.value)}
+                    placeholder="Search name, email, passcode..."
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1239,8 +1275,9 @@ export const AdminPanel: React.FC = () => {
               <table className="w-full text-left text-xs text-slate-600">
                 <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] tracking-wider border-b border-slate-200/60">
                   <tr>
-                    <th className="p-3">Staff Name &amp; Contact</th>
-                    <th className="p-3">Email Address</th>
+                    <th className="p-3">Staff Profile &amp; Contact</th>
+                    <th className="p-3">Live Presence Status</th>
+                    <th className="p-3">Authentication Method</th>
                     <th className="p-3">Role</th>
                     <th className="p-3">HR Status</th>
                     <th className="p-3 text-right">HR Authorization Actions</th>
@@ -1249,32 +1286,104 @@ export const AdminPanel: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {filteredStaff.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-6 text-center text-slate-400">
-                        No registered staff accounts match your search query.
+                      <td colSpan={6} className="p-8 text-center text-slate-400 space-y-1">
+                        <UserX className="w-8 h-8 mx-auto text-slate-300" />
+                        <p className="font-semibold text-slate-600">No staff members found</p>
+                        <p className="text-[11px] text-slate-400">No registered accounts matched the selected filter or search query.</p>
                       </td>
                     </tr>
                   ) : (
                     filteredStaff.map((user, idx) => (
                       <tr key={user.uid || idx} className="hover:bg-slate-50/80 transition">
+                        {/* Profile Info */}
                         <td className="p-3 font-semibold text-slate-800">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-full bg-slate-800 text-white font-bold flex items-center justify-center text-xs font-mono uppercase">
-                              {user.name.slice(0, 1)}
+                          <div className="flex items-center gap-3">
+                            <div className="relative">
+                              <div className={`w-8 h-8 rounded-full ${user.role === 'admin' ? 'bg-purple-900 text-purple-100' : 'bg-slate-800 text-white'} font-bold flex items-center justify-center text-xs font-mono uppercase shadow-sm`}>
+                                {user.name.slice(0, 1)}
+                              </div>
+                              <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                                user.isOnline ? 'bg-emerald-500' : 'bg-slate-300'
+                              }`} title={user.isOnline ? 'Active Online' : 'Offline'}></span>
                             </div>
                             <div>
-                              <span>{user.name}</span>
-                              {user.phone && <p className="text-[10px] text-slate-400 font-mono">{user.phone}</p>}
+                              <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                <span>{user.name}</span>
+                                {user.role === 'admin' && (
+                                  <Shield className="w-3.5 h-3.5 text-purple-600" />
+                                )}
+                              </div>
+                              <div className="font-mono text-[11px] text-slate-500">{user.email}</div>
+                              {user.phone && <div className="text-[10px] text-slate-400 font-mono">{user.phone}</div>}
                             </div>
                           </div>
                         </td>
-                        <td className="p-3 font-mono text-slate-700">{user.email}</td>
+
+                        {/* Live Presence */}
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
-                            user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-700'
+                          {user.isOnline ? (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full text-[10px] flex items-center gap-1.5 w-fit">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
+                                <span>LIVE ONLINE</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                Active at Front Desk
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 font-semibold rounded-full text-[10px] flex items-center gap-1 w-fit">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                <span>Offline</span>
+                              </span>
+                              {user.lastLoginAt ? (
+                                <span className="text-[10px] text-slate-400">
+                                  Last seen: {new Date(user.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-slate-400">Not recently active</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        {/* Auth Method / Passcode */}
+                        <td className="p-3">
+                          <div className="space-y-1">
+                            {user.loginMethod === 'passcode' || user.staffSecretKey ? (
+                              <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60">
+                                <KeyRound className="w-3 h-3 text-teal-600" />
+                                <span>Passcode: {user.staffSecretKey || 'STAFF789'}</span>
+                              </div>
+                            ) : user.loginMethod === 'google' ? (
+                              <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold">
+                                Google SSO Verified
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit font-mono">
+                                Password Login
+                              </div>
+                            )}
+
+                            {user.lastLoginAt && (
+                              <div className="text-[10px] text-slate-400">
+                                Signed in: {new Date(user.lastLoginAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(user.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Role */}
+                        <td className="p-3">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase ${
+                            user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'
                           }`}>
                             {user.role}
                           </span>
                         </td>
+
+                        {/* HR Approval Status */}
                         <td className="p-3">
                           {user.hrApproved ? (
                             <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-full text-[10px] flex items-center gap-1 w-fit">
@@ -1288,6 +1397,8 @@ export const AdminPanel: React.FC = () => {
                             </span>
                           )}
                         </td>
+
+                        {/* Actions */}
                         <td className="p-3 text-right space-x-2">
                           <button
                             onClick={() => toggleStaffApproval(user.email)}

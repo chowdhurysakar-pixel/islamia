@@ -45,7 +45,18 @@ const isAllowedEmailDomain = (email: string): boolean => {
 };
 
 export const SecureGateway: React.FC = () => {
-  const { isFirebaseActive, localLogin, showToast, setOpMode, sendPasswordResetLink, sendOtp, verifyOtp } = useApp();
+  const { 
+    isFirebaseActive, 
+    localLogin, 
+    showToast, 
+    setOpMode, 
+    sendPasswordResetLink, 
+    sendOtp, 
+    verifyOtp,
+    masterStaffPasscode,
+    recordStaffSignIn,
+    registeredUsers
+  } = useApp();
   
   // Role tabs: 'staff' | 'admin'
   const [activeRoleTab, setActiveRoleTab] = useState<'staff' | 'admin'>('staff');
@@ -381,41 +392,41 @@ export const SecureGateway: React.FC = () => {
     }
 
     // 2. Security Passcode Verification:
-    if (isAdmin) {
-      const cleanAdminKey = adminMasterKey.trim().toUpperCase();
-      const isKeyValid = VALID_ADMIN_PASSCODES.includes(cleanAdminKey);
+    const cleanAdminKey = adminMasterKey.trim().toUpperCase();
+    const cleanSecretPasscode = staffSecretPasscode.trim().toUpperCase();
+    const isMasterPasscodeMatch = masterStaffPasscode && cleanSecretPasscode === masterStaffPasscode.toUpperCase();
+    const isStaffSecretValid = VALID_STAFF_PASSCODES.includes(cleanSecretPasscode) || isMasterPasscodeMatch;
+    const isAdminKeyValid = VALID_ADMIN_PASSCODES.includes(cleanAdminKey);
 
-      if (authMode === 'signup' && !isKeyValid) {
+    if (isAdmin) {
+      if (authMode === 'signup' && !isAdminKeyValid) {
         setError('Access Denied: Creating an Admin account requires a valid Admin Master Key (e.g. ADMIN2026).');
         return;
       }
 
-      if (authMode === 'signin' && !isKeyValid) {
+      if (authMode === 'signin' && !isAdminKeyValid) {
         const storedUsers = localStorage.getItem('hotel_registered_users');
         const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'admin');
 
-        if (!existing && !isKeyValid) {
+        if (!existing && !isAdminKeyValid) {
           setError('Access Denied: Please enter a valid Admin Master Passcode to log in as Admin.');
           return;
         }
       }
     } else {
-      const cleanSecretPasscode = staffSecretPasscode.trim().toUpperCase();
-      const isSecretValid = VALID_STAFF_PASSCODES.includes(cleanSecretPasscode);
-      
-      if (authMode === 'signup' && !isSecretValid) {
-        setError('Access Denied: Staff registration requires a valid Staff Secret Passcode (e.g. STAFF789).');
+      if (authMode === 'signup' && !isStaffSecretValid) {
+        setError(`Access Denied: Staff registration requires a valid Staff Secret Passcode (e.g. ${masterStaffPasscode || 'STAFF789'}).`);
         return;
       }
 
-      if (authMode === 'signin' && !isSecretValid) {
+      if (authMode === 'signin' && !isStaffSecretValid) {
         const storedUsers = localStorage.getItem('hotel_registered_users');
         const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'staff');
         
         if (!existing || (!existing.hrApproved && existing.staffSecretKey !== cleanSecretPasscode)) {
-          setError('Access Denied: Staff members must enter a valid Staff Passcode or be approved by HR.');
+          setError('Access Denied: Staff members must enter a valid Staff Passcode (e.g. STAFF789) or be approved by HR.');
           return;
         }
       }
@@ -443,6 +454,7 @@ export const SecureGateway: React.FC = () => {
               phone: phone,
               emailVerified: false,
               hrApproved: true,
+              staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
               registeredAt: new Date().toISOString()
             };
             
@@ -502,7 +514,7 @@ export const SecureGateway: React.FC = () => {
 
             // User is verified! Fetch or update profile
             const docSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
-            let loggedInName = userCredential.user.displayName || (isAdmin ? 'Admin Executive' : 'Front Desk Staff');
+            let loggedInName = userCredential.user.displayName || (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Staff');
             let loggedInRole: UserRole = role;
 
             if (docSnap.exists()) {
@@ -516,7 +528,10 @@ export const SecureGateway: React.FC = () => {
                 name: loggedInName,
                 role: loggedInRole,
                 emailVerified: true,
-                hrApproved: true
+                hrApproved: true,
+                staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+                isOnline: true,
+                lastLoginAt: new Date().toISOString()
               };
               await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
             }
@@ -529,6 +544,7 @@ export const SecureGateway: React.FC = () => {
               setOpMode('receptionist');
             }
             localLogin(loggedInRole, emailLower, loggedInName);
+            await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
 
             showToast({
               type: 'success',
@@ -575,7 +591,10 @@ export const SecureGateway: React.FC = () => {
             name: name,
             role: role,
             emailVerified: true,
-            hrApproved: true
+            hrApproved: true,
+            staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+            isOnline: true,
+            lastLoginAt: new Date().toISOString()
           };
 
           usersList.push(newUser);
@@ -589,7 +608,7 @@ export const SecureGateway: React.FC = () => {
           await sendOtp(emailLower, name, role, true);
         } else {
           const found = usersList.find(u => u.email === emailLower);
-          const resolvedName = found ? found.name : (isAdmin ? 'Admin Administrator' : 'Front Desk Specialist');
+          const resolvedName = found ? found.name : (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Specialist');
           const resolvedRole: UserRole = found ? found.role : role;
           
           if (resolvedRole === 'admin') {
@@ -600,6 +619,7 @@ export const SecureGateway: React.FC = () => {
             setOpMode('receptionist');
           }
           localLogin(resolvedRole, emailLower, resolvedName);
+          await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
 
           showToast({
             type: 'success',

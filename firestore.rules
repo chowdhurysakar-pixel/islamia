@@ -122,19 +122,14 @@ service cloud.firestore {
       allow get: if isSignedIn() && (request.auth.uid == userId || isStaff());
       allow list: if isSignedIn() && isStaff();
 
-      allow create: if isSignedIn() && userId == request.auth.uid &&
-        incoming().uid == userId &&
-        incoming().email == request.auth.token.email &&
-        incoming().role in ["guest", "staff", "admin"];
+      allow create: if isSignedIn() && (
+        isStaff() ||
+        request.auth.uid == userId
+      );
 
-      allow update: if isSignedIn() && userId == request.auth.uid && (
-        // Only allow updating name, phone, or emailVerified, unless staff/admin updates other users or self
-        isStaff() || (
-          incoming().role == existing().role &&
-          incoming().uid == existing().uid &&
-          incoming().email == existing().email &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'emailVerified'])
-        )
+      allow update: if isSignedIn() && (
+        isStaff() ||
+        request.auth.uid == userId
       );
 
       allow delete: if isSignedIn() && isStaff();
