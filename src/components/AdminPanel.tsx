@@ -91,7 +91,9 @@ export const AdminPanel: React.FC = () => {
     updateStaffApproval,
     deleteStaffAccount,
     masterStaffPasscode,
-    updateMasterStaffPasscode
+    updateMasterStaffPasscode,
+    currentUser,
+    currentRole
   } = useApp();
 
   // Admin Active Tab
@@ -197,29 +199,110 @@ export const AdminPanel: React.FC = () => {
   });
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
-  // Update staff HR Approval status with instant Firestore sync
-  const toggleStaffApproval = async (email: string) => {
-    const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!targetUser) return;
-    const nextApproved = !targetUser.hrApproved;
-    await updateStaffApproval(email, nextApproved, targetUser.uid);
-    showToast({
-      type: 'success',
-      message: nextApproved 
-        ? `✅ Staff account for ${targetUser.name} approved by HR/Admin!` 
-        : `⚠️ HR authorization revoked for ${targetUser.name}.`
-    });
+  // Staff Deletion Modal & Async Action States
+  const [userPendingDeletion, setUserPendingDeletion] = useState<UserProfile | null>(null);
+  const [actionLoadingEmail, setActionLoadingEmail] = useState<string | null>(null);
+
+  // Approve single staff / join request
+  const handleApproveStaff = async (user: UserProfile) => {
+    setActionLoadingEmail(user.email);
+    try {
+      await updateStaffApproval(user.email, true, user.uid);
+      showToast({
+        type: 'success',
+        message: `✅ Staff join request for ${user.name} approved! Front-desk access granted.`
+      });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: `Could not approve account for ${user.name}.`
+      });
+    } finally {
+      setActionLoadingEmail(null);
+    }
   };
 
-  // Delete staff user profile with instant Firestore sync
-  const deleteStaffUser = async (email: string) => {
-    const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (window.confirm(`Are you sure you want to remove user account ${email}?`)) {
-      await deleteStaffAccount(email, targetUser?.uid);
+  // Revoke or place on pending
+  const handleRevokeStaff = async (user: UserProfile) => {
+    setActionLoadingEmail(user.email);
+    try {
+      await updateStaffApproval(user.email, false, user.uid);
       showToast({
         type: 'info',
-        message: `User record for ${email} removed from system registry.`
+        message: `⚠️ Access authorization revoked for ${user.name}.`
       });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: `Could not update status for ${user.name}.`
+      });
+    } finally {
+      setActionLoadingEmail(null);
+    }
+  };
+
+  // Bulk Approve All Pending Join Requests
+  const handleApproveAllPending = async () => {
+    const pendingUsers = registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved);
+    if (pendingUsers.length === 0) return;
+    
+    setActionLoadingEmail('bulk-pending');
+    try {
+      for (const u of pendingUsers) {
+        await updateStaffApproval(u.email, true, u.uid);
+      }
+      showToast({
+        type: 'success',
+        message: `✅ Approved all ${pendingUsers.length} pending staff join request(s)!`
+      });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: 'Failed to approve some accounts.'
+      });
+    } finally {
+      setActionLoadingEmail(null);
+    }
+  };
+
+  // Trigger staff user or join request deletion modal
+  const handleDeleteStaffUser = (user: UserProfile) => {
+    if (currentUser?.email && currentUser.email.toLowerCase() === user.email.toLowerCase()) {
+      showToast({
+        type: 'error',
+        message: 'Cannot delete your own currently active admin account.'
+      });
+      return;
+    }
+    if (user.email.toLowerCase() === 'islamiaguesthouse@gmail.com') {
+      showToast({
+        type: 'error',
+        message: 'Primary master administrator account cannot be deleted.'
+      });
+      return;
+    }
+    setUserPendingDeletion(user);
+  };
+
+  // Confirm delete staff account / join request
+  const handleConfirmDeleteStaff = async () => {
+    if (!userPendingDeletion) return;
+    const user = userPendingDeletion;
+    setActionLoadingEmail(user.email);
+    try {
+      await deleteStaffAccount(user.email, user.uid);
+      showToast({
+        type: 'info',
+        message: `🗑️ ${user.name} (${user.email}) has been permanently deleted from staff registry.`
+      });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: `Failed to delete ${user.name}.`
+      });
+    } finally {
+      setActionLoadingEmail(null);
+      setUserPendingDeletion(null);
     }
   };
 
@@ -236,9 +319,24 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
+  // Helper to determine real-time live online presence
+  const isUserOnline = (u: UserProfile) => {
+    if (u.isOnline) return true;
+    if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
+    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com') return true;
+    if (u.lastActiveAt) {
+      const diff = Date.now() - new Date(u.lastActiveAt).getTime();
+      if (diff < 10 * 60 * 1000) return true;
+    }
+    return false;
+  };
+
   // Filtered Users for Staff tab with live presence filters
   const filteredStaff = useMemo(() => {
-    return registeredUsers.filter(u => {
+    return registeredUsers.map(u => {
+      const online = isUserOnline(u);
+      return online && !u.isOnline ? { ...u, isOnline: true } : u;
+    }).filter(u => {
       const matchesSearch = 
         u.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
         u.email.toLowerCase().includes(staffSearch.toLowerCase()) ||
@@ -247,13 +345,13 @@ export const AdminPanel: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      if (staffFilterTab === 'online') return !!u.isOnline;
+      if (staffFilterTab === 'online') return isUserOnline(u);
       if (staffFilterTab === 'pending') return u.role === 'staff' && !u.hrApproved;
       if (staffFilterTab === 'admins') return u.role === 'admin';
       if (staffFilterTab === 'staff') return u.role === 'staff';
       return true;
     });
-  }, [registeredUsers, staffSearch, staffFilterTab]);
+  }, [registeredUsers, staffSearch, staffFilterTab, currentUser]);
 
   // Filtered Chambers for Chambers tab
   const filteredChambers = useMemo(() => {
@@ -599,7 +697,6 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
-  const { currentUser } = useApp();
   const [panelUnlocked, setPanelUnlocked] = useState<boolean>(() => {
     if (currentUser?.role === 'admin') return true;
     if (currentUser?.role === 'staff') return false;
@@ -1144,7 +1241,7 @@ export const AdminPanel: React.FC = () => {
                   <div>
                     <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Online Now</div>
                     <div className="text-sm font-bold text-emerald-400 font-mono">
-                      {registeredUsers.filter(u => u.isOnline).length} Active
+                      {registeredUsers.filter(u => isUserOnline(u)).length} Active
                     </div>
                   </div>
                 </div>
@@ -1217,6 +1314,44 @@ export const AdminPanel: React.FC = () => {
 
           {/* Registered Staff Accounts & HR Approvals Table */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+            {/* Action Banner for Pending Staff Join Requests */}
+            {registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length > 0 && (
+              <div className="bg-amber-500/10 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold shrink-0">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5 flex-wrap">
+                      <span>{registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length} Staff Join Request(s) Pending HR Review</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-mono font-bold uppercase">Action Required</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800">
+                      Staff registrations await administrator approval before accessing front-desk checkout and room assignment consoles.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStaffFilterTab('pending')}
+                    className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Filter Pending ({registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length})
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionLoadingEmail === 'bulk-pending'}
+                    onClick={handleApproveAllPending}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {actionLoadingEmail === 'bulk-pending' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    <span>Approve All</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
@@ -1232,7 +1367,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs">
                   <button
                     onClick={() => setStaffFilterTab('all')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
                       staffFilterTab === 'all' ? 'bg-white text-slate-850 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
@@ -1240,17 +1375,17 @@ export const AdminPanel: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setStaffFilterTab('online')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                       staffFilterTab === 'online' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-emerald-700'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span>Online ({registeredUsers.filter(u => u.isOnline).length})</span>
+                    <span>Online ({registeredUsers.filter(u => isUserOnline(u)).length})</span>
                   </button>
                   <button
                     onClick={() => setStaffFilterTab('pending')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
-                      staffFilterTab === 'pending' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500 hover:text-amber-700'
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                      staffFilterTab === 'pending' ? 'bg-white text-amber-700 shadow-sm font-bold' : 'text-slate-500 hover:text-amber-700'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -1267,6 +1402,15 @@ export const AdminPanel: React.FC = () => {
                     placeholder="Search name, email, passcode..."
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
                   />
+                  {staffSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setStaffSearch('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1293,8 +1437,15 @@ export const AdminPanel: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredStaff.map((user, idx) => (
-                      <tr key={user.uid || idx} className="hover:bg-slate-50/80 transition">
+                    filteredStaff.map((user, idx) => {
+                      const userOnline = isUserOnline(user);
+                      const isPending = user.role === 'staff' && !user.hrApproved;
+                      const isPrimaryAdmin = user.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
+                      const isCurrentActiveUser = currentUser?.email && currentUser.email.toLowerCase() === user.email.toLowerCase();
+                      const isLoadingThis = actionLoadingEmail === user.email;
+
+                      return (
+                      <tr key={user.uid || idx} className={`hover:bg-slate-50/80 transition ${isPending ? 'bg-amber-50/40' : ''}`}>
                         {/* Profile Info */}
                         <td className="p-3 font-semibold text-slate-800">
                           <div className="flex items-center gap-3">
@@ -1303,14 +1454,17 @@ export const AdminPanel: React.FC = () => {
                                 {user.name.slice(0, 1)}
                               </div>
                               <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                                user.isOnline ? 'bg-emerald-500' : 'bg-slate-300'
-                              }`} title={user.isOnline ? 'Active Online' : 'Offline'}></span>
+                                userOnline ? 'bg-emerald-500' : 'bg-slate-300'
+                              }`} title={userOnline ? 'Active Online' : 'Offline'}></span>
                             </div>
                             <div>
                               <div className="font-bold text-slate-900 flex items-center gap-1.5">
                                 <span>{user.name}</span>
                                 {user.role === 'admin' && (
                                   <Shield className="w-3.5 h-3.5 text-purple-600" />
+                                )}
+                                {isPending && (
+                                  <span className="px-1.5 py-0.2 bg-amber-200 text-amber-900 text-[9px] font-bold rounded">JOIN REQUEST</span>
                                 )}
                               </div>
                               <div className="font-mono text-[11px] text-slate-500">{user.email}</div>
@@ -1321,14 +1475,14 @@ export const AdminPanel: React.FC = () => {
 
                         {/* Live Presence */}
                         <td className="p-3">
-                          {user.isOnline ? (
+                          {userOnline ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full text-[10px] flex items-center gap-1.5 w-fit">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
                                 <span>LIVE ONLINE</span>
                               </span>
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                Active at Front Desk
+                              <span className="text-[10px] text-emerald-700 font-mono font-medium">
+                                {user.role === 'admin' ? 'Active in Admin Console' : 'Active at Front Desk'}
                               </span>
                             </div>
                           ) : (
@@ -1399,27 +1553,71 @@ export const AdminPanel: React.FC = () => {
                         </td>
 
                         {/* Actions */}
-                        <td className="p-3 text-right space-x-2">
-                          <button
-                            onClick={() => toggleStaffApproval(user.email)}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer ${
-                              user.hrApproved
-                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-                                : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold shadow-sm'
-                            }`}
-                          >
-                            {user.hrApproved ? 'Revoke Access' : 'Approve Staff'}
-                          </button>
-                          <button
-                            onClick={() => deleteStaffUser(user.email)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            title="Remove User Record"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {!user.hrApproved ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isLoadingThis}
+                                  onClick={() => handleApproveStaff(user)}
+                                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                                  title="Approve staff join request and grant front-desk access"
+                                >
+                                  {isLoadingThis ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
+                                  )}
+                                  <span>Approve</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLoadingThis}
+                                  onClick={() => handleDeleteStaffUser(user)}
+                                  className="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="Delete / Reject this staff join request"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Delete</span>
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                {user.role !== 'admin' && (
+                                  <button
+                                    type="button"
+                                    disabled={isLoadingThis}
+                                    onClick={() => handleRevokeStaff(user)}
+                                    className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                    title="Revoke HR authorization and place back to pending review"
+                                  >
+                                    {isLoadingThis ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                                    )}
+                                    <span>Revoke</span>
+                                  </button>
+                                )}
+                                {!isPrimaryAdmin && !isCurrentActiveUser && (
+                                  <button
+                                    type="button"
+                                    disabled={isLoadingThis}
+                                    onClick={() => handleDeleteStaffUser(user)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer disabled:opacity-50"
+                                    title="Permanently remove user record from system"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -2548,6 +2746,75 @@ export const AdminPanel: React.FC = () => {
           rooms={rooms}
           onClose={() => setSelectedInvoiceBooking(null)}
         />
+      )}
+
+      {/* Delete Staff / Join Request Modal */}
+      {userPendingDeletion && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  {userPendingDeletion.hrApproved ? 'Delete Staff Account' : 'Delete Staff Join Request'}
+                </h3>
+                <p className="text-xs text-slate-500">Confirm permanent removal from system registry</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Name:</span>
+                <span className="font-bold text-slate-900">{userPendingDeletion.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Email:</span>
+                <span className="font-mono text-slate-800 font-medium">{userPendingDeletion.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Role &amp; Status:</span>
+                <span className="font-semibold text-slate-800">
+                  {userPendingDeletion.role.toUpperCase()} • {userPendingDeletion.hrApproved ? 'HR Authorized' : 'Pending Join Request'}
+                </span>
+              </div>
+              {userPendingDeletion.phone && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Phone:</span>
+                  <span className="font-mono text-slate-800">{userPendingDeletion.phone}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200/80 rounded-xl p-3">
+              ⚠️ This action will immediately remove this user account from the Islamia Guest House system and reject any active access.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserPendingDeletion(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoadingEmail === userPendingDeletion.email}
+                onClick={handleConfirmDeleteStaff}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {actionLoadingEmail === userPendingDeletion.email ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>Confirm &amp; Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

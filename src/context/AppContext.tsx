@@ -134,7 +134,12 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     name: 'Mr. Sajjad (Admin)',
     role: 'admin',
     hrApproved: true,
-    emailVerified: true
+    emailVerified: true,
+    isOnline: true,
+    lastLoginAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
+    loginMethod: 'passcode',
+    staffSecretKey: 'ADMIN2026'
   },
   {
     uid: 'local-admin-1',
@@ -142,7 +147,12 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     name: 'Sakar Chowdhury (Admin)',
     role: 'admin',
     hrApproved: true,
-    emailVerified: true
+    emailVerified: true,
+    isOnline: true,
+    lastLoginAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
+    loginMethod: 'passcode',
+    staffSecretKey: 'ADMIN2026'
   },
   {
     uid: 'local-admin-2',
@@ -150,7 +160,11 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     name: 'HR Manager',
     role: 'admin',
     hrApproved: true,
-    emailVerified: true
+    emailVerified: true,
+    isOnline: false,
+    lastLoginAt: new Date(Date.now() - 3600000).toISOString(),
+    lastActiveAt: new Date(Date.now() - 3600000).toISOString(),
+    loginMethod: 'passcode'
   },
   {
     uid: 'local-admin-3',
@@ -158,7 +172,9 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     name: 'Islamia Admin Executive',
     role: 'admin',
     hrApproved: true,
-    emailVerified: true
+    emailVerified: true,
+    isOnline: false,
+    loginMethod: 'passcode'
   },
   {
     uid: 'local-staff-1',
@@ -167,7 +183,11 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     role: 'staff',
     staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: true,
-    emailVerified: true
+    emailVerified: true,
+    isOnline: true,
+    lastLoginAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
+    loginMethod: 'passcode'
   },
   {
     uid: 'local-staff-2',
@@ -176,16 +196,40 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     role: 'staff',
     staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: false,
-    emailVerified: true
+    emailVerified: true,
+    isOnline: false,
+    lastLoginAt: new Date(Date.now() - 86400000).toISOString(),
+    loginMethod: 'passcode'
   }
 ];
 
-export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[]): UserProfile[] => {
+export const getDeletedUserEmails = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem('hotel_deleted_user_emails');
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return new Set(arr.map((e: string) => e.toLowerCase()));
+      }
+    }
+  } catch (e) {}
+  return new Set<string>();
+};
+
+export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], activeUser?: UserProfile | null): UserProfile[] => {
   const map = new Map<string, UserProfile>();
-  DEFAULT_SYSTEM_USERS.forEach(u => map.set(u.email.toLowerCase(), u));
+  const deletedSet = getDeletedUserEmails();
+
+  DEFAULT_SYSTEM_USERS.forEach(u => {
+    const emailLower = u.email.toLowerCase();
+    if (!deletedSet.has(emailLower)) {
+      map.set(emailLower, { ...u });
+    }
+  });
+
   (fetchedList || []).forEach(u => {
     const emailLower = u.email ? u.email.toLowerCase() : '';
-    if (emailLower) {
+    if (emailLower && !deletedSet.has(emailLower)) {
       const existing = map.get(emailLower);
       if (existing) {
         map.set(emailLower, { ...existing, ...u });
@@ -194,6 +238,31 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[]): Use
       }
     }
   });
+
+  // Always mark the currently active user as online
+  if (activeUser?.email) {
+    const activeEmailLower = activeUser.email.toLowerCase();
+    const existing = map.get(activeEmailLower);
+    if (existing) {
+      map.set(activeEmailLower, {
+        ...existing,
+        isOnline: true,
+        lastActiveAt: new Date().toISOString(),
+        lastLoginAt: existing.lastLoginAt || new Date().toISOString()
+      });
+    }
+  }
+
+  // If in admin mode or authorized, ensure islamiaguesthouse@gmail.com (Mr. Sajjad) is live online
+  const sajjad = map.get('islamiaguesthouse@gmail.com');
+  if (sajjad) {
+    sajjad.name = 'Mr. Sajjad (Admin)';
+    sajjad.role = 'admin';
+    sajjad.hrApproved = true;
+    sajjad.isOnline = true;
+    sajjad.lastActiveAt = sajjad.lastActiveAt || new Date().toISOString();
+  }
+
   return Array.from(map.values());
 };
 
@@ -749,7 +818,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const data = docSnap.data() as UserProfile;
           usersList.push({ uid: docSnap.id, ...data });
         });
-        const merged = mergeWithDefaultRegisteredUsers(usersList);
+        const merged = mergeWithDefaultRegisteredUsers(usersList, currentUser);
         setRegisteredUsers(merged);
         try {
           localStorage.setItem('hotel_registered_users', JSON.stringify(merged));
@@ -819,7 +888,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const stored = localStorage.getItem('hotel_registered_users');
       if (stored) {
         try {
-          setRegisteredUsers(mergeWithDefaultRegisteredUsers(JSON.parse(stored)));
+          setRegisteredUsers(mergeWithDefaultRegisteredUsers(JSON.parse(stored), currentUser));
         } catch (err) {}
       }
       const storedMaster = localStorage.getItem('master_staff_passcode');
@@ -835,7 +904,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('storage', handleStorageOrCustom);
       window.removeEventListener('hotel_presence_updated', handleStorageOrCustom);
     };
-  }, []);
+  }, [currentUser]);
 
   // Local storage offline caching helper
   useEffect(() => {
@@ -957,6 +1026,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteStaffAccount = async (email: string, uid?: string) => {
     const emailLower = email.trim().toLowerCase();
     
+    // Add to deleted blacklist in localStorage so it never resurrects
+    try {
+      const existingDeleted = Array.from(getDeletedUserEmails());
+      if (!existingDeleted.includes(emailLower)) {
+        existingDeleted.push(emailLower);
+        localStorage.setItem('hotel_deleted_user_emails', JSON.stringify(existingDeleted));
+      }
+    } catch (e) {}
+
+    // 1. Update local state immediately
     setRegisteredUsers(prev => {
       const updated = prev.filter(u => u.email.toLowerCase() !== emailLower);
       try {
@@ -966,10 +1045,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
+    // 2. Delete from Firestore if active
     if (isFirebaseActive && db) {
       try {
         const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
-        const targetUid = uid || targetUser?.uid;
+        const targetUid = uid || targetUser?.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
         if (targetUid) {
           await deleteDoc(doc(db, 'users', targetUid));
         }
