@@ -707,7 +707,7 @@ export const GuestView: React.FC = () => {
           <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl text-white font-normal tracking-wide drop-shadow-md leading-tight">
             Islamia Guest House
           </h1>
-          <p className="font-serif text-xl sm:text-3xl text-white/90 mt-2 font-light tracking-wider drop-shadow">
+          <p className="font-serif text-xl sm:text-3xl text-white mt-2 font-bold tracking-wider drop-shadow-lg">
             Dhanmondi
           </p>
         </div>
@@ -949,126 +949,8 @@ export const GuestView: React.FC = () => {
         />
       )}
 
-      {/* 3.5 Events & Experience Collage Section */}
-      <section id="events" className="bg-[#0e2b33] text-[#f8f4ec] py-20 px-6 mb-16">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          <div className="lg:col-span-5 space-y-4">
-            <div className="text-[11px] tracking-[0.28em] text-[#d7bd8a] font-bold uppercase">
-              EXPLORE AROUND ISLAMIA GUEST HOUSE DHANMONDI
-            </div>
-            <h2 className="font-serif text-3xl sm:text-4xl text-white leading-tight">
-              Discover Dhanmondi's Heritage & Iconic Landmarks
-            </h2>
-            <div className="space-y-3 text-xs sm:text-sm text-[#f8f4ec]/85 leading-relaxed">
-              <p>
-                Stay at the center of culture and history. From our prime Dhanmondi location, immerse yourself in Bangladesh’s most celebrated architectural and historic wonders:
-              </p>
-              <ul className="space-y-2 pt-1 border-t border-[#f8f4ec]/10">
-                <li className="flex items-start gap-2">
-                  <span className="text-[#d7bd8a] font-bold">🏛️</span>
-                  <span><strong>Jatiya Sangsad Bhaban:</strong> World-renowned brutalist parliament house designed by Louis Kahn, framed by scenic water pools.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#d7bd8a] font-bold">🏰</span>
-                  <span><strong>Lalbagh Kella (Fort):</strong> Majestic 17th-century Mughal fortress featuring the tomb of Pari Bibi and subterranean gardens.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#d7bd8a] font-bold">🌿</span>
-                  <span><strong>Dhanmondi Lake Park:</strong> Serene waterfront promenade located steps away for morning walks, fresh breeze, and local tea stalls.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#d7bd8a] font-bold">✍️</span>
-                  <span><strong>Kazi Nazrul Islam Shrine & Museum:</strong> Pay homage to National Poet Kazi Nazrul Islam (Rebel Poet) at his central Dhanmondi memorial & Nazrul Institute.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#d7bd8a] font-bold">🕌</span>
-                  <span><strong>Ahsan Manzil & Tara Masjid:</strong> Explore the iconic Pink Palace on the Buriganga River and the stunning ornate Star Mosque in historic Dhanmondi surroundings.</span>
-                </li>
-              </ul>
-            </div>
-            <a 
-              href="https://wa.me/8801799148408" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 border border-[#d7bd8a] text-[#d7bd8a] hover:bg-[#d7bd8a] hover:text-[#0e2b33] px-6 py-2.5 text-xs font-bold tracking-wider rounded transition-all mt-2"
-            >
-              <span>Get Guided City Tour Info on WhatsApp</span> →
-            </a>
-          </div>
-          <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="relative group overflow-hidden rounded shadow-lg h-44">
-              <img 
-                src={nationalParliamentImg} 
-                alt="National Parliament House (Jatiya Sangsad Bhaban)" 
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?auto=format&fit=crop&w=800&q=80";
-                }}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
-                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">National Parliament</span>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded shadow-lg h-44">
-              <img 
-                src={lalbaghFortImg} 
-                alt="Lalbagh Fort (Lalbagh Kella)" 
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1608958435020-e827101ef2b8?auto=format&fit=crop&w=800&q=80";
-                }}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
-                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Lalbagh Fort (Kella)</span>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded shadow-lg h-44">
-              <img 
-                src={ahsanManzilImg} 
-                alt="Ahsan Manzil Pink Palace" 
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80";
-                }}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
-                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Ahsan Manzil (Pink Palace)</span>
-              </div>
-            </div>
-            <div className="relative group overflow-hidden rounded shadow-lg h-44">
-              <img 
-                src={taraMasjidImg} 
-                alt="Tara Masjid Star Mosque" 
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&w=800&q=80";
-                }}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
-                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Tara Masjid (Star Mosque)</span>
-              </div>
-            </div>
-            <div className="col-span-2 sm:col-span-2 relative group overflow-hidden rounded shadow-lg h-44">
-              <img 
-                src={dhanmondiLakeImg} 
-                alt="Dhanmondi Lake Park" 
-                referrerPolicy="no-referrer"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80";
-                }}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
-                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Dhanmondi Lake Park</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* 3. Why Choose Us (8 Distinctive Pillars) */}
+      <WhyChooseUs />
 
       {/* 4. Active Guest Reservations Section */}
       <section id="my-stays-section" className="max-w-7xl mx-auto px-6 mb-16">
@@ -2036,8 +1918,126 @@ export const GuestView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4.8. Why Choose Us Section */}
-      <WhyChooseUs />
+      {/* 4.8. Explore Around Islamia Guest House Dhanmondi (Heritage & Iconic Landmarks) */}
+      <section id="events" className="bg-[#0e2b33] text-[#f8f4ec] py-20 px-6 my-16 rounded-3xl shadow-xl">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          <div className="lg:col-span-5 space-y-4">
+            <div className="text-[11px] tracking-[0.28em] text-[#d7bd8a] font-bold uppercase">
+              EXPLORE AROUND ISLAMIA GUEST HOUSE DHANMONDI
+            </div>
+            <h2 className="font-serif text-3xl sm:text-4xl text-white leading-tight">
+              Discover Dhanmondi's Heritage & Iconic Landmarks
+            </h2>
+            <div className="space-y-3 text-xs sm:text-sm text-[#f8f4ec]/85 leading-relaxed">
+              <p>
+                Stay at the center of culture and history. From our prime Dhanmondi location, immerse yourself in Bangladesh’s most celebrated architectural and historic wonders:
+              </p>
+              <ul className="space-y-2 pt-1 border-t border-[#f8f4ec]/10">
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">🏛️</span>
+                  <span><strong>Jatiya Sangsad Bhaban:</strong> World-renowned brutalist parliament house designed by Louis Kahn, framed by scenic water pools.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">🏰</span>
+                  <span><strong>Lalbagh Kella (Fort):</strong> Majestic 17th-century Mughal fortress featuring the tomb of Pari Bibi and subterranean gardens.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">🌿</span>
+                  <span><strong>Dhanmondi Lake Park:</strong> Serene waterfront promenade located steps away for morning walks, fresh breeze, and local tea stalls.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">✍️</span>
+                  <span><strong>Kazi Nazrul Islam Shrine & Museum:</strong> Pay homage to National Poet Kazi Nazrul Islam (Rebel Poet) at his central Dhanmondi memorial & Nazrul Institute.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-[#d7bd8a] font-bold">🕌</span>
+                  <span><strong>Ahsan Manzil & Tara Masjid:</strong> Explore the iconic Pink Palace on the Buriganga River and the stunning ornate Star Mosque in historic Dhanmondi surroundings.</span>
+                </li>
+              </ul>
+            </div>
+            <a 
+              href="https://wa.me/8801799148408" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 border border-[#d7bd8a] text-[#d7bd8a] hover:bg-[#d7bd8a] hover:text-[#0e2b33] px-6 py-2.5 text-xs font-bold tracking-wider rounded transition-all mt-2"
+            >
+              <span>Get Guided City Tour Info on WhatsApp</span> →
+            </a>
+          </div>
+          <div className="lg:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src={nationalParliamentImg} 
+                alt="National Parliament House (Jatiya Sangsad Bhaban)" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1588668214407-6ea9a6d8c272?auto=format&fit=crop&w=800&q=80";
+                }}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">National Parliament</span>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src={lalbaghFortImg} 
+                alt="Lalbagh Fort (Lalbagh Kella)" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1608958435020-e827101ef2b8?auto=format&fit=crop&w=800&q=80";
+                }}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Lalbagh Fort (Kella)</span>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src={ahsanManzilImg} 
+                alt="Ahsan Manzil Pink Palace" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80";
+                }}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Ahsan Manzil (Pink Palace)</span>
+              </div>
+            </div>
+            <div className="relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src={taraMasjidImg} 
+                alt="Tara Masjid Star Mosque" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&w=800&q=80";
+                }}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Tara Masjid (Star Mosque)</span>
+              </div>
+            </div>
+            <div className="col-span-2 sm:col-span-2 relative group overflow-hidden rounded shadow-lg h-44">
+              <img 
+                src={dhanmondiLakeImg} 
+                alt="Dhanmondi Lake Park" 
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80";
+                }}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent p-2.5 flex items-end">
+                <span className="text-[11px] font-bold text-white tracking-wide drop-shadow">Dhanmondi Lake Park</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* 5. Contact & Location Info Footer Banner with Map Background */}
       <div 
