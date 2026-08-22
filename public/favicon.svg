@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5DF9E" />
+      <stop offset="50%" stop-color="#D4AF37" />
+      <stop offset="100%" stop-color="#AA771C" />
+    </linearGradient>
+    <linearGradient id="dark" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#081B21" />
+      <stop offset="100%" stop-color="#040D10" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#dark)" stroke="url(#gold)" stroke-width="4"/>
+  <!-- Arch -->
+  <path d="M 38 98 L 38 65 C 38 42 64 28 64 28 C 64 28 90 42 90 65 L 90 98 Z" fill="none" stroke="url(#gold)" stroke-width="3"/>
+  <!-- Crescent -->
+  <circle cx="64" cy="18" r="4" fill="url(#gold)"/>
+  <!-- Monogram IGH in Favicon -->
+  <text x="64" y="74" font-family="serif" font-size="26" font-weight="900" fill="url(#gold)" text-anchor="middle" letter-spacing="1">IGH</text>
+  <text x="64" y="90" font-family="sans-serif" font-size="7" font-weight="800" fill="#F5DF9E" text-anchor="middle" letter-spacing="1.5">DHANMONDI</text>
+</svg>
