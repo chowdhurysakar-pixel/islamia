@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback } from '../types';
+import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, GuestLogoSettings } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -116,9 +116,19 @@ interface AppContextType {
   recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
   masterStaffPasscode: string;
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
+  // Guest View Logo & Branding Management
+  guestLogoSettings: GuestLogoSettings;
+  updateGuestLogoSettings: (settings: Partial<GuestLogoSettings>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export const DEFAULT_LOGO_SETTINGS: GuestLogoSettings = {
+  showLogo: true,
+  logoType: 'emblem',
+  customLogoUrl: '',
+  logoText: 'ISLAMIA GUEST HOUSE'
+};
 
 const ADMIN_EMAIL_WHITELIST = [
   'islamiaguesthouse@gmail.com',
@@ -373,6 +383,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Website Guest View Logo & Branding State
+  const [guestLogoSettings, setGuestLogoSettings] = useState<GuestLogoSettings>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_guest_logo_settings');
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {}
+    return DEFAULT_LOGO_SETTINGS;
+  });
+
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
@@ -590,10 +611,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleFirestoreError(error, OperationType.GET, 'feedbacks');
       });
 
+      // 4. Realtime settings collection listener for guest view logo and branding
+      const unsubSettings = onSnapshot(doc(db, 'settings', 'guest_logo'), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as any;
+          const syncedSettings: GuestLogoSettings = {
+            showLogo: data.showLogo ?? true,
+            logoType: data.logoType || 'emblem',
+            customLogoUrl: data.customLogoUrl || '',
+            logoText: data.logoText || 'ISLAMIA GUEST HOUSE',
+            updatedAt: data.updatedAt,
+            updatedBy: data.updatedBy
+          };
+          setGuestLogoSettings(syncedSettings);
+          try {
+            localStorage.setItem('hotel_guest_logo_settings', JSON.stringify(syncedSettings));
+          } catch (e) {}
+        }
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'settings/guest_logo');
+      });
+
       return () => {
         unsubscribeAuth();
         unsubRooms();
         unsubFeedbacks();
+        unsubSettings();
       };
     } else {
       // Offline Local Storage Sandbox Fallback
@@ -2154,6 +2197,41 @@ Islamia Guest House, Dhanmondi`;
     }
   };
 
+  const updateGuestLogoSettings = async (settings: Partial<GuestLogoSettings>) => {
+    const updated: GuestLogoSettings = {
+      ...guestLogoSettings,
+      ...settings,
+      updatedAt: new Date().toISOString(),
+      updatedBy: currentUser?.name || currentUser?.email || 'Admin'
+    };
+
+    setGuestLogoSettings(updated);
+    try {
+      localStorage.setItem('hotel_guest_logo_settings', JSON.stringify(updated));
+    } catch (e) {}
+
+    if (isFirebaseActive && db) {
+      const settingPath = 'settings/guest_logo';
+      try {
+        await setDoc(doc(db, 'settings', 'guest_logo'), sanitizeFirestoreData({
+          id: 'guest_logo',
+          ...updated
+        }));
+        showToast({
+          message: updated.showLogo ? "✅ Guest view logo updated & enabled!" : "🔒 Guest view logo removed / hidden.",
+          type: 'success'
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, settingPath);
+      }
+    } else {
+      showToast({
+        message: updated.showLogo ? "✅ Guest view logo updated & enabled!" : "🔒 Guest view logo removed / hidden.",
+        type: 'success'
+      });
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       rooms,
@@ -2205,7 +2283,9 @@ Islamia Guest House, Dhanmondi`;
       deleteStaffAccount,
       recordStaffSignIn,
       masterStaffPasscode,
-      updateMasterStaffPasscode
+      updateMasterStaffPasscode,
+      guestLogoSettings,
+      updateGuestLogoSettings
     }}>
       {children}
     </AppContext.Provider>

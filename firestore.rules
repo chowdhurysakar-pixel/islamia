@@ -157,5 +157,11 @@ service cloud.firestore {
 
       allow delete: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
     }
+
+    // --- Settings & Brand Configuration Collection ---
+    match /settings/{settingId} {
+      allow get, list: if true; // Publicly readable for guest branding and logo display
+      allow create, update, delete: if isSignedIn() && isValidId(settingId) && isStaff();
+    }
   }
 }

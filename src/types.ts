@@ -115,3 +115,12 @@ export interface Feedback {
   createdAt: string;
 }
 
+export interface GuestLogoSettings {
+  showLogo: boolean;
+  logoType: 'emblem' | 'image';
+  customLogoUrl?: string;
+  logoText?: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
