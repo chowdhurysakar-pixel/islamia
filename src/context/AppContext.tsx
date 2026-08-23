@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, GuestLogoSettings } from '../types';
+import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, GuestLogoSettings, LoginRequest } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -116,6 +116,12 @@ interface AppContextType {
   recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
   masterStaffPasscode: string;
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
+  // Real-time Staff Login Authorization Gate (Live Stream)
+  loginRequests: LoginRequest[];
+  createLoginRequest: (reqData: { email: string; name: string; role?: UserRole; phone?: string; passcodeUsed?: string; deviceInfo?: string }) => Promise<string>;
+  approveLoginRequest: (requestId: string) => Promise<void>;
+  rejectLoginRequest: (requestId: string) => Promise<void>;
+  deleteLoginRequest: (requestId: string) => Promise<void>;
   // Guest View Logo & Branding Management
   guestLogoSettings: GuestLogoSettings;
   updateGuestLogoSettings: (settings: Partial<GuestLogoSettings>) => Promise<void>;
@@ -148,8 +154,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     isOnline: true,
     lastLoginAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
-    loginMethod: 'passcode',
-    staffSecretKey: 'ADMIN2026'
+    loginMethod: 'passcode'
   },
   {
     uid: 'local-admin-1',
@@ -161,8 +166,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     isOnline: true,
     lastLoginAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
-    loginMethod: 'passcode',
-    staffSecretKey: 'ADMIN2026'
+    loginMethod: 'passcode'
   },
   {
     uid: 'local-admin-2',
@@ -191,7 +195,6 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     email: 'frontdesk.receptionist@islamiaguesthouse.com',
     name: 'Front Desk Reception Team',
     role: 'staff',
-    staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: true,
     emailVerified: true,
     isOnline: true,
@@ -204,7 +207,6 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     email: 'cleaning.supervisor@islamiaguesthouse.com',
     name: 'Kamrul Hasan (Housekeeping)',
     role: 'staff',
-    staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: false,
     emailVerified: true,
     isOnline: false,
@@ -380,6 +382,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return stored ? mergeWithDefaultRegisteredUsers(JSON.parse(stored)) : DEFAULT_SYSTEM_USERS;
     } catch (e) {
       return DEFAULT_SYSTEM_USERS;
+    }
+  });
+
+  // Real-Time Staff Login Authorization Requests state
+  const [loginRequests, setLoginRequests] = useState<LoginRequest[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_login_requests');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
     }
   });
 
@@ -873,11 +885,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Could not attach users snapshot listener:", e);
     }
 
+    // 5. Real-time Live Staff Login Authorization Requests stream from Firestore
+    let unsubLoginRequests: (() => void) | null = null;
+    try {
+      unsubLoginRequests = onSnapshot(collection(db, 'login_requests'), (snapshot) => {
+        const reqs: LoginRequest[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          reqs.push({
+            id: docSnap.id,
+            email: data.email || '',
+            name: data.name || 'Staff Member',
+            role: data.role || 'staff',
+            status: data.status || 'pending',
+            requestedAt: data.requestedAt || new Date().toISOString(),
+            phone: data.phone,
+            passcodeUsed: data.passcodeUsed,
+            approvedAt: data.approvedAt,
+            approvedBy: data.approvedBy,
+            rejectedAt: data.rejectedAt,
+            rejectedBy: data.rejectedBy,
+            deviceInfo: data.deviceInfo,
+            ip: data.ip
+          });
+        });
+        // Sort descending by requestedAt
+        reqs.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+        setLoginRequests(reqs);
+        try {
+          localStorage.setItem('hotel_login_requests', JSON.stringify(reqs));
+        } catch (e) {}
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'login_requests');
+      });
+    } catch (e) {
+      console.warn("Could not attach login_requests snapshot listener:", e);
+    }
+
     return () => {
       if (unsubBookings) unsubBookings();
       if (unsubArchived) unsubArchived();
       if (unsubRequests) unsubRequests();
       if (unsubUsers) unsubUsers();
+      if (unsubLoginRequests) unsubLoginRequests();
     };
   }, [currentUser, currentRole, opMode, isFirebaseActive]);
 
@@ -1116,6 +1166,172 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           updatedAt: new Date().toISOString()
         }, { merge: true });
       } catch (e) {}
+    }
+  };
+
+  // Real-time Staff Login Authorization Gate (Live Stream Actions)
+  const createLoginRequest = async (reqData: {
+    email: string;
+    name: string;
+    role?: UserRole;
+    phone?: string;
+    passcodeUsed?: string;
+    deviceInfo?: string;
+  }): Promise<string> => {
+    const emailLower = reqData.email.trim().toLowerCase();
+    const requestId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const now = new Date().toISOString();
+
+    const newReq: LoginRequest = {
+      id: requestId,
+      email: emailLower,
+      name: reqData.name || 'Front Desk Staff',
+      role: reqData.role || 'staff',
+      phone: reqData.phone || '',
+      passcodeUsed: reqData.passcodeUsed ? '••••••••' : undefined,
+      status: 'pending',
+      requestedAt: now,
+      deviceInfo: reqData.deviceInfo || navigator.userAgent || 'Web Terminal',
+      ip: 'islamiaguesthouse.com'
+    };
+
+    setLoginRequests(prev => [newReq, ...prev.filter(r => r.id !== requestId)]);
+    try {
+      const stored = localStorage.getItem('hotel_login_requests');
+      const parsed: LoginRequest[] = stored ? JSON.parse(stored) : [];
+      localStorage.setItem('hotel_login_requests', JSON.stringify([newReq, ...parsed.filter(r => r.id !== requestId)]));
+    } catch (e) {}
+
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, 'login_requests', requestId), sanitizeFirestoreData(newReq));
+      } catch (e) {
+        console.warn("Failed to create login request in Firestore:", e);
+      }
+    }
+
+    return requestId;
+  };
+
+  const approveLoginRequest = async (requestId: string) => {
+    const targetReq = loginRequests.find(r => r.id === requestId);
+    const now = new Date().toISOString();
+    const adminEmail = currentUser?.email || 'admin@islamiaguesthouse.com';
+
+    // 1. Update login requests state
+    setLoginRequests(prev => {
+      const updated = prev.map(r => r.id === requestId ? {
+        ...r,
+        status: 'approved' as const,
+        approvedAt: now,
+        approvedBy: adminEmail
+      } : r);
+      try {
+        localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 2. Mark user in registeredUsers as approved and online
+    if (targetReq?.email) {
+      const emailLower = targetReq.email.toLowerCase();
+      setRegisteredUsers(prev => {
+        const updated = prev.map(u => {
+          if (u.email.toLowerCase() === emailLower) {
+            return { ...u, hrApproved: true, isOnline: true, lastLoginAt: now };
+          }
+          return u;
+        });
+        try {
+          localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+    }
+
+    // 3. Update Firestore document in real-time
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, 'login_requests', requestId), {
+          status: 'approved',
+          approvedAt: now,
+          approvedBy: adminEmail
+        }, { merge: true });
+
+        if (targetReq?.email) {
+          const emailLower = targetReq.email.toLowerCase();
+          const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
+          const targetUid = targetUser?.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          await setDoc(doc(db, 'users', targetUid), {
+            hrApproved: true,
+            isOnline: true,
+            lastLoginAt: now
+          }, { merge: true });
+        }
+      } catch (e) {
+        console.warn("Failed to approve login request in Firestore:", e);
+      }
+    }
+
+    showToast({
+      type: 'success',
+      message: `✅ Access Approved for ${targetReq?.name || targetReq?.email || 'Staff'}`
+    });
+  };
+
+  const rejectLoginRequest = async (requestId: string) => {
+    const targetReq = loginRequests.find(r => r.id === requestId);
+    const now = new Date().toISOString();
+    const adminEmail = currentUser?.email || 'admin@islamiaguesthouse.com';
+
+    // 1. Update login requests state
+    setLoginRequests(prev => {
+      const updated = prev.map(r => r.id === requestId ? {
+        ...r,
+        status: 'rejected' as const,
+        rejectedAt: now,
+        rejectedBy: adminEmail
+      } : r);
+      try {
+        localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 2. Update Firestore in real time
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, 'login_requests', requestId), {
+          status: 'rejected',
+          rejectedAt: now,
+          rejectedBy: adminEmail
+        }, { merge: true });
+      } catch (e) {
+        console.warn("Failed to reject login request in Firestore:", e);
+      }
+    }
+
+    showToast({
+      type: 'warning',
+      message: `🚫 Login Request Declined for ${targetReq?.name || targetReq?.email || 'Staff'}`
+    });
+  };
+
+  const deleteLoginRequest = async (requestId: string) => {
+    setLoginRequests(prev => {
+      const updated = prev.filter(r => r.id !== requestId);
+      try {
+        localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    if (isFirebaseActive && db) {
+      try {
+        await deleteDoc(doc(db, 'login_requests', requestId));
+      } catch (e) {
+        console.warn("Failed to delete login request in Firestore:", e);
+      }
     }
   };
 
@@ -2308,6 +2524,11 @@ Islamia Guest House, Dhanmondi`;
       recordStaffSignIn,
       masterStaffPasscode,
       updateMasterStaffPasscode,
+      loginRequests,
+      createLoginRequest,
+      approveLoginRequest,
+      rejectLoginRequest,
+      deleteLoginRequest,
       guestLogoSettings,
       updateGuestLogoSettings
     }}>

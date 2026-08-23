@@ -169,5 +169,17 @@ service cloud.firestore {
       allow get, list: if true; // Publicly readable for guest branding and logo display
       allow create, update, delete: if isSignedIn() && isValidId(settingId) && isStaff();
     }
+
+    // --- Login Authorization Requests Collection ---
+    match /login_requests/{requestId} {
+      allow get, list: if true; // Allows staff clients to listen to approval status and admins to stream incoming requests
+      allow create: if isValidId(requestId) &&
+        incoming().id == requestId &&
+        incoming().email is string && incoming().email.size() <= 120 &&
+        incoming().name is string && incoming().name.size() <= 120 &&
+        incoming().status in ["pending", "approved", "rejected"] &&
+        incoming().requestedAt is string;
+      allow update, delete: if true;
+    }
   }
 }

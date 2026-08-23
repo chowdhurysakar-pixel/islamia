@@ -110,7 +110,11 @@ export const AdminPanel: React.FC = () => {
     currentUser,
     currentRole,
     guestLogoSettings,
-    updateGuestLogoSettings
+    updateGuestLogoSettings,
+    loginRequests,
+    approveLoginRequest,
+    rejectLoginRequest,
+    deleteLoginRequest
   } = useApp();
 
   // Admin Active Tab
@@ -1099,7 +1103,7 @@ export const AdminPanel: React.FC = () => {
             )}
           </div>
           <p className="text-[11px] text-slate-500">
-            Master Key: <span className="font-mono font-bold text-slate-700">{masterStaffPasscode}</span>
+            Passcode Security: <span className="font-mono font-bold text-teal-700">Active &amp; Protected</span>
           </p>
         </div>
 
@@ -1393,6 +1397,180 @@ export const AdminPanel: React.FC = () => {
             </div>
           </div>
 
+          {/* LIVE LOGIN AUTHORIZATION REQUESTS (REAL-TIME FIRESTORE STREAM) */}
+          <div className="bg-white border border-amber-200/90 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span>Login Authorization Requests</span>
+                    <span className="px-2 py-0.5 rounded-full bg-teal-50 border border-teal-200 text-teal-700 text-[10px] font-mono font-bold">
+                      ⚡ Live Stream
+                    </span>
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Staff sign-in attempts requiring instant 1-click administrator approval on islamiaguesthouse.com.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold font-mono rounded-xl flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>{loginRequests.filter(r => r.status === 'pending').length} Pending Approval</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Live Requests List */}
+            {loginRequests.length === 0 ? (
+              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100 space-y-1.5">
+                <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500" />
+                <p className="text-xs font-bold text-slate-700">No Pending Login Requests</p>
+                <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                  When front desk staff enter credentials, their real-time authorization request will appear here instantly without refreshing the page.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] tracking-wider border-b border-slate-200/60">
+                    <tr>
+                      <th className="p-3">Staff Requester</th>
+                      <th className="p-3">Role Requested</th>
+                      <th className="p-3">Requested At</th>
+                      <th className="p-3">Device / Terminal</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3 text-right">Approval Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {loginRequests.map((req) => {
+                      const isPending = req.status === 'pending';
+                      const isApproved = req.status === 'approved';
+                      const isRejected = req.status === 'rejected';
+
+                      return (
+                        <tr key={req.id} className={`transition ${isPending ? 'bg-amber-50/60 font-medium' : 'hover:bg-slate-50'}`}>
+                          {/* Staff Info */}
+                          <td className="p-3 font-semibold text-slate-900">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-lg bg-slate-800 text-white font-bold flex items-center justify-center text-xs uppercase">
+                                {req.name ? req.name.slice(0, 1) : 'S'}
+                              </div>
+                              <div>
+                                <div className="font-bold text-slate-900">{req.name || 'Front Desk Specialist'}</div>
+                                <div className="font-mono text-[11px] text-slate-500">{req.email}</div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Role */}
+                          <td className="p-3">
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase bg-teal-100 text-teal-800">
+                              {req.role}
+                            </span>
+                          </td>
+
+                          {/* Time */}
+                          <td className="p-3 text-[11px] text-slate-500 font-mono">
+                            {new Date(req.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            <div className="text-[10px] text-slate-400">
+                              {new Date(req.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                            </div>
+                          </td>
+
+                          {/* Device */}
+                          <td className="p-3 text-[11px] text-slate-500 max-w-[150px] truncate" title={req.deviceInfo}>
+                            {req.deviceInfo ? req.deviceInfo.split(' ')[0] : 'Web Terminal'}
+                          </td>
+
+                          {/* Status */}
+                          <td className="p-3">
+                            {isPending && (
+                              <span className="px-2.5 py-1 bg-amber-100 text-amber-800 font-bold rounded-full text-[10px] flex items-center gap-1.5 w-fit animate-pulse">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span>Awaiting Approval</span>
+                              </span>
+                            )}
+                            {isApproved && (
+                              <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-bold rounded-full text-[10px] flex items-center gap-1 w-fit">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Approved</span>
+                              </span>
+                            )}
+                            {isRejected && (
+                              <span className="px-2.5 py-1 bg-rose-100 text-rose-800 font-bold rounded-full text-[10px] flex items-center gap-1 w-fit">
+                                <AlertCircle className="w-3 h-3 text-rose-600" />
+                                <span>Rejected</span>
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Actions */}
+                          <td className="p-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {isPending ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await approveLoginRequest(req.id, currentUser?.email || 'admin@islamiaguesthouse.com');
+                                      showToast({
+                                        type: 'success',
+                                        message: `⚡ Approved sign-in for ${req.name || req.email}! Front Desk unlocked.`
+                                      });
+                                    }}
+                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Approve</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await rejectLoginRequest(req.id, currentUser?.email || 'admin@islamiaguesthouse.com');
+                                      showToast({
+                                        type: 'warning',
+                                        message: `⛔ Rejected sign-in request for ${req.name || req.email}.`
+                                      });
+                                    }}
+                                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs transition flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    <span>Reject</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await deleteLoginRequest(req.id);
+                                    showToast({
+                                      type: 'info',
+                                      message: 'Cleared login request log.'
+                                    });
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition cursor-pointer"
+                                  title="Clear Log"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* Registered Staff Accounts & HR Approvals Table */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
             {/* Action Banner for Pending Staff Join Requests */}
@@ -1589,7 +1767,7 @@ export const AdminPanel: React.FC = () => {
                             {user.loginMethod === 'passcode' || user.staffSecretKey ? (
                               <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60">
                                 <KeyRound className="w-3 h-3 text-teal-600" />
-                                <span>Passcode: {user.staffSecretKey || 'STAFF789'}</span>
+                                <span>Authorized Passcode</span>
                               </div>
                             ) : user.loginMethod === 'google' ? (
                               <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold">

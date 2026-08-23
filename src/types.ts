@@ -115,6 +115,23 @@ export interface Feedback {
   createdAt: string;
 }
 
+export interface LoginRequest {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  phone?: string;
+  passcodeUsed?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedAt?: string;
+  rejectedBy?: string;
+  deviceInfo?: string;
+  ip?: string;
+}
+
 export interface GuestLogoSettings {
   showLogo: boolean;
   logoType: 'emblem' | 'image';

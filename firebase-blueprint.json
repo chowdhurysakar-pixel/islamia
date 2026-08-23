@@ -93,6 +93,27 @@
         "updatedBy": { "type": "string" }
       },
       "required": ["id", "showLogo", "logoType"]
+    },
+    "LoginRequest": {
+      "title": "LoginRequest",
+      "description": "Real-time staff login authorization request requiring admin approval",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "staff", "guest"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "requestedAt": { "type": "string" },
+        "phone": { "type": "string" },
+        "passcodeUsed": { "type": "string" },
+        "approvedAt": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "rejectedAt": { "type": "string" },
+        "rejectedBy": { "type": "string" },
+        "deviceInfo": { "type": "string" }
+      },
+      "required": ["id", "email", "name", "role", "status", "requestedAt"]
     }
   },
   "firestore": {
@@ -119,6 +140,10 @@
     "/settings/{settingId}": {
       "schema": "Setting",
       "description": "Global application settings such as guest view logo and branding"
+    },
+    "/login_requests/{requestId}": {
+      "schema": "LoginRequest",
+      "description": "Real-time staff login authorization requests stream"
     }
   }
 }

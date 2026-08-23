@@ -20,7 +20,7 @@ import {
   signOut,
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 
 const VALID_STAFF_PASSCODES = [
   'ISLAMIA-STAFF-2026', 'STAFF789', 'ISLAMIA-DESK-55', 'STAFF2026'
@@ -55,7 +55,8 @@ export const SecureGateway: React.FC = () => {
     verifyOtp,
     masterStaffPasscode,
     recordStaffSignIn,
-    registeredUsers
+    registeredUsers,
+    createLoginRequest
   } = useApp();
   
   // Role tabs: 'staff' | 'admin'
@@ -64,6 +65,13 @@ export const SecureGateway: React.FC = () => {
   // Nested form mode for staff & admin
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   
+  // Real-Time Staff Login Authorization Gate (Live Approval State)
+  const [waitingApproval, setWaitingApproval] = useState(false);
+  const [approvalRequestId, setApprovalRequestId] = useState<string | null>(null);
+  const [approvalEmail, setApprovalEmail] = useState('');
+  const [approvalName, setApprovalName] = useState('');
+  const [approvalStatus, setApprovalStatus] = useState<'WAITING_FOR_ADMIN_APPROVAL' | 'APPROVED' | 'REJECTED'>('WAITING_FOR_ADMIN_APPROVAL');
+
   // Staff Fields
   const [staffName, setStaffName] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
@@ -105,6 +113,82 @@ export const SecureGateway: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Real-time Firestore onSnapshot listener on the pending login request
+  useEffect(() => {
+    if (!waitingApproval || !approvalRequestId) return;
+
+    let unsubscribe: (() => void) | null = null;
+
+    if (isFirebaseActive && db) {
+      try {
+        const docRef = doc(db, 'login_requests', approvalRequestId);
+        unsubscribe = onSnapshot(docRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.status === 'approved') {
+              setApprovalStatus('APPROVED');
+              sessionStorage.setItem('staff_authorized', 'true');
+              setOpMode('receptionist');
+              localLogin('staff', approvalEmail, approvalName || 'Front Desk Staff');
+              showToast({
+                type: 'success',
+                message: `🎉 Login Request Approved by Admin! Welcome to Front Desk Console.`
+              });
+              setWaitingApproval(false);
+              setApprovalRequestId(null);
+            } else if (data.status === 'rejected') {
+              setApprovalStatus('REJECTED');
+              setError('Access Denied: The Executive Administrator has declined your login request. Please contact hotel management.');
+              setWaitingApproval(false);
+              setApprovalRequestId(null);
+            }
+          }
+        }, (err) => {
+          console.warn("Approval onSnapshot notice:", err);
+        });
+      } catch (e) {
+        console.warn("Could not subscribe to login request status:", e);
+      }
+    }
+
+    // Local cross-tab / storage fallback listener
+    const handleLocalApproval = () => {
+      try {
+        const stored = localStorage.getItem('hotel_login_requests');
+        if (stored) {
+          const reqs = JSON.parse(stored);
+          const current = reqs.find((r: any) => r.id === approvalRequestId);
+          if (current?.status === 'approved') {
+            setApprovalStatus('APPROVED');
+            sessionStorage.setItem('staff_authorized', 'true');
+            setOpMode('receptionist');
+            localLogin('staff', approvalEmail, approvalName || 'Front Desk Staff');
+            showToast({
+              type: 'success',
+              message: `🎉 Login Request Approved by Admin! Welcome to Front Desk Console.`
+            });
+            setWaitingApproval(false);
+            setApprovalRequestId(null);
+          } else if (current?.status === 'rejected') {
+            setApprovalStatus('REJECTED');
+            setError('Access Denied: The Executive Administrator has declined your login request.');
+            setWaitingApproval(false);
+            setApprovalRequestId(null);
+          }
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('storage', handleLocalApproval);
+    window.addEventListener('hotel_presence_updated', handleLocalApproval);
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      window.removeEventListener('storage', handleLocalApproval);
+      window.removeEventListener('hotel_presence_updated', handleLocalApproval);
+    };
+  }, [waitingApproval, approvalRequestId, approvalEmail, approvalName, isFirebaseActive]);
 
   // Resend cooldown timer effect
   useEffect(() => {
@@ -313,7 +397,7 @@ export const SecureGateway: React.FC = () => {
       const isStaffKey = VALID_STAFF_PASSCODES.includes(cleanKey);
 
       if (!isAdminKey && !isStaffKey) {
-        setForgotError('Invalid Admin Master Key or Staff Passcode. Try ADMIN2026 or STAFF789.');
+        setForgotError('Invalid Admin Master Key or Staff Passcode. Please enter your authorized credentials.');
         setForgotLoading(false);
         return;
       }
@@ -324,17 +408,33 @@ export const SecureGateway: React.FC = () => {
       if (roleToUse === 'admin') {
         sessionStorage.setItem('admin_authorized', 'true');
         setOpMode('admin');
+        localLogin(roleToUse, emailToReset, defaultName);
+        setShowForgotPasswordModal(false);
+        showToast({
+          type: 'success',
+          message: `🔓 Account Unlocked via Admin Master Key! Welcome back (${emailToReset}).`
+        });
       } else {
-        sessionStorage.removeItem('admin_authorized');
-        setOpMode('receptionist');
+        // Staff must go through Authorization Gate
+        const reqId = await createLoginRequest({
+          email: emailToReset,
+          name: defaultName,
+          role: 'staff',
+          passcodeUsed: cleanKey,
+          deviceInfo: navigator.userAgent
+        });
+        setShowForgotPasswordModal(false);
+        setApprovalRequestId(reqId);
+        setApprovalEmail(emailToReset);
+        setApprovalName(defaultName);
+        setApprovalStatus('WAITING_FOR_ADMIN_APPROVAL');
+        setWaitingApproval(true);
+        showToast({
+          type: 'info',
+          message: '⚡ Recovery Request Sent: Waiting for Executive Admin approval...',
+          duration: 8000
+        });
       }
-      localLogin(roleToUse, emailToReset, defaultName);
-
-      setShowForgotPasswordModal(false);
-      showToast({
-        type: 'success',
-        message: `🔓 Account Unlocked via ${isAdminKey ? 'Admin Master' : 'Staff'} Key Verification! Welcome back (${emailToReset}).`
-      });
       setForgotLoading(false);
       return;
     }
@@ -404,7 +504,7 @@ export const SecureGateway: React.FC = () => {
 
     if (isAdmin) {
       if (authMode === 'signup' && !isAdminKeyValid) {
-        setError('Access Denied: Creating an Admin account requires a valid Admin Master Key (e.g. ADMIN2026).');
+        setError('Access Denied: Creating an Admin account requires an authorized Admin Master Key.');
         return;
       }
 
@@ -414,13 +514,13 @@ export const SecureGateway: React.FC = () => {
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'admin');
 
         if (!existing && !isAdminKeyValid) {
-          setError('Access Denied: Please enter a valid Admin Master Passcode to log in as Admin.');
+          setError('Access Denied: Please enter a valid authorized Admin Master Passcode.');
           return;
         }
       }
     } else {
       if (authMode === 'signup' && !isStaffSecretValid) {
-        setError(`Access Denied: Staff registration requires a valid Staff Secret Passcode (e.g. ${masterStaffPasscode || 'STAFF789'}).`);
+        setError('Access Denied: Staff registration requires a valid authorized Staff Passcode.');
         return;
       }
 
@@ -430,7 +530,7 @@ export const SecureGateway: React.FC = () => {
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'staff');
         
         if (!existing || (!existing.hrApproved && existing.staffSecretKey !== cleanSecretPasscode)) {
-          setError('Access Denied: Staff members must enter a valid Staff Passcode (e.g. STAFF789) or be approved by HR.');
+          setError('Access Denied: Please enter an authorized Staff Passcode or await HR authorization.');
           return;
         }
       }
@@ -457,8 +557,8 @@ export const SecureGateway: React.FC = () => {
               role: role,
               phone: phone,
               emailVerified: false,
-              hrApproved: true,
-              staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+              hrApproved: isAdmin,
+              staffSecretKey: cleanSecretPasscode || masterStaffPasscode || '',
               registeredAt: new Date().toISOString()
             };
             
@@ -486,16 +586,14 @@ export const SecureGateway: React.FC = () => {
             });
           }
         } else {
-          // --- SIGN IN FLOW: STRICT EMAIL VERIFICATION ENFORCEMENT ---
+          // --- SIGN IN FLOW: STRICT AUTHENTICATION & AUTHORIZATION GATE ---
           const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
           
           if (userCredential.user) {
-            // Reload user state to fetch latest emailVerified token
             await userCredential.user.reload();
 
             // STRICT PROTECTION: If email is NOT verified, block sign-in immediately!
             if (!userCredential.user.emailVerified) {
-              // Sign out immediately
               await signOut(auth);
               sessionStorage.removeItem('admin_authorized');
               
@@ -533,31 +631,51 @@ export const SecureGateway: React.FC = () => {
                   name: loggedInName,
                   role: loggedInRole,
                   emailVerified: true,
-                  hrApproved: true,
-                  staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+                  hrApproved: isAdmin,
+                  staffSecretKey: cleanSecretPasscode || masterStaffPasscode || '',
                   isOnline: true,
                   lastLoginAt: new Date().toISOString()
                 };
                 await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
               }
             } catch (docErr) {
-              console.warn("Could not sync user profile online, continuing with auth credentials:", docErr);
+              console.warn("Could not sync user profile online:", docErr);
             }
 
             if (loggedInRole === 'admin') {
               sessionStorage.setItem('admin_authorized', 'true');
               setOpMode('admin');
-            } else {
-              sessionStorage.removeItem('admin_authorized');
-              setOpMode('receptionist');
-            }
-            localLogin(loggedInRole, emailLower, loggedInName);
-            await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
+              localLogin(loggedInRole, emailLower, loggedInName);
+              await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
 
-            showToast({
-              type: 'success',
-              message: `👋 Welcome back, ${loggedInName}!`
-            });
+              showToast({
+                type: 'success',
+                message: `👋 Welcome back Executive Administrator, ${loggedInName}!`
+              });
+            } else {
+              // STRICT AUTHORIZATION GATE FOR STAFF:
+              // Generate live Firestore login_requests doc and lock into Authorization Gate
+              const reqId = await createLoginRequest({
+                email: emailLower,
+                name: loggedInName,
+                role: 'staff',
+                phone: phone || '',
+                passcodeUsed: cleanSecretPasscode,
+                deviceInfo: navigator.userAgent
+              });
+
+              setApprovalRequestId(reqId);
+              setApprovalEmail(emailLower);
+              setApprovalName(loggedInName);
+              setApprovalStatus('WAITING_FOR_ADMIN_APPROVAL');
+              setWaitingApproval(true);
+
+              showToast({
+                type: 'info',
+                message: '⚡ Live Login Request Sent: Awaiting Executive Admin authorization...',
+                duration: 8000
+              });
+            }
           }
         }
       } catch (err: any) {
@@ -567,9 +685,7 @@ export const SecureGateway: React.FC = () => {
         if (err.code === 'auth/email-already-in-use') {
           msg = 'This email is already registered. Try signing in instead!';
         } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-          msg = isAdmin 
-            ? 'Incorrect email or password. Please verify your credentials.' 
-            : 'Incorrect email or password. Please verify your credentials.';
+          msg = 'Incorrect email or password. Please verify your credentials.';
         } else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
           msg = 'No account found with this email. Please register your profile first.';
         } else if (err.code === 'auth/too-many-requests') {
@@ -599,8 +715,8 @@ export const SecureGateway: React.FC = () => {
             name: name,
             role: role,
             emailVerified: true,
-            hrApproved: true,
-            staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+            hrApproved: isAdmin,
+            staffSecretKey: cleanSecretPasscode || masterStaffPasscode || '',
             isOnline: true,
             lastLoginAt: new Date().toISOString()
           };
@@ -616,23 +732,42 @@ export const SecureGateway: React.FC = () => {
           await sendOtp(emailLower, name, role, true);
         } else {
           const found = usersList.find(u => u.email === emailLower);
-          const resolvedName = found ? found.name : (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Specialist');
+          const resolvedName = found ? found.name : (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Staff');
           const resolvedRole: UserRole = found ? found.role : role;
           
           if (resolvedRole === 'admin') {
             sessionStorage.setItem('admin_authorized', 'true');
             setOpMode('admin');
-          } else {
-            sessionStorage.removeItem('admin_authorized');
-            setOpMode('receptionist');
-          }
-          localLogin(resolvedRole, emailLower, resolvedName);
-          await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
+            localLogin(resolvedRole, emailLower, resolvedName);
+            await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
 
-          showToast({
-            type: 'success',
-            message: `👋 Welcome back, ${resolvedName}!`
-          });
+            showToast({
+              type: 'success',
+              message: `👋 Welcome back Executive Administrator, ${resolvedName}!`
+            });
+          } else {
+            // STRICT AUTHORIZATION GATE FOR STAFF IN FALLBACK MODE
+            const reqId = await createLoginRequest({
+              email: emailLower,
+              name: resolvedName,
+              role: 'staff',
+              phone: phone || '',
+              passcodeUsed: cleanSecretPasscode,
+              deviceInfo: navigator.userAgent
+            });
+
+            setApprovalRequestId(reqId);
+            setApprovalEmail(emailLower);
+            setApprovalName(resolvedName);
+            setApprovalStatus('WAITING_FOR_ADMIN_APPROVAL');
+            setWaitingApproval(true);
+
+            showToast({
+              type: 'info',
+              message: '⚡ Live Login Request Sent: Awaiting Executive Admin authorization...',
+              duration: 8000
+            });
+          }
         }
       } catch (err: any) {
         setError('Authentication failed.');
@@ -641,6 +776,87 @@ export const SecureGateway: React.FC = () => {
       }
     }
   };
+
+  // --- REAL-TIME AUTHORIZATION GATE WAITING SCREEN ---
+  if (waitingApproval) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans animate-fadeIn">
+        <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-amber-50/80 via-slate-50/50 to-slate-50 pointer-events-none" />
+
+        <div className="max-w-md w-full space-y-6 relative z-10">
+          <div className="bg-white rounded-3xl p-8 shadow-2xl border border-amber-200 text-center space-y-6">
+            
+            {/* Pulsing Radar Beacon */}
+            <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full bg-amber-400/20 animate-ping" />
+              <div className="absolute inset-2 rounded-full bg-amber-400/30 animate-pulse" />
+              <div className="relative w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/30">
+                <ShieldCheck className="w-7 h-7" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold tracking-wide uppercase">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>Authorization Gate Active</span>
+              </div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                Waiting for Admin Approval
+              </h2>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Your staff login request has been dispatched in real time to the Executive Admin at <span className="font-semibold text-slate-800">islamiaguesthouse.com</span>.
+              </p>
+            </div>
+
+            {/* Request Summary Box */}
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 text-left space-y-2.5">
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
+                <span className="text-slate-500">Request ID:</span>
+                <span className="font-mono font-bold text-slate-800">{approvalRequestId}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
+                <span className="text-slate-500">Staff Account:</span>
+                <span className="font-medium text-slate-800 truncate max-w-[200px]">{approvalEmail}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
+                <span className="text-slate-500">Terminal Role:</span>
+                <span className="font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">Front Desk Receptionist</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-500">Live Status:</span>
+                <span className="flex items-center gap-1.5 text-amber-700 font-bold">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+                  <span>Pending Admin Authorization...</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Live Firestore Sync Notice */}
+            <div className="p-3 bg-teal-50/80 rounded-xl border border-teal-200/60 text-[11px] text-teal-800 flex items-start gap-2 text-left">
+              <RefreshCw className="w-4 h-4 text-teal-600 shrink-0 mt-0.5 animate-spin" />
+              <span>
+                <strong>Live Firestore Stream:</strong> Keep this window open. As soon as the Administrator authorizes your session in the Admin Panel, this page will automatically redirect to the Front Desk Console.
+              </span>
+            </div>
+
+            {/* Cancel Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setWaitingApproval(false);
+                setApprovalRequestId(null);
+                setError('');
+              }}
+              className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+            >
+              Cancel Login Request
+            </button>
+
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // --- DEDICATED EMAIL VERIFICATION NOTIFICATION SCREEN ---
   if (showVerificationScreen) {
@@ -1054,19 +1270,19 @@ export const SecureGateway: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-700">
                   {activeRoleTab === 'admin' ? 'Admin Master Key *' : 'Staff Passcode Key *'}
                 </label>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  {activeRoleTab === 'admin' ? 'E.G. ADMIN2026' : 'E.G. STAFF789'}
+                <span className="text-[10px] text-slate-400 font-medium">
+                  {activeRoleTab === 'admin' ? 'Authorized Key Required' : 'Authorized Passcode Required'}
                 </span>
               </div>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
-                  type="text"
+                  type="password"
                   required
                   value={activeRoleTab === 'admin' ? adminMasterKey : staffSecretPasscode}
                   onChange={(e) => activeRoleTab === 'admin' ? setAdminMasterKey(e.target.value) : setStaffSecretPasscode(e.target.value)}
-                  placeholder={activeRoleTab === 'admin' ? 'E.G. ADMIN2026' : 'E.G. STAFF789'}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none uppercase font-mono"
+                  placeholder={activeRoleTab === 'admin' ? 'Enter authorized Admin Master Key' : 'Enter your authorized passcode'}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none font-mono"
                 />
               </div>
             </div>
@@ -1168,15 +1384,14 @@ export const SecureGateway: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-semibold text-slate-700">Master Key / Passcode *</label>
-                    <span className="text-[10px] text-teal-600 font-mono font-bold">E.G. ADMIN2026</span>
                   </div>
                   <input
-                    type="text"
+                    type="password"
                     required
                     value={forgotMasterKey}
                     onChange={(e) => setForgotMasterKey(e.target.value)}
-                    placeholder="Enter ADMIN2026 or STAFF789"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-600 font-mono uppercase"
+                    placeholder="Enter your authorized passcode"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-600 font-mono"
                   />
                   <p className="text-[10px] text-slate-400">
                     Bypasses email delivery delays and unlocks your portal access immediately.
