@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, GuestLogoSettings, LoginRequest } from '../types';
+import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, GuestLogoSettings } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -116,13 +116,6 @@ interface AppContextType {
   recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
   masterStaffPasscode: string;
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
-  // Staff Real-time Login Session Requests & Admin Approvals
-  loginRequests: LoginRequest[];
-  createLoginRequest: (data: Omit<LoginRequest, 'id' | 'requestedAt' | 'status'>) => Promise<string>;
-  approveLoginRequest: (requestId: string, adminName?: string) => Promise<void>;
-  rejectLoginRequest: (requestId: string, reason?: string) => Promise<void>;
-  cancelLoginRequest: (requestId: string) => Promise<void>;
-  approveAllPendingLoginRequests: (adminName?: string) => Promise<void>;
   // Guest View Logo & Branding Management
   guestLogoSettings: GuestLogoSettings;
   updateGuestLogoSettings: (settings: Partial<GuestLogoSettings>) => Promise<void>;
@@ -387,16 +380,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return stored ? mergeWithDefaultRegisteredUsers(JSON.parse(stored)) : DEFAULT_SYSTEM_USERS;
     } catch (e) {
       return DEFAULT_SYSTEM_USERS;
-    }
-  });
-
-  // Real-time Staff Login Authorization Requests
-  const [loginRequests, setLoginRequests] = useState<LoginRequest[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_login_requests');
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      return [];
     }
   });
 
@@ -890,33 +873,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn("Could not attach users snapshot listener:", e);
     }
 
-    // 5. Real-time Login Session Requests sync from Firestore login_requests collection
-    let unsubLoginRequests: (() => void) | null = null;
-    try {
-      unsubLoginRequests = onSnapshot(collection(db, 'login_requests'), (snapshot) => {
-        const reqList: LoginRequest[] = [];
-        snapshot.forEach((docSnap) => {
-          reqList.push({ id: docSnap.id, ...docSnap.data() } as LoginRequest);
-        });
-        reqList.sort((a, b) => new Date(b.requestedAt || 0).getTime() - new Date(a.requestedAt || 0).getTime());
-        setLoginRequests(reqList);
-        try {
-          localStorage.setItem('hotel_login_requests', JSON.stringify(reqList));
-          window.dispatchEvent(new CustomEvent('hotel_login_requests_updated', { detail: reqList }));
-        } catch (e) {}
-      }, (error) => {
-        console.warn("Login requests realtime snapshot notice:", error);
-      });
-    } catch (e) {
-      console.warn("Could not attach login_requests snapshot listener:", e);
-    }
-
     return () => {
       if (unsubBookings) unsubBookings();
       if (unsubArchived) unsubArchived();
       if (unsubRequests) unsubRequests();
       if (unsubUsers) unsubUsers();
-      if (unsubLoginRequests) unsubLoginRequests();
     };
   }, [currentUser, currentRole, opMode, isFirebaseActive]);
 
@@ -977,22 +938,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (storedMaster) {
         setMasterStaffPasscodeState(storedMaster);
       }
-      const storedLoginReqs = localStorage.getItem('hotel_login_requests');
-      if (storedLoginReqs) {
-        try {
-          setLoginRequests(JSON.parse(storedLoginReqs));
-        } catch (err) {}
-      }
     };
 
     window.addEventListener('storage', handleStorageOrCustom);
     window.addEventListener('hotel_presence_updated', handleStorageOrCustom);
-    window.addEventListener('hotel_login_requests_updated', handleStorageOrCustom);
 
     return () => {
       window.removeEventListener('storage', handleStorageOrCustom);
       window.removeEventListener('hotel_presence_updated', handleStorageOrCustom);
-      window.removeEventListener('hotel_login_requests_updated', handleStorageOrCustom);
     };
   }, [currentUser]);
 
@@ -1164,167 +1117,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }, { merge: true });
       } catch (e) {}
     }
-  };
-
-  // Staff Real-time Login Session Requests & Admin Approvals
-  const createLoginRequest = async (data: Omit<LoginRequest, 'id' | 'requestedAt' | 'status'>): Promise<string> => {
-    const reqId = `req_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const nowIso = new Date().toISOString();
-    const newReq: LoginRequest = {
-      id: reqId,
-      name: data.name || 'Staff Member',
-      email: data.email.toLowerCase().trim(),
-      role: data.role || 'staff',
-      status: 'pending',
-      requestedAt: nowIso,
-      loginMethod: data.loginMethod || 'password',
-      deviceInfo: data.deviceInfo || navigator.userAgent || 'Web Browser',
-      userId: data.userId
-    };
-
-    setLoginRequests(prev => [newReq, ...prev.filter(r => r.id !== reqId)]);
-    try {
-      const existing = JSON.parse(localStorage.getItem('hotel_login_requests') || '[]');
-      const updated = [newReq, ...existing.filter((r: any) => r.id !== reqId)];
-      localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('hotel_login_requests_updated', { detail: updated }));
-    } catch (e) {}
-
-    if (isFirebaseActive && db) {
-      try {
-        await setDoc(doc(db, 'login_requests', reqId), sanitizeFirestoreData(newReq));
-      } catch (err) {
-        console.warn("Could not push login request to Firestore, persisted locally:", err);
-      }
-    }
-
-    return reqId;
-  };
-
-  const approveLoginRequest = async (requestId: string, adminName?: string) => {
-    const nowIso = new Date().toISOString();
-    const approver = adminName || currentUser?.name || currentUser?.email || 'Executive Administrator';
-
-    setLoginRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'approved', approvedAt: nowIso, approvedBy: approver } : r));
-
-    try {
-      const existing = JSON.parse(localStorage.getItem('hotel_login_requests') || '[]');
-      const updated = existing.map((r: any) => r.id === requestId ? { ...r, status: 'approved', approvedAt: nowIso, approvedBy: approver } : r);
-      localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('hotel_login_requests_updated', { detail: updated }));
-    } catch (e) {}
-
-    if (isFirebaseActive && db) {
-      try {
-        await updateDoc(doc(db, 'login_requests', requestId), sanitizeFirestoreData({
-          status: 'approved',
-          approvedAt: nowIso,
-          approvedBy: approver
-        }));
-      } catch (err) {
-        console.warn("Could not update approval in Firestore, persisted locally:", err);
-      }
-    }
-
-    // Also ensure the user in registeredUsers is marked hrApproved = true
-    const targetReq = loginRequests.find(r => r.id === requestId);
-    if (targetReq?.email) {
-      updateStaffApproval(targetReq.email, true, targetReq.userId);
-    }
-
-    showToast({
-      type: 'success',
-      message: `✅ Staff login for ${targetReq?.name || targetReq?.email || 'user'} authorized by Admin!`
-    });
-  };
-
-  const rejectLoginRequest = async (requestId: string, reason?: string) => {
-    const nowIso = new Date().toISOString();
-    const rejectReason = reason || 'Login denied by Administrator';
-
-    setLoginRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: 'rejected', rejectedAt: nowIso, rejectedReason: rejectReason } : r));
-
-    try {
-      const existing = JSON.parse(localStorage.getItem('hotel_login_requests') || '[]');
-      const updated = existing.map((r: any) => r.id === requestId ? { ...r, status: 'rejected', rejectedAt: nowIso, rejectedReason: rejectReason } : r);
-      localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('hotel_login_requests_updated', { detail: updated }));
-    } catch (e) {}
-
-    if (isFirebaseActive && db) {
-      try {
-        await updateDoc(doc(db, 'login_requests', requestId), sanitizeFirestoreData({
-          status: 'rejected',
-          rejectedAt: nowIso,
-          rejectedReason: rejectReason
-        }));
-      } catch (err) {
-        console.warn("Could not update rejection in Firestore, persisted locally:", err);
-      }
-    }
-
-    showToast({
-      type: 'info',
-      message: `🔒 Staff login request rejected.`
-    });
-  };
-
-  const cancelLoginRequest = async (requestId: string) => {
-    setLoginRequests(prev => prev.filter(r => r.id !== requestId));
-    try {
-      const existing = JSON.parse(localStorage.getItem('hotel_login_requests') || '[]');
-      const updated = existing.filter((r: any) => r.id !== requestId);
-      localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('hotel_login_requests_updated', { detail: updated }));
-    } catch (e) {}
-
-    if (isFirebaseActive && db) {
-      try {
-        await deleteDoc(doc(db, 'login_requests', requestId));
-      } catch (err) {
-        console.warn("Could not delete login request from Firestore:", err);
-      }
-    }
-  };
-
-  const approveAllPendingLoginRequests = async (adminName?: string) => {
-    const nowIso = new Date().toISOString();
-    const approver = adminName || currentUser?.name || currentUser?.email || 'Executive Administrator';
-    const pending = loginRequests.filter(r => r.status === 'pending');
-    if (pending.length === 0) return;
-
-    setLoginRequests(prev => prev.map(r => r.status === 'pending' ? { ...r, status: 'approved', approvedAt: nowIso, approvedBy: approver } : r));
-
-    try {
-      const existing = JSON.parse(localStorage.getItem('hotel_login_requests') || '[]');
-      const updated = existing.map((r: any) => r.status === 'pending' ? { ...r, status: 'approved', approvedAt: nowIso, approvedBy: approver } : r);
-      localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent('hotel_login_requests_updated', { detail: updated }));
-    } catch (e) {}
-
-    if (isFirebaseActive && db) {
-      for (const req of pending) {
-        try {
-          await updateDoc(doc(db, 'login_requests', req.id), sanitizeFirestoreData({
-            status: 'approved',
-            approvedAt: nowIso,
-            approvedBy: approver
-          }));
-        } catch (e) {}
-      }
-    }
-
-    // Mark each staff approved
-    for (const req of pending) {
-      if (req.email) {
-        updateStaffApproval(req.email, true, req.userId);
-      }
-    }
-
-    showToast({
-      type: 'success',
-      message: `✅ All ${pending.length} pending staff login requests authorized!`
-    });
   };
 
   // Auth Functions
@@ -2516,12 +2308,6 @@ Islamia Guest House, Dhanmondi`;
       recordStaffSignIn,
       masterStaffPasscode,
       updateMasterStaffPasscode,
-      loginRequests,
-      createLoginRequest,
-      approveLoginRequest,
-      rejectLoginRequest,
-      cancelLoginRequest,
-      approveAllPendingLoginRequests,
       guestLogoSettings,
       updateGuestLogoSettings
     }}>
