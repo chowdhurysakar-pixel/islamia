@@ -96,6 +96,12 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(bookingId) && isStaff();
     }
 
+    // --- Archived Bookings Collection ---
+    match /archived_bookings/{bookingId} {
+      allow list, get: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
+      allow create, update, delete: if isSignedIn() && isValidId(bookingId) && isStaff();
+    }
+
     // --- Service Requests Collection ---
     match /serviceRequests/{requestId} {
       allow list: if isSignedIn() && (isStaff() || get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.userId == request.auth.uid);

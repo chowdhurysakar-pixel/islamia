@@ -435,10 +435,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 1. Validate Connection to Firestore (Skill Requirement)
       const testConnection = async () => {
         try {
-          await getDocFromServer(doc(db, 'test', 'connection'));
+          await getDoc(doc(db, 'test', 'connection'));
         } catch (error) {
           // Graceful fallback when offline or server check is delayed
-          console.log("Firestore status: Operating in offline/cached mode until backend reconnected.");
+          console.warn("Firestore connection check in offline/cache mode.");
         }
       };
       testConnection().catch(() => {});
@@ -1297,11 +1297,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               });
               return { success: true, otpCode: 'Resent_Verification' };
             } else {
-              const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
               let profile: UserProfile;
-              if (userSnap.exists()) {
-                profile = userSnap.data() as UserProfile;
-              } else {
+              try {
+                const userSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
+                if (userSnap.exists()) {
+                  profile = userSnap.data() as UserProfile;
+                } else {
+                  const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || 'guest';
+                  const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || 'Guest User';
+                  profile = {
+                    uid: userCredential.user.uid,
+                    email: emailLower,
+                    name: pendingName,
+                    role: pendingRole
+                  };
+                  await setDoc(doc(db, 'users', profile.uid), profile);
+                }
+              } catch (docErr) {
+                console.warn("Could not fetch user document online, using fallback:", docErr);
                 const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || 'guest';
                 const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || 'Guest User';
                 profile = {
@@ -1310,7 +1323,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   name: pendingName,
                   role: pendingRole
                 };
-                await setDoc(doc(db, 'users', profile.uid), profile);
               }
               setCurrentUser(profile);
               setCurrentRole(profile.role);
@@ -1430,11 +1442,24 @@ Islamia Guest House Dhanmondi System`;
               return { success: false, error: 'Your email address is not verified yet. Please check your Gmail inbox and click the verification link from Firebase, then click verify again.' };
             }
             
-            const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
             let profile: UserProfile;
-            if (userSnap.exists()) {
-              profile = userSnap.data() as UserProfile;
-            } else {
+            try {
+              const userSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
+              if (userSnap.exists()) {
+                profile = userSnap.data() as UserProfile;
+              } else {
+                const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || role || 'guest';
+                const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || name || 'Guest User';
+                profile = {
+                  uid: userCredential.user.uid,
+                  email: emailLower,
+                  name: pendingName,
+                  role: pendingRole
+                };
+                await setDoc(doc(db, 'users', profile.uid), profile);
+              }
+            } catch (docErr) {
+              console.warn("Could not fetch user document online in verifyOtp, using fallback:", docErr);
               const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || role || 'guest';
               const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || name || 'Guest User';
               profile = {
@@ -1443,7 +1468,6 @@ Islamia Guest House Dhanmondi System`;
                 name: pendingName,
                 role: pendingRole
               };
-              await setDoc(doc(db, 'users', profile.uid), profile);
             }
             setCurrentUser(profile);
             setCurrentRole(profile.role);

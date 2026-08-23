@@ -245,14 +245,18 @@ export const SecureGateway: React.FC = () => {
         
         if (userCred.user.emailVerified) {
           // Success! User is verified
-          const docSnap = await getDoc(doc(db, 'users', userCred.user.uid));
           let loggedInName = userCred.user.displayName || pendingVerifyName || 'Team Member';
           let loggedInRole: UserRole = pendingVerifyRole;
 
-          if (docSnap.exists()) {
-            const data = docSnap.data() as UserProfile;
-            loggedInName = data.name || loggedInName;
-            loggedInRole = data.role || loggedInRole;
+          try {
+            const docSnap = await getDoc(doc(db, 'users', userCred.user.uid));
+            if (docSnap.exists()) {
+              const data = docSnap.data() as UserProfile;
+              loggedInName = data.name || loggedInName;
+              loggedInRole = data.role || loggedInRole;
+            }
+          } catch (docErr) {
+            console.warn("Could not fetch user document online, using fallback:", docErr);
           }
 
           if (loggedInRole === 'admin') {
@@ -513,27 +517,31 @@ export const SecureGateway: React.FC = () => {
             }
 
             // User is verified! Fetch or update profile
-            const docSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
             let loggedInName = userCredential.user.displayName || (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Staff');
             let loggedInRole: UserRole = role;
 
-            if (docSnap.exists()) {
-              const data = docSnap.data() as UserProfile;
-              loggedInName = data.name || loggedInName;
-              loggedInRole = data.role || loggedInRole;
-            } else {
-              const newUser: UserProfile = {
-                uid: userCredential.user.uid,
-                email: emailLower,
-                name: loggedInName,
-                role: loggedInRole,
-                emailVerified: true,
-                hrApproved: true,
-                staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
-                isOnline: true,
-                lastLoginAt: new Date().toISOString()
-              };
-              await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
+            try {
+              const docSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
+              if (docSnap.exists()) {
+                const data = docSnap.data() as UserProfile;
+                loggedInName = data.name || loggedInName;
+                loggedInRole = data.role || loggedInRole;
+              } else {
+                const newUser: UserProfile = {
+                  uid: userCredential.user.uid,
+                  email: emailLower,
+                  name: loggedInName,
+                  role: loggedInRole,
+                  emailVerified: true,
+                  hrApproved: true,
+                  staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+                  isOnline: true,
+                  lastLoginAt: new Date().toISOString()
+                };
+                await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
+              }
+            } catch (docErr) {
+              console.warn("Could not sync user profile online, continuing with auth credentials:", docErr);
             }
 
             if (loggedInRole === 'admin') {
@@ -553,7 +561,7 @@ export const SecureGateway: React.FC = () => {
           }
         }
       } catch (err: any) {
-        console.error("Auth error:", err);
+        console.warn("Auth notice:", err);
         let msg = err.message || 'Authentication failed.';
         
         if (err.code === 'auth/email-already-in-use') {

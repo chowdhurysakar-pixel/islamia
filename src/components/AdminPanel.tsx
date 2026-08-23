@@ -14,7 +14,8 @@ import {
   Printer, Receipt, Settings, DollarSign, UserCheck, UserX, Lock, 
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
   ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
-  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare
+  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare,
+  Image as ImageIcon, ToggleLeft, ToggleRight, Sliders, Globe, Palette, Layers
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -23,6 +24,16 @@ const processUploadedImage = (file: File): Promise<string> => {
       reject(new Error('Please upload an image file.'));
       return;
     }
+
+    // Direct data URL for SVG to preserve perfect scalable vector crispness
+    if (file.type === 'image/svg+xml') {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
@@ -33,8 +44,8 @@ const processUploadedImage = (file: File): Promise<string> => {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200;
-        const MAX_HEIGHT = 1200;
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
         let width = img.width;
         let height = img.height;
 
@@ -55,7 +66,11 @@ const processUploadedImage = (file: File): Promise<string> => {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          // Preserve PNG transparency; otherwise use clean webp or high-quality jpeg
+          const isPng = file.type === 'image/png';
+          const outputFormat = isPng ? 'image/png' : 'image/jpeg';
+          const quality = isPng ? undefined : 0.88;
+          const compressedDataUrl = canvas.toDataURL(outputFormat, quality);
           resolve(compressedDataUrl);
         } else {
           resolve(result);
@@ -93,7 +108,9 @@ export const AdminPanel: React.FC = () => {
     masterStaffPasscode,
     updateMasterStaffPasscode,
     currentUser,
-    currentRole
+    currentRole,
+    guestLogoSettings,
+    updateGuestLogoSettings
   } = useApp();
 
   // Admin Active Tab
@@ -198,6 +215,70 @@ export const AdminPanel: React.FC = () => {
     return localStorage.getItem('property_address') || 'House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209';
   });
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
+
+  // Guest View Logo Management States
+  const [logoShowToggle, setLogoShowToggle] = useState<boolean>(() => guestLogoSettings?.showLogo ?? true);
+  const [logoUrlInput, setLogoUrlInput] = useState<string>(() => guestLogoSettings?.customLogoUrl || '');
+  const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
+  const [isSavingLogo, setIsSavingLogo] = useState<boolean>(false);
+
+  // Sync state when context settings update from Firestore/Local
+  React.useEffect(() => {
+    if (guestLogoSettings) {
+      setLogoShowToggle(guestLogoSettings.showLogo ?? true);
+      setLogoUrlInput(guestLogoSettings.customLogoUrl || '');
+    }
+  }, [guestLogoSettings]);
+
+  const handleLogoFileUpload = async (file: File) => {
+    try {
+      setIsUploadingLogo(true);
+      const dataUrl = await processUploadedImage(file);
+      setLogoUrlInput(dataUrl);
+      showToast({
+        type: 'info',
+        message: '📷 Logo image loaded. Click "Save & Publish Logo" to update the live website.'
+      });
+    } catch (e: any) {
+      showToast({
+        type: 'warning',
+        message: e?.message || 'Failed to upload logo image.'
+      });
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleSaveLogoSettings = async () => {
+    setIsSavingLogo(true);
+    try {
+      await updateGuestLogoSettings({
+        showLogo: logoShowToggle,
+        logoType: 'image',
+        customLogoUrl: logoUrlInput.trim()
+      });
+      showToast({
+        type: 'success',
+        message: '✓ Logo updated successfully on the guest website.'
+      });
+    } catch (e: any) {
+      showToast({
+        type: 'warning',
+        message: 'Could not save logo settings.'
+      });
+    } finally {
+      setIsSavingLogo(false);
+    }
+  };
+
+  const handleToggleLogoVisibilityQuick = async (newValue: boolean) => {
+    setLogoShowToggle(newValue);
+    try {
+      await updateGuestLogoSettings({
+        showLogo: newValue
+      });
+    } catch (e) {}
+  };
 
   // Staff Deletion Modal & Async Action States
   const [userPendingDeletion, setUserPendingDeletion] = useState<UserProfile | null>(null);
@@ -2255,6 +2336,303 @@ export const AdminPanel: React.FC = () => {
       {/* TAB 6: SYSTEM SETTINGS & PROPERTY AUDIT */}
       {activeTab === 'settings' && (
         <div className="space-y-6 animate-fadeIn">
+          {/* FEATURE: WEBSITE GUEST VIEW LOGO & BRANDING MANAGEMENT */}
+          <div id="admin-guest-logo-settings-card" className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
+                    <ImageIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
+                      <span>Website Guest View Logo &amp; Branding</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        logoShowToggle 
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}>
+                        {logoShowToggle ? '● Logo Active on Website' : '○ Logo Hidden'}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Add, remove, or customize the brand emblem and logo image displayed to visitors on the guest portal.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Instant Quick Visibility Switch */}
+              <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                <span className="text-xs font-semibold text-slate-700">
+                  {logoShowToggle ? 'Logo Visible' : 'Logo Removed'}
+                </span>
+                <button
+                  id="admin-toggle-guest-logo-btn"
+                  type="button"
+                  onClick={() => handleToggleLogoVisibilityQuick(!logoShowToggle)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    logoShowToggle ? 'bg-amber-600' : 'bg-slate-300'
+                  }`}
+                  title={logoShowToggle ? 'Click to Remove Logo from Guest View' : 'Click to Add/Show Logo in Guest View'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      logoShowToggle ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: Logo Configuration Controls */}
+              <div className="lg:col-span-7 space-y-5">
+                {/* 1. Logo Display Toggle Banner */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  logoShowToggle 
+                    ? 'bg-amber-50/50 border-amber-200/80 text-amber-950' 
+                    : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold flex items-center gap-1.5">
+                        {logoShowToggle ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-amber-600" />
+                            <span>Logo is currently enabled for guest visitors</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-4 h-4 text-slate-500" />
+                            <span>Logo is currently removed / hidden</span>
+                          </>
+                        )}
+                      </h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        {logoShowToggle
+                          ? 'Guests will see the selected emblem or custom logo photo in the navigation bar and footer.'
+                          : 'Guests will only see the text brand name without any icon or image logo in the header and footer.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleLogoVisibilityQuick(!logoShowToggle)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                        logoShowToggle 
+                          ? 'bg-white border border-amber-300 text-amber-800 hover:bg-amber-100' 
+                          : 'bg-slate-900 text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      {logoShowToggle ? 'Remove Logo' : 'Add Logo'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Logo Upload Box */}
+                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-slate-800">
+                        Upload Logo File
+                      </label>
+                      {logoUrlInput && (
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md">
+                          Logo Selected
+                        </span>
+                      )}
+                    </div>
+
+                    {logoUrlInput ? (
+                      <div className="p-3.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-lg border border-amber-300 bg-slate-50 p-1 flex items-center justify-center overflow-hidden">
+                            <img
+                              src={logoUrlInput}
+                              alt="Uploaded logo"
+                              className="max-h-full max-w-full object-contain"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-800">Custom Logo Loaded</div>
+                            <div className="text-[10px] text-slate-500">Ready to publish on live website</div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg cursor-pointer transition">
+                            <span>Change</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleLogoFileUpload(file);
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setLogoUrlInput('')}
+                            className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold rounded-lg cursor-pointer transition"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center p-6 bg-white border-2 border-dashed border-slate-300 hover:border-amber-400 rounded-xl transition text-center group">
+                        <div className="w-10 h-10 rounded-full bg-amber-50 group-hover:bg-amber-100 text-amber-700 flex items-center justify-center mb-2 transition">
+                          {isUploadingLogo ? (
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                          ) : (
+                            <Upload className="w-5 h-5" />
+                          )}
+                        </div>
+                        <label className="cursor-pointer">
+                          <span className="text-xs font-bold text-[#0e2b33] group-hover:text-amber-700 underline underline-offset-2">
+                            {isUploadingLogo ? 'Processing photo...' : 'Choose Logo File (PNG, SVG, JPG, WebP)'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleLogoFileUpload(file);
+                            }}
+                          />
+                        </label>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Recommended: Square or horizontal transparent PNG / SVG icon (approx 200×200px).
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Save & Action Buttons */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    id="admin-save-guest-logo-btn"
+                    type="button"
+                    disabled={isSavingLogo}
+                    onClick={handleSaveLogoSettings}
+                    className="w-full sm:w-auto px-6 py-3 bg-[#af8a52] hover:bg-[#8c6736] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                  >
+                    {isSavingLogo ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <Check className="w-4 h-4 text-white" />
+                    )}
+                    <span>{isSavingLogo ? 'Publishing Changes...' : 'Save & Publish to Live Guest View'}</span>
+                  </button>
+
+                  {logoUrlInput && (
+                    <button
+                      type="button"
+                      onClick={() => setLogoUrlInput('')}
+                      className="w-full sm:w-auto px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+                    >
+                      Clear Logo
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Live Guest View Preview Showcase */}
+              <div className="lg:col-span-5 flex flex-col justify-between bg-slate-900 rounded-2xl p-5 text-white border border-slate-800 space-y-4">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold tracking-widest text-amber-400 uppercase flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Live Guest View Preview</span>
+                    </span>
+                    <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded text-slate-300">
+                      Real-time
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Live simulation of the navigation bar and footer as viewed by guests.
+                  </p>
+                </div>
+
+                {/* 1. Simulated Guest Navbar (Light Background) */}
+                <div className="space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Header Navbar (Light)
+                  </div>
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between text-slate-900">
+                    <div className="flex items-center gap-2.5">
+                      {logoShowToggle && logoUrlInput ? (
+                        <img
+                          src={logoUrlInput}
+                          alt="Preview Logo"
+                          className="w-8 h-8 rounded-md object-contain border border-[#af8a52]/40 bg-white shadow-xs"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <span className="w-7 h-7 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center font-serif text-xs font-bold shadow-xs">
+                          ◆
+                        </span>
+                      )}
+                      <div className="flex flex-col">
+                        <span className="font-serif text-xs font-bold text-[#0e2b33] tracking-tight leading-tight">
+                          ISLAMIA GUEST HOUSE
+                        </span>
+                        <span className="text-[7.5px] tracking-[0.2em] text-[#af8a52] font-semibold uppercase">
+                          DHANMONDI, DHAKA
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase">
+                      <span className="hidden sm:inline">Rooms • Philosophy • Reviews</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Simulated Guest Footer (Luxury Dark Background) */}
+                <div className="space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Footer Brand Block (Dark)
+                  </div>
+                  <div className="bg-[#081b21] p-3.5 rounded-xl border border-[#0e2b33] shadow-inner text-[#f8f4ec]">
+                    <div className="font-serif text-xs text-[#af8a52] font-semibold tracking-wide mb-1 flex items-center gap-2">
+                      {logoShowToggle && logoUrlInput ? (
+                        <img
+                          src={logoUrlInput}
+                          alt="Footer Logo"
+                          className="w-5 h-5 rounded object-contain border border-[#d7bd8a]/40 bg-white"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <span className="text-[#af8a52] text-xs">◆</span>
+                      )}
+                      <span>ISLAMIA GUEST HOUSE</span>
+                    </div>
+                    <p className="text-[9px] text-[#efe8d8]/60 leading-relaxed">
+                      Dhanmondi Road 9/A. Homely luxury and security.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Information Status Footer */}
+                <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Persistence: Firestore + Offline Cache</span>
+                  <span className="text-amber-400 font-semibold">
+                    {logoShowToggle ? (logoUrlInput ? '✓ Custom Logo Active' : '✓ Active') : '✕ Logo Hidden'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Hotel Business Settings */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
