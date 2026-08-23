@@ -15,7 +15,7 @@ import {
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
   ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
   Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare,
-  Image as ImageIcon, ToggleLeft, ToggleRight, Sliders, Globe, Palette, Layers
+  Image as ImageIcon, ToggleLeft, ToggleRight, Sliders, Globe, Palette, Layers, Radio
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -110,7 +110,10 @@ export const AdminPanel: React.FC = () => {
     currentUser,
     currentRole,
     guestLogoSettings,
-    updateGuestLogoSettings
+    updateGuestLogoSettings,
+    loginRequests,
+    approveLoginRequest,
+    rejectLoginRequest
   } = useApp();
 
   // Admin Active Tab
@@ -1392,6 +1395,101 @@ export const AdminPanel: React.FC = () => {
               )}
             </div>
           </div>
+
+          {/* Live Login Access Requests (Pending Real-Time Admin Approval) */}
+          {loginRequests.filter(r => r.status === 'pending').length > 0 && (
+            <div className="bg-slate-900 border-2 border-amber-500/80 rounded-3xl p-6 shadow-2xl space-y-4 animate-scaleUp text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+              
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold shadow-md shadow-amber-500/20 animate-pulse">
+                    <Radio className="w-5 h-5 animate-spin" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-white flex items-center gap-2">
+                        <span>Live Login Authorization Requests</span>
+                      </h3>
+                      <span className="px-2.5 py-0.5 bg-amber-500/20 border border-amber-400/40 text-amber-300 font-mono text-[10px] font-bold rounded-full animate-bounce">
+                        {loginRequests.filter(r => r.status === 'pending').length} Pending Approval
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Staff members are waiting at the login gateway. Authorize or decline their access in real-time.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid of Pending Login Requests */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {loginRequests.filter(r => r.status === 'pending').map((req) => (
+                  <div 
+                    key={req.id} 
+                    className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl space-y-3 hover:border-amber-500/50 transition relative overflow-hidden"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-white">{req.name}</span>
+                          <span className="px-2 py-0.5 bg-teal-500/20 text-teal-300 border border-teal-500/30 rounded text-[9px] font-mono font-bold uppercase">
+                            {req.role}
+                          </span>
+                        </div>
+                        <p className="text-xs font-mono text-slate-400">{req.email}</p>
+                      </div>
+
+                      <span className="text-[10px] font-mono text-amber-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(req.requestedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                    </div>
+
+                    {req.deviceInfo && (
+                      <div className="text-[11px] text-slate-400 bg-slate-900/80 p-2 rounded-xl border border-slate-800/80 flex items-center gap-1.5 font-mono">
+                        <ShieldAlert className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                        <span className="truncate">{req.deviceInfo}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await approveLoginRequest(req.id, 'Mr. Sajjad (Admin)');
+                          showToast({
+                            type: 'success',
+                            message: `✅ Access Authorized for ${req.name} (${req.email})!`
+                          });
+                        }}
+                        className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-900/20 active:scale-[0.98]"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Authorize Access</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const reason = prompt('Enter reason for declining access (optional):', 'Access request declined by Admin');
+                          await rejectLoginRequest(req.id, reason || 'Access request declined by Admin');
+                          showToast({
+                            type: 'info',
+                            message: `Declined login request for ${req.name}.`
+                          });
+                        }}
+                        className="py-2.5 px-3 bg-rose-950/80 hover:bg-rose-900 border border-rose-800 text-rose-200 font-semibold rounded-xl text-xs transition flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                        <span>Decline</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Registered Staff Accounts & HR Approvals Table */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">

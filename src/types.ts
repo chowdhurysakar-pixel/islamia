@@ -124,3 +124,19 @@ export interface GuestLogoSettings {
   updatedBy?: string;
 }
 
+export interface LoginRequest {
+  id: string;
+  userId?: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
+  requestedAt: string; // ISO String
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedAt?: string;
+  rejectedReason?: string;
+  loginMethod?: 'password' | 'passcode' | 'google' | 'registration';
+  deviceInfo?: string;
+}
+
