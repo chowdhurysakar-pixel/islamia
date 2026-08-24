@@ -452,6 +452,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Initialize and run connection tests
   useEffect(() => {
+    // Failsafe timer: Ensure isLoading never blocks UI indefinitely on startup
+    const loadingFailsafeTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 1200);
+
     let isConfigured = false;
     try {
       if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'placeholder' && !firebaseConfig.apiKey.includes('MY_')) {
@@ -476,193 +481,215 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       testConnection().catch(() => {});
 
       // 2. Auth state observer
-      const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
-        if (fbUser) {
-          const emailLower = fbUser.email?.toLowerCase() || '';
-          const isAdminAccount = isAdminEmail(emailLower);
-          
-          if (!fbUser.emailVerified && !isAdminAccount) {
-            setCurrentUser(null);
-            setCurrentRole('guest');
-            sessionStorage.removeItem('admin_authorized');
-            setIsLoading(false);
-            return;
-          }
-
-          try {
-            const userSnap = await getDoc(doc(db, 'users', fbUser.uid));
-            if (userSnap.exists()) {
-              const uData = userSnap.data() as UserProfile;
-              if (isAdminAccount) {
-                uData.role = 'admin';
-                if (!uData.name || uData.name === 'Guest User' || uData.name.includes('Guest')) {
-                  uData.name = getAdminNameForEmail(emailLower, uData.name);
-                }
-              }
-              setCurrentUser(uData);
-              setCurrentRole(uData.role);
-              if (uData.role === 'admin') {
-                sessionStorage.setItem('admin_authorized', 'true');
-                setOpMode('admin');
-              } else if (uData.role === 'staff') {
-                sessionStorage.removeItem('admin_authorized');
-                setOpMode('receptionist');
-              }
-              try {
-                localStorage.setItem('hotel_current_user', JSON.stringify(uData));
-                localStorage.setItem('hotel_current_role', uData.role);
-              } catch (e) {}
+      let unsubscribeAuth = () => {};
+      try {
+        unsubscribeAuth = onAuthStateChanged(auth, async (fbUser: FirebaseUser | null) => {
+          clearTimeout(loadingFailsafeTimer);
+          if (fbUser) {
+            const emailLower = fbUser.email?.toLowerCase() || '';
+            const isAdminAccount = isAdminEmail(emailLower);
+            
+            if (!fbUser.emailVerified && !isAdminAccount) {
+              setCurrentUser(null);
+              setCurrentRole('guest');
+              sessionStorage.removeItem('admin_authorized');
               setIsLoading(false);
               return;
             }
-          } catch (e) {
-            console.warn("User profile fetch warning:", e);
-          }
 
-          // Fallback / registered users check
-          const storedRegistered = localStorage.getItem('hotel_registered_users');
-          const registeredList: UserProfile[] = storedRegistered ? JSON.parse(storedRegistered) : [];
-          const existingLocal = registeredList.find(u => u.email.toLowerCase() === emailLower);
-
-          let chosenRole: UserRole = existingLocal?.role || (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || (localStorage.getItem('pending_google_role') as UserRole) || (isAdminAccount ? 'admin' : 'guest');
-          if (isAdminAccount) {
-            chosenRole = 'admin';
-          } else if (!['admin', 'staff', 'guest'].includes(chosenRole)) {
-            chosenRole = 'guest';
-          }
-          localStorage.removeItem('pending_google_role');
-          localStorage.removeItem(`pending_role_${emailLower}`);
-
-          const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || existingLocal?.name || fbUser.displayName || (isAdminAccount ? getAdminNameForEmail(emailLower) : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User');
-          localStorage.removeItem(`pending_name_${emailLower}`);
-
-          const profile: UserProfile = {
-            uid: fbUser.uid,
-            email: fbUser.email || '',
-            name: pendingName,
-            role: chosenRole
-          };
-          setCurrentUser(profile);
-          setCurrentRole(chosenRole);
-          if (chosenRole === 'admin') {
-            sessionStorage.setItem('admin_authorized', 'true');
-            setOpMode('admin');
-          } else if (chosenRole === 'staff') {
-            sessionStorage.removeItem('admin_authorized');
-            setOpMode('receptionist');
-          }
-          try {
-            localStorage.setItem('hotel_current_user', JSON.stringify(profile));
-            localStorage.setItem('hotel_current_role', chosenRole);
-          } catch (e) {}
-          
-          setDoc(doc(db, 'users', fbUser.uid), profile).catch(e => {
-            console.error("Failed to sync user profile to Firestore:", e);
-          });
-        } else {
-          // When Firebase user is null (signed out or unverified / offline fallback):
-          const savedUser = localStorage.getItem('hotel_current_user');
-          const savedRole = localStorage.getItem('hotel_current_role') as UserRole;
-          if (savedUser) {
             try {
-              const parsedUser = JSON.parse(savedUser) as UserProfile;
-              const emailLower = parsedUser?.email?.toLowerCase() || '';
-              if (isAdminEmail(emailLower)) {
-                parsedUser.role = 'admin';
-                if (!parsedUser.name || parsedUser.name === 'Guest User' || parsedUser.name.includes('Guest')) {
-                  parsedUser.name = getAdminNameForEmail(emailLower, parsedUser.name);
+              const userSnap = await getDoc(doc(db, 'users', fbUser.uid));
+              if (userSnap.exists()) {
+                const uData = userSnap.data() as UserProfile;
+                if (isAdminAccount) {
+                  uData.role = 'admin';
+                  if (!uData.name || uData.name === 'Guest User' || uData.name.includes('Guest')) {
+                    uData.name = getAdminNameForEmail(emailLower, uData.name);
+                  }
                 }
-              }
-              setCurrentUser(parsedUser);
-              const activeRole = parsedUser.role || savedRole || 'guest';
-              setCurrentRole(activeRole);
-              if (activeRole === 'admin') {
-                sessionStorage.setItem('admin_authorized', 'true');
-                setOpMode('admin');
+                setCurrentUser(uData);
+                setCurrentRole(uData.role);
+                if (uData.role === 'admin') {
+                  sessionStorage.setItem('admin_authorized', 'true');
+                  setOpMode('admin');
+                } else if (uData.role === 'staff') {
+                  sessionStorage.removeItem('admin_authorized');
+                  setOpMode('receptionist');
+                }
+                try {
+                  localStorage.setItem('hotel_current_user', JSON.stringify(uData));
+                  localStorage.setItem('hotel_current_role', uData.role);
+                } catch (e) {}
+                setIsLoading(false);
+                return;
               }
             } catch (e) {
+              console.warn("User profile fetch warning:", e);
+            }
+
+            // Fallback / registered users check
+            const storedRegistered = localStorage.getItem('hotel_registered_users');
+            const registeredList: UserProfile[] = storedRegistered ? JSON.parse(storedRegistered) : [];
+            const existingLocal = registeredList.find(u => u.email && u.email.toLowerCase() === emailLower);
+
+            let chosenRole: UserRole = existingLocal?.role || (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || (localStorage.getItem('pending_google_role') as UserRole) || (isAdminAccount ? 'admin' : 'guest');
+            if (isAdminAccount) {
+              chosenRole = 'admin';
+            } else if (!['admin', 'staff', 'guest'].includes(chosenRole)) {
+              chosenRole = 'guest';
+            }
+            localStorage.removeItem('pending_google_role');
+            localStorage.removeItem(`pending_role_${emailLower}`);
+
+            const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || existingLocal?.name || fbUser.displayName || (isAdminAccount ? getAdminNameForEmail(emailLower) : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User');
+            localStorage.removeItem(`pending_name_${emailLower}`);
+
+            const profile: UserProfile = {
+              uid: fbUser.uid,
+              email: fbUser.email || '',
+              name: pendingName,
+              role: chosenRole
+            };
+            setCurrentUser(profile);
+            setCurrentRole(chosenRole);
+            if (chosenRole === 'admin') {
+              sessionStorage.setItem('admin_authorized', 'true');
+              setOpMode('admin');
+            } else if (chosenRole === 'staff') {
+              sessionStorage.removeItem('admin_authorized');
+              setOpMode('receptionist');
+            }
+            try {
+              localStorage.setItem('hotel_current_user', JSON.stringify(profile));
+              localStorage.setItem('hotel_current_role', chosenRole);
+            } catch (e) {}
+            
+            setDoc(doc(db, 'users', fbUser.uid), profile).catch(e => {
+              console.error("Failed to sync user profile to Firestore:", e);
+            });
+          } else {
+            // When Firebase user is null (signed out or unverified / offline fallback):
+            const savedUser = localStorage.getItem('hotel_current_user');
+            const savedRole = localStorage.getItem('hotel_current_role') as UserRole;
+            if (savedUser) {
+              try {
+                const parsedUser = JSON.parse(savedUser) as UserProfile;
+                const emailLower = parsedUser?.email ? parsedUser.email.toLowerCase() : '';
+                if (isAdminEmail(emailLower)) {
+                  parsedUser.role = 'admin';
+                  if (!parsedUser.name || parsedUser.name === 'Guest User' || parsedUser.name.includes('Guest')) {
+                    parsedUser.name = getAdminNameForEmail(emailLower, parsedUser.name);
+                  }
+                }
+                setCurrentUser(parsedUser);
+                const activeRole = parsedUser.role || savedRole || 'guest';
+                setCurrentRole(activeRole);
+                if (activeRole === 'admin') {
+                  sessionStorage.setItem('admin_authorized', 'true');
+                  setOpMode('admin');
+                }
+              } catch (e) {
+                setCurrentUser(null);
+                setCurrentRole('guest');
+              }
+            } else {
               setCurrentUser(null);
               setCurrentRole('guest');
             }
-          } else {
-            setCurrentUser(null);
-            setCurrentRole('guest');
           }
-        }
+          setIsLoading(false);
+        });
+      } catch (authErr) {
+        console.warn("Auth initialization notice:", authErr);
         setIsLoading(false);
-      });
+      }
 
       // 3. Realtime rooms collection sync with single-source-of-truth onSnapshot listener
-      const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
-        if (!snapshot.empty) {
-          hasSeededRoomsRef.current = true;
-          const roomsList: Room[] = [];
-          snapshot.forEach((docSnap) => {
-            roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
-          });
-          roomsList.sort((a, b) => Number(a.number) - Number(b.number));
-          setRooms(roomsList);
-          try {
-            localStorage.setItem('hotel_rooms', JSON.stringify(roomsList));
-          } catch (e) {
-            console.error("Failed saving rooms snapshot to localStorage:", e);
-          }
-        } else {
-          // If Firestore rooms collection is completely empty, seed initial rooms ONCE into Firestore
-          if (!hasSeededRoomsRef.current) {
+      let unsubRooms = () => {};
+      try {
+        unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
+          if (!snapshot.empty) {
             hasSeededRoomsRef.current = true;
-            console.log("Firestore rooms collection is empty. Seeding initial rooms...");
-            INITIAL_ROOMS.forEach(async (room) => {
-              try {
-                await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
-              } catch (e) {
-                console.warn("Failed to seed initial room:", e);
-              }
+            const roomsList: Room[] = [];
+            snapshot.forEach((docSnap) => {
+              roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
             });
-          } else {
-            setRooms([]);
+            roomsList.sort((a, b) => Number(a.number) - Number(b.number));
+            setRooms(roomsList);
             try {
-              localStorage.setItem('hotel_rooms', JSON.stringify([]));
+              localStorage.setItem('hotel_rooms', JSON.stringify(roomsList));
             } catch (e) {
-              console.error("Failed saving empty rooms to localStorage:", e);
+              console.error("Failed saving rooms snapshot to localStorage:", e);
+            }
+          } else {
+            // If Firestore rooms collection is completely empty, seed initial rooms ONCE into Firestore
+            if (!hasSeededRoomsRef.current) {
+              hasSeededRoomsRef.current = true;
+              console.log("Firestore rooms collection is empty. Seeding initial rooms...");
+              INITIAL_ROOMS.forEach(async (room) => {
+                try {
+                  await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
+                } catch (e) {
+                  console.warn("Failed to seed initial room:", e);
+                }
+              });
+            } else {
+              setRooms([]);
+              try {
+                localStorage.setItem('hotel_rooms', JSON.stringify([]));
+              } catch (e) {
+                console.error("Failed saving empty rooms to localStorage:", e);
+              }
             }
           }
-        }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'rooms');
-      });
-
-      const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
-        const feedbacksList: Feedback[] = [];
-        snapshot.forEach((docSnap) => {
-          feedbacksList.push({ id: docSnap.id, ...docSnap.data() } as Feedback);
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'rooms');
         });
-        feedbacksList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setFeedbacks(feedbacksList);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'feedbacks');
-      });
+      } catch (e) {
+        console.warn("Rooms listener initialization error:", e);
+      }
+
+      let unsubFeedbacks = () => {};
+      try {
+        unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
+          const feedbacksList: Feedback[] = [];
+          snapshot.forEach((docSnap) => {
+            feedbacksList.push({ id: docSnap.id, ...docSnap.data() } as Feedback);
+          });
+          feedbacksList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setFeedbacks(feedbacksList);
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'feedbacks');
+        });
+      } catch (e) {
+        console.warn("Feedbacks listener initialization error:", e);
+      }
 
       // 4. Realtime settings collection listener for guest view logo and branding
-      const unsubSettings = onSnapshot(doc(db, 'settings', 'guest_logo'), (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data() as any;
-          const syncedSettings: GuestLogoSettings = {
-            showLogo: data.showLogo ?? true,
-            logoType: data.logoType || 'emblem',
-            customLogoUrl: data.customLogoUrl || '',
-            logoText: data.logoText || 'ISLAMIA GUEST HOUSE',
-            updatedAt: data.updatedAt,
-            updatedBy: data.updatedBy
-          };
-          setGuestLogoSettings(syncedSettings);
-          try {
-            localStorage.setItem('hotel_guest_logo_settings', JSON.stringify(syncedSettings));
-          } catch (e) {}
-        }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'settings/guest_logo');
-      });
+      let unsubSettings = () => {};
+      try {
+        unsubSettings = onSnapshot(doc(db, 'settings', 'guest_logo'), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data() as any;
+            const syncedSettings: GuestLogoSettings = {
+              showLogo: data.showLogo ?? true,
+              logoType: data.logoType || 'emblem',
+              customLogoUrl: data.customLogoUrl || '',
+              logoText: data.logoText || 'ISLAMIA GUEST HOUSE',
+              updatedAt: data.updatedAt,
+              updatedBy: data.updatedBy
+            };
+            setGuestLogoSettings(syncedSettings);
+            try {
+              localStorage.setItem('hotel_guest_logo_settings', JSON.stringify(syncedSettings));
+            } catch (e) {}
+          }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'settings/guest_logo');
+        });
+      } catch (e) {
+        console.warn("Settings listener initialization error:", e);
+      }
 
       return () => {
         unsubscribeAuth();
@@ -1021,12 +1048,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Real-Time Active Staff Live Kick-out & Authorization Listener
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser || !currentUser.email) {
       setStaffApprovalStatus('NOT_REQUESTED');
       return;
     }
 
-    const emailLower = currentUser.email.toLowerCase();
+    const emailLower = (currentUser.email || '').toLowerCase().trim();
+    if (!emailLower) {
+      setStaffApprovalStatus('NOT_REQUESTED');
+      return;
+    }
+
     const isAdmin = isAdminEmail(emailLower) || currentUser.role === 'admin';
 
     if (isAdmin) {
@@ -1035,12 +1067,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Lookup corresponding login_request
-    const userReq = loginRequests.find(r => 
+    const userReq = (loginRequests || []).find(r => 
       (activeStaffRequestId && r.id === activeStaffRequestId) || 
-      r.email.toLowerCase() === emailLower
+      (r.email && r.email.toLowerCase().trim() === emailLower)
     );
 
-    const userRecord = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
+    const userRecord = (registeredUsers || []).find(u => u.email && u.email.toLowerCase().trim() === emailLower);
 
     // 1. HARD REVOCATION: If rejected in Firestore or hrApproved revoked to false
     if (userReq?.status === 'rejected' || (userRecord && userRecord.hrApproved === false)) {

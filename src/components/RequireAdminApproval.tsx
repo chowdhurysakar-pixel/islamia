@@ -42,13 +42,13 @@ export const RequireAdminApproval: React.FC<RequireAdminApprovalProps> = ({ chil
   const [isRechecking, setIsRechecking] = useState(false);
   const [recheckMessage, setRecheckMessage] = useState<string | null>(null);
 
-  // 1. If not authenticated at all, redirect to SecureGateway
-  if (!currentUser) {
+  const emailLower = (currentUser?.email || '').toLowerCase().trim();
+  const isAdmin = Boolean(emailLower && isAdminEmail(emailLower)) || currentUser?.role === 'admin';
+
+  // 1. If not authenticated at all or missing email, redirect to SecureGateway
+  if (!currentUser || !emailLower) {
     return <SecureGateway />;
   }
-
-  const emailLower = currentUser.email.toLowerCase();
-  const isAdmin = isAdminEmail(emailLower) || currentUser.role === 'admin';
 
   // 2. Executive Admin has master verified access
   if (isAdmin) {
@@ -59,12 +59,17 @@ export const RequireAdminApproval: React.FC<RequireAdminApprovalProps> = ({ chil
     return <>{children}</>;
   }
 
-  // 3. For Staff / Receptionist / HR / Housekeeping / Room Service:
+  // 3. If guest role is active, render unrestricted
+  if (currentRole === 'guest' || currentUser.role === 'guest') {
+    return <>{children}</>;
+  }
+
+  // 4. For Staff / Receptionist / HR / Housekeeping / Room Service:
   // Strict Gatekeeper Verification
-  const userRecord = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
-  const userRequest = loginRequests.find(r => 
+  const userRecord = (registeredUsers || []).find(u => u.email && u.email.toLowerCase().trim() === emailLower);
+  const userRequest = (loginRequests || []).find(r => 
     (activeStaffRequestId && r.id === activeStaffRequestId) || 
-    r.email.toLowerCase() === emailLower
+    (r.email && r.email.toLowerCase().trim() === emailLower)
   );
 
   const hasSessionToken = sessionStorage.getItem('staff_authorized') === 'true';
@@ -79,7 +84,7 @@ export const RequireAdminApproval: React.FC<RequireAdminApprovalProps> = ({ chil
     return <>{children}</>;
   }
 
-  // 4. HARD BLOCK: Render Full-Screen Gatekeeper Lockout Screen
+  // 5. HARD BLOCK: Render Full-Screen Gatekeeper Lockout Screen
   const isRejected = staffApprovalStatus === 'REJECTED' || userRequest?.status === 'rejected';
   const isPending = !isRejected;
 
@@ -90,9 +95,9 @@ export const RequireAdminApproval: React.FC<RequireAdminApprovalProps> = ({ chil
     // Simulate instantaneous verification
     setTimeout(() => {
       setIsRechecking(false);
-      const latestReq = loginRequests.find(r => 
+      const latestReq = (loginRequests || []).find(r => 
         (activeStaffRequestId && r.id === activeStaffRequestId) || 
-        r.email.toLowerCase() === emailLower
+        (r.email && r.email.toLowerCase().trim() === emailLower)
       );
 
       if (latestReq?.status === 'approved') {
@@ -114,7 +119,7 @@ export const RequireAdminApproval: React.FC<RequireAdminApprovalProps> = ({ chil
           message: '⏳ Awaiting Executive Admin approval in Dhanmondi...'
         });
       }
-    }, 800);
+    }, 600);
   };
 
   const handleNewRequest = async () => {

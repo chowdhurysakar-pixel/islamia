@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState } from 'react';
+import React, { useState, Component, ErrorInfo } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { GuestView } from './components/GuestView';
@@ -11,8 +11,71 @@ import { StaffView } from './components/StaffView';
 import { AdminPanel } from './components/AdminPanel';
 import { SecureGateway } from './components/SecureGateway';
 import { RequireAdminApproval } from './components/RequireAdminApproval';
-import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink, Smartphone, MessageSquare, Copy, Check } from 'lucide-react';
+import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink, Smartphone, MessageSquare, Copy, Check, RefreshCw } from 'lucide-react';
 import { UserRole } from './types';
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public props: ErrorBoundaryProps;
+  public state: ErrorBoundaryState = { hasError: false };
+
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.props = props;
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Application Render Error Caught:", error, errorInfo);
+  }
+
+  handleReload = () => {
+    try {
+      localStorage.removeItem('hotel_current_role');
+    } catch (e) {}
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#f8f4ec] flex flex-col items-center justify-center p-6 text-center font-sans">
+          <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-amber-200/80 space-y-5">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-900 mx-auto flex items-center justify-center shadow-inner">
+              <Hotel className="w-7 h-7" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-xl font-serif font-bold text-slate-900">Islamia Guest House</h2>
+              <p className="text-xs text-slate-500">System recovered from a transient state.</p>
+            </div>
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-left text-xs font-mono text-slate-700 max-h-28 overflow-y-auto">
+              {this.state.error?.message || "An unexpected error occurred during rendering."}
+            </div>
+            <button
+              onClick={this.handleReload}
+              className="w-full py-3 px-4 bg-[#0e2b33] hover:bg-[#1a434d] text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer transition active:scale-95"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Restore Guest House Portal</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const ToastNotification: React.FC = () => {
   const { activeToast, dismissToast } = useApp();
@@ -262,8 +325,10 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <AppProvider>
-      <MainLayout />
-    </AppProvider>
+    <AppErrorBoundary>
+      <AppProvider>
+        <MainLayout />
+      </AppProvider>
+    </AppErrorBoundary>
   );
 }
