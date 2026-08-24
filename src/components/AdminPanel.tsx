@@ -5,9 +5,11 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from '../types';
+import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile, RoomCategoryPreset } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
+import { RoomPresetDirectory } from './RoomPresetDirectory';
+import { STANDARDIZED_ROOM_PRESETS } from '../data/roomPresets';
 import { 
   Building, Shield, ShieldCheck, Users, CheckCircle2, AlertCircle, Key, 
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
@@ -15,7 +17,7 @@ import {
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
   ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
   Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare,
-  Image as ImageIcon, ToggleLeft, ToggleRight, Sliders, Globe, Palette, Layers
+  Image as ImageIcon, ToggleLeft, ToggleRight, Sliders, Globe, Palette, Layers, Zap
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -198,6 +200,9 @@ export const AdminPanel: React.FC = () => {
     return new Date().toISOString().split('T')[0];
   });
 
+  // Chamber Subview (Matrix vs Preset Directory)
+  const [chamberSubView, setChamberSubView] = useState<'matrix' | 'presets'>('matrix');
+
   // Chamber Creation / Editing State
   const [isAddRoomOpen, setIsAddRoomOpen] = useState<boolean>(false);
   const [newRoomNo, setNewRoomNo] = useState<string>('');
@@ -206,6 +211,22 @@ export const AdminPanel: React.FC = () => {
   const [newRoomCapacity, setNewRoomCapacity] = useState<number>(2);
   const [newRoomDesc, setNewRoomDesc] = useState<string>('');
   const [newRoomImg, setNewRoomImg] = useState<string>('');
+
+  // Deploy preset directly to Add Room Modal
+  const handleDeployPresetToRoomModal = (preset: RoomCategoryPreset) => {
+    setNewRoomType(preset.roomType);
+    setNewRoomPrice(preset.basePrice);
+    setNewRoomCapacity(preset.capacityNumber);
+    setNewRoomDesc(
+      `${preset.categoryName} — ${preset.description} | Bed: ${preset.bedSize} | Facing: ${preset.facing} | Toilet: ${preset.bathroom} | Amenities: ${preset.specs.join(', ')}`
+    );
+    setNewRoomImg(preset.image);
+    setIsAddRoomOpen(true);
+    showToast({
+      type: 'success',
+      message: `⚡ Applied "${preset.categoryName}" preset! Enter the room number to create.`
+    });
+  };
 
   // Editing price modal / state
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
@@ -1892,146 +1913,197 @@ export const AdminPanel: React.FC = () => {
       {/* TAB 3: ROOMS & TARIFF MATRIX */}
       {activeTab === 'chambers' && (
         <div className="space-y-6 animate-fadeIn">
-          {/* Room Control Bar */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
-                  <Building className="w-4 h-4 text-teal-600" />
-                  <span>Room Inventory &amp; Tariff Management</span>
-                </h3>
-                <p className="text-xs text-slate-400">Add new rooms, update nightly pricing (৳), and change room maintenance statuses.</p>
-              </div>
+          {/* Subview Selector Bar */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setChamberSubView('matrix')}
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                  chamberSubView === 'matrix'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <Building className="w-3.5 h-3.5 text-teal-400" />
+                <span>Room Inventory Matrix ({rooms.length})</span>
+              </button>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <div className="relative flex-1 sm:w-64">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
-                  <input
-                    type="text"
-                    value={chamberSearch}
-                    onChange={(e) => setChamberSearch(e.target.value)}
-                    placeholder="Search Room # or Type..."
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
-                  />
-                </div>
-
-                <button
-                  onClick={() => setIsAddRoomOpen(true)}
-                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-2 cursor-pointer shrink-0 shadow-sm"
-                >
-                  <Plus className="w-4 h-4 text-teal-400" />
-                  <span>Add Room</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setChamberSubView('presets')}
+                className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+                  chamberSubView === 'presets'
+                    ? 'bg-teal-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-teal-300" />
+                <span>6 Official Room Presets &amp; Directory</span>
+              </button>
             </div>
 
-            {/* Room List Table */}
-            <div className="overflow-x-auto pt-2">
-              <table className="w-full text-left text-xs text-slate-600">
-                <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] tracking-wider border-b border-slate-200/60">
-                  <tr>
-                    <th className="p-3">Room #</th>
-                    <th className="p-3">Category</th>
-                    <th className="p-3">Nightly Tariff (৳)</th>
-                    <th className="p-3">Capacity</th>
-                    <th className="p-3">Current Status</th>
-                    <th className="p-3 text-right">Room Control</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredChambers.map(room => (
-                    <tr key={room.id} className="hover:bg-slate-50/80 transition">
-                      <td className="p-3 font-bold font-mono text-slate-850 text-sm">
-                        #{room.number}
-                      </td>
-                      <td className="p-3">
-                        <span className="font-semibold text-slate-800 capitalize">
-                          {room.type} Room
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono font-bold text-teal-700">
-                        {editingRoomId === room.id ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="number"
-                              value={editingPrice}
-                              onChange={(e) => setEditingPrice(Number(e.target.value))}
-                              className="w-24 px-2 py-1 border border-teal-500 rounded text-xs font-mono"
-                            />
-                            <button
-                              onClick={() => handleSavePrice(room.id)}
-                              className="px-2 py-1 bg-teal-500 text-slate-950 font-bold rounded text-[10px]"
-                            >
-                              Save
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <span>৳{room.price.toLocaleString()}</span>
-                            <button
-                              onClick={() => {
-                                setEditingRoomId(room.id);
-                                setEditingPrice(room.price);
-                              }}
-                              className="text-slate-400 hover:text-slate-700"
-                              title="Edit Tariff"
-                            >
-                              <Edit3 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                      <td className="p-3 text-slate-700 font-medium">
-                        {room.capacity} Guests
-                      </td>
-                      <td className="p-3">
-                        <select
-                          value={room.status}
-                          onChange={(e) => updateRoomStatus(room.id, e.target.value as RoomStatus)}
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold border-none cursor-pointer focus:outline-none ${
-                            room.status === 'available' ? 'bg-emerald-100 text-emerald-800' :
-                            room.status === 'occupied' ? 'bg-rose-100 text-rose-800' :
-                            room.status === 'cleaning' ? 'bg-sky-100 text-sky-800' :
-                            'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          <option value="available">Available</option>
-                          <option value="occupied">Occupied</option>
-                          <option value="cleaning">Cleaning</option>
-                          <option value="maintenance">Maintenance</option>
-                        </select>
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => editRoomDetails(room.id, { description: `${room.description} (Inspected)` })}
-                            className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline"
-                          >
-                            Inspection Log
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm(`Are you sure you want to remove Room #${room.number}?`)) {
-                                showToast({
-                                  type: 'info',
-                                  message: `🗑️ Room #${room.number} deleted successfully!`
-                                });
-                                deleteRoom(room.id);
-                              }
-                            }}
-                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Remove Room"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={() => setIsAddRoomOpen(true)}
+                className="px-4 py-2 bg-slate-900 hover:bg-teal-600 text-white font-bold rounded-xl text-xs transition flex items-center gap-2 cursor-pointer shadow-sm"
+              >
+                <Plus className="w-4 h-4 text-teal-300" />
+                <span>Add Room</span>
+              </button>
             </div>
           </div>
+
+          {/* Subview 1: Matrix Table */}
+          {chamberSubView === 'matrix' ? (
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
+                    <Building className="w-4 h-4 text-teal-600" />
+                    <span>Room Inventory &amp; Tariff Management</span>
+                  </h3>
+                  <p className="text-xs text-slate-400">Add new rooms, update nightly pricing (৳), and change room maintenance statuses.</p>
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      value={chamberSearch}
+                      onChange={(e) => setChamberSearch(e.target.value)}
+                      placeholder="Search Room # or Type..."
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+
+                  <button
+                    onClick={() => setChamberSubView('presets')}
+                    className="px-3.5 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold border border-teal-200 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                    title="View standardized room specifications and templates"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Browse 6 Presets</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Room List Table */}
+              <div className="overflow-x-auto pt-2">
+                <table className="w-full text-left text-xs text-slate-600">
+                  <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] tracking-wider border-b border-slate-200/60">
+                    <tr>
+                      <th className="p-3">Room #</th>
+                      <th className="p-3">Category</th>
+                      <th className="p-3">Nightly Tariff (৳)</th>
+                      <th className="p-3">Capacity</th>
+                      <th className="p-3">Current Status</th>
+                      <th className="p-3 text-right">Room Control</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredChambers.map(room => (
+                      <tr key={room.id} className="hover:bg-slate-50/80 transition">
+                        <td className="p-3 font-bold font-mono text-slate-850 text-sm">
+                          #{room.number}
+                        </td>
+                        <td className="p-3">
+                          <span className="font-semibold text-slate-800 capitalize">
+                            {room.type} Room
+                          </span>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-teal-700">
+                          {editingRoomId === room.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={editingPrice}
+                                onChange={(e) => setEditingPrice(Number(e.target.value))}
+                                className="w-24 px-2 py-1 border border-teal-500 rounded text-xs font-mono"
+                              />
+                              <button
+                                onClick={() => handleSavePrice(room.id)}
+                                className="px-2 py-1 bg-teal-500 text-slate-950 font-bold rounded text-[10px]"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span>৳{room.price.toLocaleString()}</span>
+                              <button
+                                onClick={() => {
+                                  setEditingRoomId(room.id);
+                                  setEditingPrice(room.price);
+                                }}
+                                className="text-slate-400 hover:text-slate-700"
+                                title="Edit Tariff"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-700 font-medium">
+                          {room.capacity} Guests
+                        </td>
+                        <td className="p-3">
+                          <select
+                            value={room.status}
+                            onChange={(e) => updateRoomStatus(room.id, e.target.value as RoomStatus)}
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold border-none cursor-pointer focus:outline-none ${
+                              room.status === 'available' ? 'bg-emerald-100 text-emerald-800' :
+                              room.status === 'occupied' ? 'bg-rose-100 text-rose-800' :
+                              room.status === 'cleaning' ? 'bg-sky-100 text-sky-800' :
+                              'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            <option value="available">Available</option>
+                            <option value="occupied">Occupied</option>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="maintenance">Maintenance</option>
+                          </select>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => editRoomDetails(room.id, { description: `${room.description} (Inspected)` })}
+                              className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline"
+                            >
+                              Inspection Log
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to remove Room #${room.number}?`)) {
+                                  showToast({
+                                    type: 'info',
+                                    message: `🗑️ Room #${room.number} deleted successfully!`
+                                  });
+                                  deleteRoom(room.id);
+                                }
+                              }}
+                              className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Remove Room"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* Subview 2: 6 Standardized Room Presets Directory */
+            <RoomPresetDirectory
+              currentRooms={rooms}
+              onSelectPreset={handleDeployPresetToRoomModal}
+              userRoleLabel="Executive Admin"
+            />
+          )}
         </div>
       )}
 
@@ -3162,6 +3234,45 @@ export const AdminPanel: React.FC = () => {
             </div>
 
             <form onSubmit={handleAddRoomSubmit} className="space-y-4 text-xs">
+              {/* Quick Fill from 6 Official Presets Bar */}
+              <div className="bg-teal-50/80 border border-teal-200/80 p-3 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-teal-950 flex items-center gap-1.5 font-mono">
+                    <Zap className="w-3.5 h-3.5 text-teal-600" />
+                    <span>⚡ Quick Preset Template (1-Click Auto Fill):</span>
+                  </span>
+                  <span className="text-[10px] text-teal-700 font-semibold bg-teal-100/80 px-2 py-0.5 rounded-full">
+                    6 Standard Types
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {STANDARDIZED_ROOM_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        setNewRoomType(p.roomType);
+                        setNewRoomPrice(p.basePrice);
+                        setNewRoomCapacity(p.capacityNumber);
+                        setNewRoomDesc(
+                          `${p.categoryName} — ${p.description} | Bed: ${p.bedSize} | Facing: ${p.facing} | Toilet: ${p.bathroom} | Amenities: ${p.specs.join(', ')}`
+                        );
+                        setNewRoomImg(p.image);
+                        showToast({
+                          type: 'info',
+                          message: `✨ Loaded "${p.categoryName}" specs (৳${p.basePrice}/night)`
+                        });
+                      }}
+                      className="px-2 py-1.5 bg-white hover:bg-teal-600 hover:text-white border border-teal-200/80 rounded-xl text-[10px] font-bold text-slate-800 transition truncate text-left shadow-2xs cursor-pointer flex items-center justify-between group"
+                      title={`${p.categoryName} - ৳${p.basePrice}/night (${p.capacityText})`}
+                    >
+                      <span className="truncate">{p.categoryName}</span>
+                      <span className="text-[9px] opacity-75 ml-1 font-mono shrink-0">৳{p.basePrice}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-600 mb-1">Room Number *</label>

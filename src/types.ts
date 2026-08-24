@@ -10,6 +10,23 @@ export type ServiceRequestType = 'housekeeping' | 'room-service' | 'maintenance'
 export type ServiceRequestStatus = 'pending' | 'in-progress' | 'completed';
 export type UserRole = 'admin' | 'staff' | 'guest';
 
+export interface RoomCategoryPreset {
+  id: string;
+  categoryName: string;
+  roomType: RoomType;
+  capacityText: string;
+  capacityNumber: number;
+  bedSize: string;
+  facing: string;
+  bathroom: string;
+  basePrice: number;
+  priceNote?: string;
+  specs: string[];
+  image: string;
+  description: string;
+  extra?: string;
+}
+
 export interface Room {
   id: string;
   number: string;
