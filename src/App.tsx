@@ -10,6 +10,7 @@ import { GuestView } from './components/GuestView';
 import { StaffView } from './components/StaffView';
 import { AdminPanel } from './components/AdminPanel';
 import { SecureGateway } from './components/SecureGateway';
+import { RequireAdminApproval } from './components/RequireAdminApproval';
 import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink, Smartphone, MessageSquare, Copy, Check } from 'lucide-react';
 import { UserRole } from './types';
 
@@ -176,75 +177,77 @@ const MainLayout: React.FC = () => {
     }
 
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col">
-        {/* Header with Role Simulation Switcher */}
-        <Header />
+      <RequireAdminApproval>
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+          {/* Header with Role Simulation Switcher */}
+          <Header />
 
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
-          {/* Dynamic Context Header Tag */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 border-b border-slate-200/50">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className={`inline-block w-2.5 h-2.5 rounded-full ${opMode === 'admin' ? 'bg-amber-500' : 'bg-slate-800'}`} />
-                <h2 className="text-xl font-serif font-semibold text-slate-800">
-                  {opMode === 'admin' 
-                    ? 'Executive Admin Control Center' 
-                    : opMode === 'hr' 
-                      ? 'HR Historical Guest Archives & Registries' 
-                      : 'Receptionist & Front Desk (Islamia Guest House)'
-                  }
-                </h2>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {opMode === 'admin'
-                  ? 'Manage revenue analytics, approve staff access, configure room tariffs, and oversee guest bookings.'
-                  : 'Book rooms via Front Desk, manage guest invoices, and review local booking records in Dhanmondi.'
-                }
-              </p>
-            </div>
-
-            {/* User Sign-In/Out Quick Interface */}
-            <div className="flex items-center gap-3">
-              {currentUser && (
-                <div className="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-slate-200 shadow-sm">
-                  <div className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs uppercase font-mono">
-                    {currentUser.name.slice(0, 1)}
-                  </div>
-                  <div className="text-left hidden sm:block">
-                    <span className="text-[11px] font-semibold text-slate-800 block leading-none">{currentUser.name}</span>
-                    <span className="text-[9px] text-teal-700 font-mono font-bold block leading-none mt-0.5">
-                      {currentRole === 'guest' ? 'Guest' : opMode === 'admin' ? 'Admin Panel' : opMode === 'hr' ? 'HR Manager' : 'Staff / Front Desk'}
-                    </span>
-                  </div>
-                  <button
-                    id="auth-logout-btn"
-                    onClick={logout}
-                    title="Sign out of system"
-                    className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-full text-xs font-semibold transition-all cursor-pointer ml-1.5 active:scale-95"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Log Out</span>
-                  </button>
+          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
+            {/* Dynamic Context Header Tag */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 border-b border-slate-200/50">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${opMode === 'admin' ? 'bg-amber-500' : 'bg-slate-800'}`} />
+                  <h2 className="text-xl font-serif font-semibold text-slate-800">
+                    {opMode === 'admin' 
+                      ? 'Executive Admin Control Center' 
+                      : opMode === 'hr' 
+                        ? 'HR Historical Guest Archives & Registries' 
+                        : 'Receptionist & Front Desk (Islamia Guest House)'
+                    }
+                  </h2>
                 </div>
-              )}
-            </div>
-          </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {opMode === 'admin'
+                    ? 'Manage revenue analytics, approve staff access, configure room tariffs, and oversee guest bookings.'
+                    : 'Book rooms via Front Desk, manage guest invoices, and review local booking records in Dhanmondi.'
+                  }
+                </p>
+              </div>
 
-          {opMode === 'admin' ? <AdminPanel /> : <StaffView />}
-        </main>
-
-        <footer className="border-t border-slate-200/80 bg-white/80 py-6">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-xs text-slate-500 font-medium">
-              &copy; 2026 Islamia Guest House Dhanmondi. Secure Front Desk &amp; billing manager.
-            </p>
-            <div className="text-xs text-slate-400 font-mono">
-              <span>Dedicated to Islamia Guest House</span>
+              {/* User Sign-In/Out Quick Interface */}
+              <div className="flex items-center gap-3">
+                {currentUser && (
+                  <div className="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-slate-200 shadow-sm">
+                    <div className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs uppercase font-mono">
+                      {currentUser.name.slice(0, 1)}
+                    </div>
+                    <div className="text-left hidden sm:block">
+                      <span className="text-[11px] font-semibold text-slate-800 block leading-none">{currentUser.name}</span>
+                      <span className="text-[9px] text-teal-700 font-mono font-bold block leading-none mt-0.5">
+                        {currentRole === 'guest' ? 'Guest' : opMode === 'admin' ? 'Admin Panel' : opMode === 'hr' ? 'HR Manager' : 'Staff / Front Desk'}
+                      </span>
+                    </div>
+                    <button
+                      id="auth-logout-btn"
+                      onClick={logout}
+                      title="Sign out of system"
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-full text-xs font-semibold transition-all cursor-pointer ml-1.5 active:scale-95"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </footer>
-        <ToastNotification />
-      </div>
+
+            {opMode === 'admin' ? <AdminPanel /> : <StaffView />}
+          </main>
+
+          <footer className="border-t border-slate-200/80 bg-white/80 py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
+              <p className="text-xs text-slate-500 font-medium">
+                &copy; 2026 Islamia Guest House Dhanmondi. Secure Front Desk &amp; billing manager.
+              </p>
+              <div className="text-xs text-slate-400 font-mono">
+                <span>Dedicated to Islamia Guest House</span>
+              </div>
+            </div>
+          </footer>
+          <ToastNotification />
+        </div>
+      </RequireAdminApproval>
     );
   }
 

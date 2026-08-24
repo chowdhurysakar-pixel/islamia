@@ -1507,32 +1507,6 @@ export const StaffView: React.FC = () => {
               </p>
             </div>
             
-            {/* Quick Helper contacts tags for easy demonstration/testing */}
-            <div className="flex flex-wrap gap-1.5 items-center">
-              <span className="text-[10px] text-slate-500 font-mono">Quick Test:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setGuestHistoryPhoneSearch('+1 (555) 321-9876');
-                  setSelectedHistoryGuestPhone('+1 (555) 321-9876');
-                }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
-              >
-                +1 (555) 321-9876
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setGuestHistoryPhoneSearch('+1 (555) 789-1234');
-                  setSelectedHistoryGuestPhone('+1 (555) 789-1234');
-                }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
-              >
-                +1 (555) 789-1234
-              </button>
-            </div>
-          </div>
-
           {/* Search Inputs */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
@@ -1579,6 +1553,7 @@ export const StaffView: React.FC = () => {
               )}
             </div>
           </div>
+        </div>
 
           {/* Search Results Visual Layout */}
           {selectedHistoryGuestPhone ? (
@@ -1722,7 +1697,7 @@ export const StaffView: React.FC = () => {
                     No past stay records found for contact number: <span className="text-white font-mono font-bold">"{selectedHistoryGuestPhone}"</span>
                   </p>
                   <p className="text-[10px] text-slate-500 font-normal">
-                    Check if the phone matches exactly, or trace check-ins by searching '01712' or '555'.
+                    Check if the phone matches exactly, or trace check-ins by searching guest contact details.
                   </p>
                 </div>
               )}

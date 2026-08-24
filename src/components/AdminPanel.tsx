@@ -114,7 +114,8 @@ export const AdminPanel: React.FC = () => {
     loginRequests,
     approveLoginRequest,
     rejectLoginRequest,
-    deleteLoginRequest
+    deleteLoginRequest,
+    revokeStaffAccess
   } = useApp();
 
   // Admin Active Tab
@@ -307,19 +308,15 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  // Revoke or place on pending
+  // Revoke or place on pending (triggers live Firestore kick-out)
   const handleRevokeStaff = async (user: UserProfile) => {
     setActionLoadingEmail(user.email);
     try {
-      await updateStaffApproval(user.email, false, user.uid);
-      showToast({
-        type: 'info',
-        message: `⚠️ Access authorization revoked for ${user.name}.`
-      });
+      await revokeStaffAccess(user.email);
     } catch (e) {
       showToast({
         type: 'error',
-        message: `Could not update status for ${user.name}.`
+        message: `Could not revoke access for ${user.name}.`
       });
     } finally {
       setActionLoadingEmail(null);
@@ -1518,11 +1515,7 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={async () => {
-                                      await approveLoginRequest(req.id, currentUser?.email || 'admin@islamiaguesthouse.com');
-                                      showToast({
-                                        type: 'success',
-                                        message: `⚡ Approved sign-in for ${req.name || req.email}! Front Desk unlocked.`
-                                      });
+                                      await approveLoginRequest(req.id);
                                     }}
                                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1 shadow-sm cursor-pointer active:scale-95"
                                   >
@@ -1532,11 +1525,7 @@ export const AdminPanel: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={async () => {
-                                      await rejectLoginRequest(req.id, currentUser?.email || 'admin@islamiaguesthouse.com');
-                                      showToast({
-                                        type: 'warning',
-                                        message: `⛔ Rejected sign-in request for ${req.name || req.email}.`
-                                      });
+                                      await rejectLoginRequest(req.id);
                                     }}
                                     className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold rounded-xl text-xs transition flex items-center gap-1 cursor-pointer"
                                   >
@@ -1545,20 +1534,35 @@ export const AdminPanel: React.FC = () => {
                                   </button>
                                 </>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    await deleteLoginRequest(req.id);
-                                    showToast({
-                                      type: 'info',
-                                      message: 'Cleared login request log.'
-                                    });
-                                  }}
-                                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition cursor-pointer"
-                                  title="Clear Log"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <>
+                                  {isApproved && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        await revokeStaffAccess(req.id);
+                                      }}
+                                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-semibold rounded-xl text-[11px] transition flex items-center gap-1 cursor-pointer"
+                                      title="Revoke session and kick out user"
+                                    >
+                                      <AlertCircle className="w-3 h-3 text-amber-600" />
+                                      <span>Revoke / Kick</span>
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      await deleteLoginRequest(req.id);
+                                      showToast({
+                                        type: 'info',
+                                        message: 'Cleared login request log.'
+                                      });
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition cursor-pointer"
+                                    title="Clear Log"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
                               )}
                             </div>
                           </td>

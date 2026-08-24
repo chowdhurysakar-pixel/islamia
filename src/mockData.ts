@@ -112,7 +112,7 @@ export const INITIAL_BOOKINGS: Booking[] = [
     userId: 'mock-user-1',
     guestName: 'Robert Sterling',
     guestEmail: 'robert.sterling@example.com',
-    guestPhone: '+1 (555) 321-9876',
+    guestPhone: '+880 1712-345678',
     checkIn: '2026-08-01',
     checkOut: '2026-08-07',
     totalAmount: 15000,

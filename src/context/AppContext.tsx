@@ -118,10 +118,15 @@ interface AppContextType {
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
   // Real-time Staff Login Authorization Gate (Live Stream)
   loginRequests: LoginRequest[];
+  activeStaffRequestId: string | null;
+  staffApprovalStatus: 'APPROVED' | 'PENDING' | 'REJECTED' | 'NOT_REQUESTED';
+  setActiveStaffRequestId: (reqId: string | null) => void;
   createLoginRequest: (reqData: { email: string; name: string; role?: UserRole; phone?: string; passcodeUsed?: string; deviceInfo?: string }) => Promise<string>;
   approveLoginRequest: (requestId: string) => Promise<void>;
   rejectLoginRequest: (requestId: string) => Promise<void>;
   deleteLoginRequest: (requestId: string) => Promise<void>;
+  cancelActiveStaffRequest: () => Promise<void>;
+  revokeStaffAccess: (requestIdOrEmail: string) => Promise<void>;
   // Guest View Logo & Branding Management
   guestLogoSettings: GuestLogoSettings;
   updateGuestLogoSettings: (settings: Partial<GuestLogoSettings>) => Promise<void>;
@@ -287,7 +292,7 @@ const getAdminNameForEmail = (email: string, fallbackName?: string): string => {
   return fallbackName || 'Administrator';
 };
 
-const isAdminEmail = (email?: string | null): boolean => {
+export const isAdminEmail = (email?: string | null): boolean => {
   if (!email) return false;
   return ADMIN_EMAIL_WHITELIST.includes(email.trim().toLowerCase());
 };
@@ -394,6 +399,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return [];
     }
   });
+
+  const [activeStaffRequestId, setActiveStaffRequestIdState] = useState<string | null>(() => {
+    return sessionStorage.getItem('active_staff_request_id');
+  });
+
+  const [staffApprovalStatus, setStaffApprovalStatus] = useState<'APPROVED' | 'PENDING' | 'REJECTED' | 'NOT_REQUESTED'>('NOT_REQUESTED');
+
+  const setActiveStaffRequestId = (reqId: string | null) => {
+    setActiveStaffRequestIdState(reqId);
+    if (reqId) {
+      sessionStorage.setItem('active_staff_request_id', reqId);
+    } else {
+      sessionStorage.removeItem('active_staff_request_id');
+    }
+  };
 
   // Website Guest View Logo & Branding State
   const [guestLogoSettings, setGuestLogoSettings] = useState<GuestLogoSettings>(() => {
@@ -999,6 +1019,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser]);
 
+  // Real-Time Active Staff Live Kick-out & Authorization Listener
+  useEffect(() => {
+    if (!currentUser) {
+      setStaffApprovalStatus('NOT_REQUESTED');
+      return;
+    }
+
+    const emailLower = currentUser.email.toLowerCase();
+    const isAdmin = isAdminEmail(emailLower) || currentUser.role === 'admin';
+
+    if (isAdmin) {
+      setStaffApprovalStatus('APPROVED');
+      return;
+    }
+
+    // Lookup corresponding login_request
+    const userReq = loginRequests.find(r => 
+      (activeStaffRequestId && r.id === activeStaffRequestId) || 
+      r.email.toLowerCase() === emailLower
+    );
+
+    const userRecord = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
+
+    // 1. HARD REVOCATION: If rejected in Firestore or hrApproved revoked to false
+    if (userReq?.status === 'rejected' || (userRecord && userRecord.hrApproved === false)) {
+      setStaffApprovalStatus('REJECTED');
+      sessionStorage.removeItem('staff_authorized');
+      return;
+    }
+
+    // 2. EXPLICIT APPROVAL
+    if (userReq?.status === 'approved' || (userRecord && userRecord.hrApproved === true && sessionStorage.getItem('staff_authorized') === 'true')) {
+      setStaffApprovalStatus('APPROVED');
+      sessionStorage.setItem('staff_authorized', 'true');
+      return;
+    }
+
+    // 3. PENDING
+    if (userReq?.status === 'pending') {
+      setStaffApprovalStatus('PENDING');
+      sessionStorage.removeItem('staff_authorized');
+      return;
+    }
+
+    // 4. Default: require explicit approval
+    if (sessionStorage.getItem('staff_authorized') === 'true' && userRecord?.hrApproved) {
+      setStaffApprovalStatus('APPROVED');
+    } else {
+      setStaffApprovalStatus('PENDING');
+      sessionStorage.removeItem('staff_authorized');
+    }
+  }, [currentUser, activeStaffRequestId, loginRequests, registeredUsers]);
+
   // Local storage offline caching helper
   useEffect(() => {
     if (rooms && rooms.length > 0) {
@@ -1333,6 +1406,93 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Failed to delete login request in Firestore:", e);
       }
     }
+  };
+
+  const cancelActiveStaffRequest = async () => {
+    if (activeStaffRequestId) {
+      await deleteLoginRequest(activeStaffRequestId);
+      setActiveStaffRequestId(null);
+    }
+    setStaffApprovalStatus('NOT_REQUESTED');
+    sessionStorage.removeItem('active_staff_request_id');
+    sessionStorage.removeItem('staff_authorized');
+  };
+
+  const revokeStaffAccess = async (requestIdOrEmail: string) => {
+    const target = requestIdOrEmail.trim().toLowerCase();
+    const now = new Date().toISOString();
+    const adminEmail = currentUser?.email || 'admin@islamiaguesthouse.com';
+
+    // 1. Update in login_requests
+    setLoginRequests(prev => {
+      const updated = prev.map(r => {
+        if (r.id === requestIdOrEmail || r.email.toLowerCase() === target) {
+          return {
+            ...r,
+            status: 'rejected' as const,
+            rejectedAt: now,
+            rejectedBy: adminEmail
+          };
+        }
+        return r;
+      });
+      try {
+        localStorage.setItem('hotel_login_requests', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 2. Update in registeredUsers (hrApproved: false, isOnline: false)
+    setRegisteredUsers(prev => {
+      const updated = prev.map(u => {
+        if (u.email.toLowerCase() === target) {
+          return {
+            ...u,
+            hrApproved: false,
+            isOnline: false
+          };
+        }
+        return u;
+      });
+      try {
+        localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('hotel_presence_updated', {
+          detail: { email: target, hrApproved: false, isOnline: false }
+        }));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 3. Sync to Firestore in real time
+    if (isFirebaseActive && db) {
+      try {
+        // Update login request document
+        const reqMatch = loginRequests.find(r => r.id === requestIdOrEmail || r.email.toLowerCase() === target);
+        if (reqMatch) {
+          await setDoc(doc(db, 'login_requests', reqMatch.id), {
+            status: 'rejected',
+            rejectedAt: now,
+            rejectedBy: adminEmail
+          }, { merge: true });
+        }
+
+        // Update user document
+        const userMatch = registeredUsers.find(u => u.email.toLowerCase() === target);
+        const userUid = userMatch?.uid || `staff-${target.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        await setDoc(doc(db, 'users', userUid), {
+          hrApproved: false,
+          isOnline: false,
+          lastActiveAt: now
+        }, { merge: true });
+      } catch (e) {
+        console.warn("Failed to sync access revocation to Firestore:", e);
+      }
+    }
+
+    showToast({
+      type: 'warning',
+      message: `🚫 Access Revoked: Staff session for ${target} has been immediately terminated.`
+    });
   };
 
   // Auth Functions
@@ -2525,10 +2685,15 @@ Islamia Guest House, Dhanmondi`;
       masterStaffPasscode,
       updateMasterStaffPasscode,
       loginRequests,
+      activeStaffRequestId,
+      staffApprovalStatus,
+      setActiveStaffRequestId,
       createLoginRequest,
       approveLoginRequest,
       rejectLoginRequest,
       deleteLoginRequest,
+      cancelActiveStaffRequest,
+      revokeStaffAccess,
       guestLogoSettings,
       updateGuestLogoSettings
     }}>
