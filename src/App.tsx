@@ -3,79 +3,15 @@
  * SPDX-License-Identifier: Apache-2.5
  */
 
-import React, { useState, Component, ErrorInfo } from 'react';
+import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Header } from './components/Header';
 import { GuestView } from './components/GuestView';
 import { StaffView } from './components/StaffView';
 import { AdminPanel } from './components/AdminPanel';
 import { SecureGateway } from './components/SecureGateway';
-import { RequireAdminApproval } from './components/RequireAdminApproval';
-import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink, Smartphone, MessageSquare, Copy, Check, RefreshCw } from 'lucide-react';
+import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink, Smartphone, MessageSquare, Copy, Check } from 'lucide-react';
 import { UserRole } from './types';
-
-interface ErrorBoundaryProps {
-  children: React.ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error?: Error;
-}
-
-class AppErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  public props: ErrorBoundaryProps;
-  public state: ErrorBoundaryState = { hasError: false };
-
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.props = props;
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Application Render Error Caught:", error, errorInfo);
-  }
-
-  handleReload = () => {
-    try {
-      localStorage.removeItem('hotel_current_role');
-    } catch (e) {}
-    window.location.reload();
-  };
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div className="min-h-screen bg-[#f8f4ec] flex flex-col items-center justify-center p-6 text-center font-sans">
-          <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-xl border border-amber-200/80 space-y-5">
-            <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-900 mx-auto flex items-center justify-center shadow-inner">
-              <Hotel className="w-7 h-7" />
-            </div>
-            <div className="space-y-1.5">
-              <h2 className="text-xl font-serif font-bold text-slate-900">Islamia Guest House</h2>
-              <p className="text-xs text-slate-500">System recovered from a transient state.</p>
-            </div>
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-left text-xs font-mono text-slate-700 max-h-28 overflow-y-auto">
-              {this.state.error?.message || "An unexpected error occurred during rendering."}
-            </div>
-            <button
-              onClick={this.handleReload}
-              className="w-full py-3 px-4 bg-[#0e2b33] hover:bg-[#1a434d] text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md cursor-pointer transition active:scale-95"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Restore Guest House Portal</span>
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
 
 const ToastNotification: React.FC = () => {
   const { activeToast, dismissToast } = useApp();
@@ -240,77 +176,75 @@ const MainLayout: React.FC = () => {
     }
 
     return (
-      <RequireAdminApproval>
-        <div className="min-h-screen bg-slate-50 flex flex-col">
-          {/* Header with Role Simulation Switcher */}
-          <Header />
+      <div className="min-h-screen bg-slate-50 flex flex-col">
+        {/* Header with Role Simulation Switcher */}
+        <Header />
 
-          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
-            {/* Dynamic Context Header Tag */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 border-b border-slate-200/50">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${opMode === 'admin' ? 'bg-amber-500' : 'bg-slate-800'}`} />
-                  <h2 className="text-xl font-serif font-semibold text-slate-800">
-                    {opMode === 'admin' 
-                      ? 'Executive Admin Control Center' 
-                      : opMode === 'hr' 
-                        ? 'HR Historical Guest Archives & Registries' 
-                        : 'Receptionist & Front Desk (Islamia Guest House)'
-                    }
-                  </h2>
-                </div>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {opMode === 'admin'
-                    ? 'Manage revenue analytics, approve staff access, configure room tariffs, and oversee guest bookings.'
-                    : 'Book rooms via Front Desk, manage guest invoices, and review local booking records in Dhanmondi.'
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fadeIn">
+          {/* Dynamic Context Header Tag */}
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 pb-4 border-b border-slate-200/50">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`inline-block w-2.5 h-2.5 rounded-full ${opMode === 'admin' ? 'bg-amber-500' : 'bg-slate-800'}`} />
+                <h2 className="text-xl font-serif font-semibold text-slate-800">
+                  {opMode === 'admin' 
+                    ? 'Executive Admin Control Center' 
+                    : opMode === 'hr' 
+                      ? 'HR Historical Guest Archives & Registries' 
+                      : 'Receptionist & Front Desk (Islamia Guest House)'
                   }
-                </p>
+                </h2>
               </div>
-
-              {/* User Sign-In/Out Quick Interface */}
-              <div className="flex items-center gap-3">
-                {currentUser && (
-                  <div className="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-slate-200 shadow-sm">
-                    <div className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs uppercase font-mono">
-                      {currentUser.name.slice(0, 1)}
-                    </div>
-                    <div className="text-left hidden sm:block">
-                      <span className="text-[11px] font-semibold text-slate-800 block leading-none">{currentUser.name}</span>
-                      <span className="text-[9px] text-teal-700 font-mono font-bold block leading-none mt-0.5">
-                        {currentRole === 'guest' ? 'Guest' : opMode === 'admin' ? 'Admin Panel' : opMode === 'hr' ? 'HR Manager' : 'Staff / Front Desk'}
-                      </span>
-                    </div>
-                    <button
-                      id="auth-logout-btn"
-                      onClick={logout}
-                      title="Sign out of system"
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-full text-xs font-semibold transition-all cursor-pointer ml-1.5 active:scale-95"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Log Out</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {opMode === 'admin' ? <AdminPanel /> : <StaffView />}
-          </main>
-
-          <footer className="border-t border-slate-200/80 bg-white/80 py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
-              <p className="text-xs text-slate-500 font-medium">
-                &copy; 2026 Islamia Guest House Dhanmondi. Secure Front Desk &amp; billing manager.
+              <p className="text-xs text-slate-500 mt-0.5">
+                {opMode === 'admin'
+                  ? 'Manage revenue analytics, approve staff access, configure room tariffs, and oversee guest bookings.'
+                  : 'Book rooms via Front Desk, manage guest invoices, and review local booking records in Dhanmondi.'
+                }
               </p>
-              <div className="text-xs text-slate-400 font-mono">
-                <span>Dedicated to Islamia Guest House</span>
-              </div>
             </div>
-          </footer>
-          <ToastNotification />
-        </div>
-      </RequireAdminApproval>
+
+            {/* User Sign-In/Out Quick Interface */}
+            <div className="flex items-center gap-3">
+              {currentUser && (
+                <div className="flex items-center gap-3 bg-white p-1.5 pr-3 rounded-full border border-slate-200 shadow-sm">
+                  <div className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs uppercase font-mono">
+                    {currentUser.name.slice(0, 1)}
+                  </div>
+                  <div className="text-left hidden sm:block">
+                    <span className="text-[11px] font-semibold text-slate-800 block leading-none">{currentUser.name}</span>
+                    <span className="text-[9px] text-teal-700 font-mono font-bold block leading-none mt-0.5">
+                      {currentRole === 'guest' ? 'Guest' : opMode === 'admin' ? 'Admin Panel' : opMode === 'hr' ? 'HR Manager' : 'Staff / Front Desk'}
+                    </span>
+                  </div>
+                  <button
+                    id="auth-logout-btn"
+                    onClick={logout}
+                    title="Sign out of system"
+                    className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/80 rounded-full text-xs font-semibold transition-all cursor-pointer ml-1.5 active:scale-95"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {opMode === 'admin' ? <AdminPanel /> : <StaffView />}
+        </main>
+
+        <footer className="border-t border-slate-200/80 bg-white/80 py-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p className="text-xs text-slate-500 font-medium">
+              &copy; 2026 Islamia Guest House Dhanmondi. Secure Front Desk &amp; billing manager.
+            </p>
+            <div className="text-xs text-slate-400 font-mono">
+              <span>Dedicated to Islamia Guest House</span>
+            </div>
+          </div>
+        </footer>
+        <ToastNotification />
+      </div>
     );
   }
 
@@ -325,10 +259,8 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <AppErrorBoundary>
-      <AppProvider>
-        <MainLayout />
-      </AppProvider>
-    </AppErrorBoundary>
+    <AppProvider>
+      <MainLayout />
+    </AppProvider>
   );
 }

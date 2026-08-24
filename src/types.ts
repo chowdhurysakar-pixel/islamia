@@ -10,23 +10,6 @@ export type ServiceRequestType = 'housekeeping' | 'room-service' | 'maintenance'
 export type ServiceRequestStatus = 'pending' | 'in-progress' | 'completed';
 export type UserRole = 'admin' | 'staff' | 'guest';
 
-export interface RoomCategoryPreset {
-  id: string;
-  categoryName: string;
-  roomType: RoomType;
-  capacityText: string;
-  capacityNumber: number;
-  bedSize: string;
-  facing: string;
-  bathroom: string;
-  basePrice: number;
-  priceNote?: string;
-  specs: string[];
-  image: string;
-  description: string;
-  extra?: string;
-}
-
 export interface Room {
   id: string;
   number: string;
@@ -132,23 +115,6 @@ export interface Feedback {
   createdAt: string;
 }
 
-export interface LoginRequest {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  phone?: string;
-  passcodeUsed?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  requestedAt: string;
-  approvedAt?: string;
-  approvedBy?: string;
-  rejectedAt?: string;
-  rejectedBy?: string;
-  deviceInfo?: string;
-  ip?: string;
-}
-
 export interface GuestLogoSettings {
   showLogo: boolean;
   logoType: 'emblem' | 'image';
@@ -156,5 +122,21 @@ export interface GuestLogoSettings {
   logoText?: string;
   updatedAt?: string;
   updatedBy?: string;
+}
+
+export interface LoginRequest {
+  id: string;
+  userId?: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  status: 'pending' | 'approved' | 'rejected' | 'expired';
+  requestedAt: string; // ISO String
+  approvedAt?: string;
+  approvedBy?: string;
+  rejectedAt?: string;
+  rejectedReason?: string;
+  loginMethod?: 'password' | 'passcode' | 'google' | 'registration';
+  deviceInfo?: string;
 }
 

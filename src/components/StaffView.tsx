@@ -5,17 +5,15 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Room, Booking, ServiceRequest, RoomType, RoomStatus, BookingStatus, ServiceRequestStatus, RoomCategoryPreset } from '../types';
+import { Room, Booking, ServiceRequest, RoomType, RoomStatus, BookingStatus, ServiceRequestStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
-import { RoomPresetDirectory } from './RoomPresetDirectory';
-import { STANDARDIZED_ROOM_PRESETS } from '../data/roomPresets';
 import { 
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
   Plus, ChevronRight, Receipt, Printer, UserCheck, MapPin, 
   CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2, Download, FileSpreadsheet, Loader2, Upload,
-  Calendar, RotateCcw, DollarSign, Users, ArrowUpDown, Smartphone, Zap
+  Calendar, RotateCcw, DollarSign, Users, ArrowUpDown, Smartphone
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -105,33 +103,14 @@ export const StaffView: React.FC = () => {
   const [guestHistoryPhoneSearch, setGuestHistoryPhoneSearch] = useState<string>('');
   const [selectedHistoryGuestPhone, setSelectedHistoryGuestPhone] = useState<string>('');
 
-  // Front Desk View Mode (Live Tracker vs Preset Directory)
-  const [frontDeskViewMode, setFrontDeskViewMode] = useState<'tracker' | 'presets'>('tracker');
-
   // Rooms creation State
   const [isAddingRoom, setIsAddingRoom] = useState<boolean>(false);
   const [newRoomNo, setNewRoomNo] = useState<string>('');
   const [newRoomType, setNewRoomType] = useState<RoomType>('single');
-  const [newRoomPrice, setNewRoomPrice] = useState<number>(2500);
+  const [newRoomPrice, setNewRoomPrice] = useState<number>(150);
   const [newRoomCapacity, setNewRoomCapacity] = useState<number>(2);
   const [newRoomDescription, setNewRoomDescription] = useState<string>('');
   const [newRoomImage, setNewRoomImage] = useState<string>('');
-
-  const handleStaffApplyPreset = (preset: RoomCategoryPreset) => {
-    setNewRoomType(preset.roomType);
-    setNewRoomPrice(preset.basePrice);
-    setNewRoomCapacity(preset.capacityNumber);
-    setNewRoomDescription(
-      `${preset.categoryName} — ${preset.description} | Bed: ${preset.bedSize} | Facing: ${preset.facing} | Toilet: ${preset.bathroom} | Specs: ${preset.specs.join(', ')}`
-    );
-    setNewRoomImage(preset.image);
-    setIsAddingRoom(true);
-    setFrontDeskViewMode('tracker');
-    showToast({
-      type: 'success',
-      message: `⚡ Applied "${preset.categoryName}" specs! Enter Suite Number to save.`
-    });
-  };
 
   // Front Desk Custom Room Billing Desk States
   const [posSelectedRoomId, setPosSelectedRoomId] = useState<string>('');
@@ -864,169 +843,89 @@ export const StaffView: React.FC = () => {
       </div>
 
       {/* 3. Point Of Sale Fast Room Booking Desk */}
-      <div id="pos-guest-desk" className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm space-y-6">
+      <div id="pos-guest-desk" className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-sm grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Front Desk Subview Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-2xl border border-slate-200/80">
-          <div className="flex items-center gap-1.5 w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => setFrontDeskViewMode('tracker')}
-              className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                frontDeskViewMode === 'tracker'
-                  ? 'bg-slate-900 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-            >
-              <Building className="w-3.5 h-3.5 text-teal-400" />
-              <span>Live Room Matrix &amp; Front Desk POS</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setFrontDeskViewMode('presets')}
-              className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
-                frontDeskViewMode === 'presets'
-                  ? 'bg-teal-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-teal-300" />
-              <span>6 Official Room Types &amp; Directory</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+        {/* Left 2 Columns: Room Picker Visual Grid & Quick Binder */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex justify-between items-baseline">
+            <div className="space-y-0.5">
+              <h3 className="font-serif text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Building className="w-5 h-5 text-teal-600" />
+                Live Front Desk Room Tracker
+              </h3>
+              <p className="text-xs text-slate-400">
+                Click any <span className="text-emerald-600 font-bold">Green (Available)</span> card to instantly bind details to the guest registration form.
+              </p>
+            </div>
             <button
               id="receptionist-add-room-btn"
               onClick={() => setIsAddingRoom(!isAddingRoom)}
-              className="flex items-center gap-1 text-xs font-bold text-teal-700 bg-teal-100/80 px-3 py-2 rounded-xl border border-teal-200 hover:bg-teal-200 transition cursor-pointer"
+              className="flex items-center gap-1 text-[11px] font-semibold text-teal-600 bg-teal-50 px-2.5 py-1.5 rounded-lg border border-teal-100 hover:bg-teal-100 transition"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>{isAddingRoom ? 'Close Room Form' : 'New Room'}</span>
+              <span>New Room</span>
             </button>
           </div>
-        </div>
 
-        {frontDeskViewMode === 'presets' ? (
-          /* Presets Directory View */
-          <RoomPresetDirectory
-            currentRooms={rooms}
-            onSelectPreset={handleStaffApplyPreset}
-            userRoleLabel="Front Desk Staff"
-          />
-        ) : (
-          /* Live Front Desk POS Grid View */
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left 2 Columns: Room Picker Visual Grid & Quick Binder */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="flex justify-between items-baseline">
-                <div className="space-y-0.5">
-                  <h3 className="font-serif text-lg font-bold text-slate-800 flex items-center gap-2">
-                    <Building className="w-5 h-5 text-teal-600" />
-                    Live Front Desk Room Tracker
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    Click any <span className="text-emerald-600 font-bold">Green (Available)</span> card to instantly bind details to the guest registration form.
-                  </p>
-                </div>
+          {/* Quick Room Creator Form */}
+          {isAddingRoom && (
+            <form 
+              onSubmit={handleAddRoomSubmit}
+              className="bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-3 animate-fadeIn"
+            >
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Suite Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 502"
+                  required
+                  value={newRoomNo}
+                  onChange={(e) => setNewRoomNo(e.target.value)}
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                />
               </div>
 
-              {/* Quick Room Creator Form */}
-              {isAddingRoom && (
-                <form 
-                  onSubmit={handleAddRoomSubmit}
-                  className="bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-3 animate-fadeIn"
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Room Type</label>
+                <select
+                  value={newRoomType}
+                  onChange={(e) => setNewRoomType(e.target.value as RoomType)}
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white font-semibold text-slate-700"
                 >
-                  {/* 1-Click Preset Template Strip */}
-                  <div className="col-span-2 md:col-span-4 bg-teal-50/90 border border-teal-200/80 p-2.5 rounded-xl space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-teal-950 flex items-center gap-1 font-mono uppercase">
-                        <Zap className="w-3 h-3 text-teal-600" />
-                        <span>⚡ Quick Fill from 6 Official Presets:</span>
-                      </span>
-                      <span className="text-[9px] text-teal-700 font-semibold">1-Click Auto Fill</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1">
-                      {STANDARDIZED_ROOM_PRESETS.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            setNewRoomType(p.roomType);
-                            setNewRoomPrice(p.basePrice);
-                            setNewRoomCapacity(p.capacityNumber);
-                            setNewRoomDescription(
-                              `${p.categoryName} — ${p.description} | Bed: ${p.bedSize} | Facing: ${p.facing} | Toilet: ${p.bathroom} | Specs: ${p.specs.join(', ')}`
-                            );
-                            setNewRoomImage(p.image);
-                            showToast({
-                              type: 'info',
-                              message: `✨ Loaded "${p.categoryName}" specs (৳${p.basePrice}/night)`
-                            });
-                          }}
-                          className="px-2 py-1 bg-white hover:bg-teal-600 hover:text-white border border-teal-200/70 rounded-lg text-[9px] font-bold text-slate-800 transition truncate text-left cursor-pointer shadow-2xs"
-                          title={`${p.categoryName} - ৳${p.basePrice}`}
-                        >
-                          {p.categoryName}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <option value="single">Single Room</option>
+                  <option value="double">Double Bed deluxe</option>
+                  <option value="deluxe">Executive Suite</option>
+                  <option value="suite">VIP Suite</option>
+                </select>
+              </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Suite Number</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 502"
-                      required
-                      value={newRoomNo}
-                      onChange={(e) => setNewRoomNo(e.target.value)}
-                      className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
-                    />
-                  </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Night Price (৳ BDT)</label>
+                <input
+                  type="number"
+                  min="0"
+                  required
+                  value={newRoomPrice || ''}
+                  onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
+                  placeholder="e.g. 2500"
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white font-mono font-bold text-teal-700"
+                />
+              </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Room Type</label>
-                    <select
-                      value={newRoomType}
-                      onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-                      className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white font-semibold text-slate-700"
-                    >
-                      <option value="single">Single Room</option>
-                      <option value="double">Double Bed deluxe</option>
-                      <option value="deluxe">Executive Suite</option>
-                      <option value="suite">VIP Suite</option>
-                    </select>
-                  </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Max Cap</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="6"
+                  required
+                  value={newRoomCapacity}
+                  onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
+                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
+                />
+              </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Night Price (৳ BDT)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={newRoomPrice || ''}
-                      onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
-                      placeholder="e.g. 2500"
-                      className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white font-mono font-bold text-teal-700"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">Max Cap</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="6"
-                      required
-                      value={newRoomCapacity}
-                      onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
-                      className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
-                    />
-                  </div>
-
-                  <div className="col-span-2 space-y-1">
+              <div className="col-span-2 space-y-1">
                 <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between">
                   <span>Room Photo (From Computer)</span>
                   {newRoomImage && <span className="text-emerald-600 font-semibold">✓ Photo attached</span>}
@@ -1496,37 +1395,15 @@ export const StaffView: React.FC = () => {
           </form>
         </div>
       </div>
-    )}
-  </div>
 
       {/* HR Guest View & Room Media Customizer (DEDICATED PANEL FOR MANAGING PICTURES AND AMENITIES) */}
       {opMode === 'hr' && (
-        <div id="hr-room-media-customizer" className="bg-white rounded-3xl border border-amber-200/70 p-6 shadow-sm space-y-6 animate-fadeIn">
-          {/* HR Room Categories Preset Catalog Section */}
-          <div className="border-b border-amber-100 pb-6">
-            <RoomPresetDirectory
-              currentRooms={rooms}
-              onSelectPreset={(preset) => {
-                setEditRoomType(preset.roomType);
-                setEditRoomPrice(preset.basePrice);
-                setEditRoomCapacity(preset.capacityNumber);
-                setEditRoomDescription(`${preset.categoryName} — ${preset.description} | Bed: ${preset.bedSize} | Facing: ${preset.facing} | Toilet: ${preset.bathroom}`);
-                setEditRoomAmenities([...preset.specs]);
-                showToast({
-                  type: 'info',
-                  message: `📋 HR Reference: Selected "${preset.categoryName}". Review room specs below.`
-                });
-              }}
-              userRoleLabel="HR Manager"
-              showDeployButton={false}
-            />
-          </div>
-
+        <div id="hr-room-media-customizer" className="bg-white rounded-3xl border border-amber-200/70 p-6 shadow-sm space-y-5 animate-fadeIn">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-amber-100 pb-4">
             <div className="space-y-1">
               <h3 className="font-serif text-lg font-bold text-amber-900 flex items-center gap-2">
                 <ShieldCheck className="w-5.5 h-5.5 text-amber-600 animate-pulse" />
-                HR Guest View Content &amp; Media Customizer
+                HR Guest View Content & Media Customizer
               </h3>
               <p className="text-xs text-slate-500">
                 Directly customize the guest reservation portal. Update picture galleries, edit marketing descriptions, and manage amenity tags in real-time.
@@ -1630,6 +1507,32 @@ export const StaffView: React.FC = () => {
               </p>
             </div>
             
+            {/* Quick Helper contacts tags for easy demonstration/testing */}
+            <div className="flex flex-wrap gap-1.5 items-center">
+              <span className="text-[10px] text-slate-500 font-mono">Quick Test:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setGuestHistoryPhoneSearch('+1 (555) 321-9876');
+                  setSelectedHistoryGuestPhone('+1 (555) 321-9876');
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
+              >
+                +1 (555) 321-9876
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGuestHistoryPhoneSearch('+1 (555) 789-1234');
+                  setSelectedHistoryGuestPhone('+1 (555) 789-1234');
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
+              >
+                +1 (555) 789-1234
+              </button>
+            </div>
+          </div>
+
           {/* Search Inputs */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
@@ -1676,7 +1579,6 @@ export const StaffView: React.FC = () => {
               )}
             </div>
           </div>
-        </div>
 
           {/* Search Results Visual Layout */}
           {selectedHistoryGuestPhone ? (
@@ -1820,7 +1722,7 @@ export const StaffView: React.FC = () => {
                     No past stay records found for contact number: <span className="text-white font-mono font-bold">"{selectedHistoryGuestPhone}"</span>
                   </p>
                   <p className="text-[10px] text-slate-500 font-normal">
-                    Check if the phone matches exactly, or trace check-ins by searching guest contact details.
+                    Check if the phone matches exactly, or trace check-ins by searching '01712' or '555'.
                   </p>
                 </div>
               )}

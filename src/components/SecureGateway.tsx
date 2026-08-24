@@ -3,14 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { UserRole, UserProfile } from '../types';
 import { 
   Mail, Key, User, Users, Hotel, 
   ArrowRight, Loader2, CheckCircle2, 
   AlertCircle, ShieldCheck, Phone, KeyRound,
-  Eye, EyeOff, X, RefreshCw, Sparkles, Inbox, Lock, ArrowLeft
+  Eye, EyeOff, X, RefreshCw, Sparkles, Inbox, Lock, ArrowLeft,
+  Clock, ShieldAlert, Radio, UserCheck, Check, XCircle
 } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { 
@@ -20,11 +21,8 @@ import {
   signOut,
   updateProfile 
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
-const VALID_STAFF_PASSCODES = [
-  'ISLAMIA-STAFF-2026', 'STAFF789', 'ISLAMIA-DESK-55', 'STAFF2026'
-];
 const VALID_ADMIN_PASSCODES = [
   'ADMIN2026', 'ISLAMIA-ADMIN-2026', 'ADMIN789', 'ADMIN-IGH-2026'
 ];
@@ -56,7 +54,9 @@ export const SecureGateway: React.FC = () => {
     masterStaffPasscode,
     recordStaffSignIn,
     registeredUsers,
-    createLoginRequest
+    loginRequests,
+    createLoginRequest,
+    cancelLoginRequest
   } = useApp();
   
   // Role tabs: 'staff' | 'admin'
@@ -65,19 +65,11 @@ export const SecureGateway: React.FC = () => {
   // Nested form mode for staff & admin
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   
-  // Real-Time Staff Login Authorization Gate (Live Approval State)
-  const [waitingApproval, setWaitingApproval] = useState(false);
-  const [approvalRequestId, setApprovalRequestId] = useState<string | null>(null);
-  const [approvalEmail, setApprovalEmail] = useState('');
-  const [approvalName, setApprovalName] = useState('');
-  const [approvalStatus, setApprovalStatus] = useState<'WAITING_FOR_ADMIN_APPROVAL' | 'APPROVED' | 'REJECTED'>('WAITING_FOR_ADMIN_APPROVAL');
-
   // Staff Fields
   const [staffName, setStaffName] = useState('');
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPhone, setStaffPhone] = useState('');
   const [staffPassword, setStaffPassword] = useState('');
-  const [staffSecretPasscode, setStaffSecretPasscode] = useState('');
   
   // Admin / HR Fields
   const [adminName, setAdminName] = useState('');
@@ -99,6 +91,17 @@ export const SecureGateway: React.FC = () => {
   const [isResendingEmail, setIsResendingEmail] = useState(false);
   const [unverifiedNoticeEmail, setUnverifiedNoticeEmail] = useState<string | null>(null);
 
+  // Real-Time Staff Admin Approval Waiting Screen
+  const [showApprovalWaitingScreen, setShowApprovalWaitingScreen] = useState(false);
+  const [pendingLoginRequestId, setPendingLoginRequestId] = useState<string | null>(null);
+  const [pendingStaffEmail, setPendingStaffEmail] = useState('');
+  const [pendingStaffName, setPendingStaffName] = useState('');
+  const [pendingStaffRole, setPendingStaffRole] = useState<UserRole>('staff');
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [isApprovedSuccess, setIsApprovedSuccess] = useState(false);
+  const [checkStatusLoading, setCheckStatusLoading] = useState(false);
+  const requestStartTimeRef = useRef<number>(Date.now());
+
   // Forgot Password / Reset Account Modal States
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetMethod, setResetMethod] = useState<'master_key' | 'email'>('master_key');
@@ -114,82 +117,6 @@ export const SecureGateway: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Real-time Firestore onSnapshot listener on the pending login request
-  useEffect(() => {
-    if (!waitingApproval || !approvalRequestId) return;
-
-    let unsubscribe: (() => void) | null = null;
-
-    if (isFirebaseActive && db) {
-      try {
-        const docRef = doc(db, 'login_requests', approvalRequestId);
-        unsubscribe = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data.status === 'approved') {
-              setApprovalStatus('APPROVED');
-              sessionStorage.setItem('staff_authorized', 'true');
-              setOpMode('receptionist');
-              localLogin('staff', approvalEmail, approvalName || 'Front Desk Staff');
-              showToast({
-                type: 'success',
-                message: `🎉 Login Request Approved by Admin! Welcome to Front Desk Console.`
-              });
-              setWaitingApproval(false);
-              setApprovalRequestId(null);
-            } else if (data.status === 'rejected') {
-              setApprovalStatus('REJECTED');
-              setError('Access Denied: The Executive Administrator has declined your login request. Please contact hotel management.');
-              setWaitingApproval(false);
-              setApprovalRequestId(null);
-            }
-          }
-        }, (err) => {
-          console.warn("Approval onSnapshot notice:", err);
-        });
-      } catch (e) {
-        console.warn("Could not subscribe to login request status:", e);
-      }
-    }
-
-    // Local cross-tab / storage fallback listener
-    const handleLocalApproval = () => {
-      try {
-        const stored = localStorage.getItem('hotel_login_requests');
-        if (stored) {
-          const reqs = JSON.parse(stored);
-          const current = reqs.find((r: any) => r.id === approvalRequestId);
-          if (current?.status === 'approved') {
-            setApprovalStatus('APPROVED');
-            sessionStorage.setItem('staff_authorized', 'true');
-            setOpMode('receptionist');
-            localLogin('staff', approvalEmail, approvalName || 'Front Desk Staff');
-            showToast({
-              type: 'success',
-              message: `🎉 Login Request Approved by Admin! Welcome to Front Desk Console.`
-            });
-            setWaitingApproval(false);
-            setApprovalRequestId(null);
-          } else if (current?.status === 'rejected') {
-            setApprovalStatus('REJECTED');
-            setError('Access Denied: The Executive Administrator has declined your login request.');
-            setWaitingApproval(false);
-            setApprovalRequestId(null);
-          }
-        }
-      } catch (e) {}
-    };
-
-    window.addEventListener('storage', handleLocalApproval);
-    window.addEventListener('hotel_presence_updated', handleLocalApproval);
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-      window.removeEventListener('storage', handleLocalApproval);
-      window.removeEventListener('hotel_presence_updated', handleLocalApproval);
-    };
-  }, [waitingApproval, approvalRequestId, approvalEmail, approvalName, isFirebaseActive]);
-
   // Resend cooldown timer effect
   useEffect(() => {
     let timer: any;
@@ -200,6 +127,42 @@ export const SecureGateway: React.FC = () => {
     }
     return () => clearInterval(timer);
   }, [resendCooldown]);
+
+  // Real-Time Listener for Login Request Approval/Rejection
+  useEffect(() => {
+    if (!showApprovalWaitingScreen || !pendingLoginRequestId || isApprovedSuccess) return;
+
+    const matchedRequest = loginRequests.find(r => 
+      r.id === pendingLoginRequestId || 
+      (r.email.toLowerCase() === pendingStaffEmail.toLowerCase() && r.status === 'approved' && new Date(r.requestedAt).getTime() >= requestStartTimeRef.current - 10000)
+    );
+
+    if (matchedRequest) {
+      if (matchedRequest.status === 'approved') {
+        setIsApprovedSuccess(true);
+        setRejectionReason(null);
+
+        showToast({
+          type: 'success',
+          message: `🎉 Login Authorized by ${matchedRequest.approvedBy || 'Admin'}! Loading Front Desk...`
+        });
+
+        const timer = setTimeout(() => {
+          sessionStorage.removeItem('admin_authorized');
+          setOpMode('receptionist');
+          localLogin(matchedRequest.role || 'staff', matchedRequest.email, matchedRequest.name);
+          recordStaffSignIn(matchedRequest.email, matchedRequest.name, matchedRequest.role || 'staff', 'admin_approved');
+          setShowApprovalWaitingScreen(false);
+          setPendingLoginRequestId(null);
+          setIsApprovedSuccess(false);
+        }, 1200);
+
+        return () => clearTimeout(timer);
+      } else if (matchedRequest.status === 'rejected') {
+        setRejectionReason(matchedRequest.rejectReason || 'Access request was declined by the Executive Administrator.');
+      }
+    }
+  }, [loginRequests, showApprovalWaitingScreen, pendingLoginRequestId, pendingStaffEmail, isApprovedSuccess]);
 
   // Clear notices and states when switching tabs
   const handleTabChange = (role: 'staff' | 'admin') => {
@@ -214,7 +177,7 @@ export const SecureGateway: React.FC = () => {
   // Open Forgot Password Dialog
   const handleOpenForgotPassword = (defaultEmail?: string) => {
     setForgotEmail(defaultEmail || (activeRoleTab === 'admin' ? adminEmail : staffEmail) || '');
-    setForgotMasterKey(activeRoleTab === 'admin' ? adminMasterKey : staffSecretPasscode);
+    setForgotMasterKey(activeRoleTab === 'admin' ? adminMasterKey : '');
     setResetMethod('master_key');
     setForgotStatus('');
     setForgotError('');
@@ -232,54 +195,38 @@ export const SecureGateway: React.FC = () => {
     }
 
     if (resendCooldown > 0) {
-      showToast({ type: 'info', message: `Please wait ${resendCooldown}s before requesting another verification email.` });
+      showToast({ type: 'info', message: `Please wait ${resendCooldown}s before resending.` });
       return;
     }
 
     setIsResendingEmail(true);
-    setError('');
-
     try {
-      if (isFirebaseActive && auth) {
-        if (pwd) {
-          // Temporarily sign in to get the User object, dispatch email, then sign out immediately
-          const userCred = await signInWithEmailAndPassword(auth, emailToSend, pwd);
-          if (userCred.user) {
-            await sendEmailVerification(userCred.user);
-            await signOut(auth);
-          }
-        } else if (auth.currentUser && auth.currentUser.email === emailToSend) {
-          await sendEmailVerification(auth.currentUser);
+      if (isFirebaseActive && auth && pwd) {
+        const userCred = await signInWithEmailAndPassword(auth, emailToSend, pwd);
+        if (userCred.user) {
+          await sendEmailVerification(userCred.user);
           await signOut(auth);
-        } else {
-          // Trigger OTP backup email
-          await sendOtp(emailToSend, pendingVerifyName || 'Staff Member', pendingVerifyRole, false);
         }
-      } else {
-        // Local sandbox fallback
-        await sendOtp(emailToSend, pendingVerifyName || 'Staff Member', pendingVerifyRole, false);
       }
-
+      // Send OTP
+      await sendOtp(emailToSend, pendingVerifyName || 'Staff Member', pendingVerifyRole, true);
+      
       setResendCooldown(60);
       showToast({
         type: 'success',
-        message: `✉️ Verification link re-sent to ${emailToSend}! Please check your Inbox and Spam folder.`
+        message: `✉️ Verification email re-sent to ${emailToSend}! Please check Inbox & Spam.`
       });
     } catch (err: any) {
-      console.warn("Resend email verification notice:", err);
-      // Fallback: send simulated OTP
-      await sendOtp(emailToSend, pendingVerifyName || 'Staff Member', pendingVerifyRole, false);
-      setResendCooldown(60);
       showToast({
-        type: 'info',
-        message: `✉️ Verification code re-sent to ${emailToSend}.`
+        type: 'error',
+        message: err?.message || 'Could not resend email. You can also verify via 6-digit OTP code below.'
       });
     } finally {
       setIsResendingEmail(false);
     }
   };
 
-  // Verify OTP alternative on verification screen
+  // Submit OTP Verification Code
   const handleVerifyOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOtpError('');
@@ -328,7 +275,6 @@ export const SecureGateway: React.FC = () => {
         await userCred.user.reload();
         
         if (userCred.user.emailVerified) {
-          // Success! User is verified
           let loggedInName = userCred.user.displayName || pendingVerifyName || 'Team Member';
           let loggedInRole: UserRole = pendingVerifyRole;
 
@@ -346,17 +292,37 @@ export const SecureGateway: React.FC = () => {
           if (loggedInRole === 'admin') {
             sessionStorage.setItem('admin_authorized', 'true');
             setOpMode('admin');
+            localLogin(loggedInRole, emailLower, loggedInName);
+            setShowVerificationScreen(false);
+            showToast({
+              type: 'success',
+              message: `🎉 Email confirmed! Welcome to Islamia Guest House Admin, ${loggedInName}.`
+            });
+            return;
           } else {
-            sessionStorage.removeItem('admin_authorized');
-            setOpMode('receptionist');
+            // Staff member verified! Must trigger Admin Approval
+            setShowVerificationScreen(false);
+            requestStartTimeRef.current = Date.now();
+            const reqId = await createLoginRequest({
+              name: loggedInName,
+              email: emailLower,
+              role: 'staff',
+              loginMethod: 'password',
+              deviceInfo: `${navigator.platform || 'Browser'} • ${navigator.userAgent.slice(0, 45)}...`,
+              userId: userCred.user.uid
+            });
+            setPendingLoginRequestId(reqId);
+            setPendingStaffEmail(emailLower);
+            setPendingStaffName(loggedInName);
+            setPendingStaffRole('staff');
+            setShowApprovalWaitingScreen(true);
+            setRejectionReason(null);
+            showToast({
+              type: 'info',
+              message: '✉️ Email verified! Awaiting Administrator approval to access Front Desk.'
+            });
+            return;
           }
-          localLogin(loggedInRole, emailLower, loggedInName);
-          setShowVerificationScreen(false);
-          showToast({
-            type: 'success',
-            message: `🎉 Email confirmed! Welcome to Islamia Guest House, ${loggedInName}.`
-          });
-          return;
         } else {
           await signOut(auth);
           setError('Email is not verified yet. Please check your email inbox and click the verification link, then click this button again.');
@@ -394,47 +360,22 @@ export const SecureGateway: React.FC = () => {
     if (resetMethod === 'master_key') {
       const cleanKey = forgotMasterKey.trim().toUpperCase();
       const isAdminKey = VALID_ADMIN_PASSCODES.includes(cleanKey);
-      const isStaffKey = VALID_STAFF_PASSCODES.includes(cleanKey);
 
-      if (!isAdminKey && !isStaffKey) {
-        setForgotError('Invalid Admin Master Key or Staff Passcode. Please enter your authorized credentials.');
+      if (!isAdminKey) {
+        setForgotError('Invalid Admin Master Key. Master key access is restricted to Hotel Executives (e.g. ADMIN2026).');
         setForgotLoading(false);
         return;
       }
 
-      const roleToUse: UserRole = isAdminKey ? 'admin' : 'staff';
-      const defaultName = isAdminKey ? 'Islamia Admin Executive' : 'Front Desk Staff';
+      sessionStorage.setItem('admin_authorized', 'true');
+      setOpMode('admin');
+      localLogin('admin', emailToReset, 'Islamia Admin Executive');
 
-      if (roleToUse === 'admin') {
-        sessionStorage.setItem('admin_authorized', 'true');
-        setOpMode('admin');
-        localLogin(roleToUse, emailToReset, defaultName);
-        setShowForgotPasswordModal(false);
-        showToast({
-          type: 'success',
-          message: `🔓 Account Unlocked via Admin Master Key! Welcome back (${emailToReset}).`
-        });
-      } else {
-        // Staff must go through Authorization Gate
-        const reqId = await createLoginRequest({
-          email: emailToReset,
-          name: defaultName,
-          role: 'staff',
-          passcodeUsed: cleanKey,
-          deviceInfo: navigator.userAgent
-        });
-        setShowForgotPasswordModal(false);
-        setApprovalRequestId(reqId);
-        setApprovalEmail(emailToReset);
-        setApprovalName(defaultName);
-        setApprovalStatus('WAITING_FOR_ADMIN_APPROVAL');
-        setWaitingApproval(true);
-        showToast({
-          type: 'info',
-          message: '⚡ Recovery Request Sent: Waiting for Executive Admin approval...',
-          duration: 8000
-        });
-      }
+      setShowForgotPasswordModal(false);
+      showToast({
+        type: 'success',
+        message: `🔓 Executive Account Unlocked via Admin Master Key! Welcome back (${emailToReset}).`
+      });
       setForgotLoading(false);
       return;
     }
@@ -445,12 +386,57 @@ export const SecureGateway: React.FC = () => {
       if (result.success) {
         setForgotStatus(`Password reset email sent to: ${emailToReset}. Please check your Gmail inbox and spam/junk folder.`);
       } else {
-        setForgotError(`${result.error || 'Failed to send password reset email.'} Tip: You can also use the "Instant Master Access" option above to log in directly with the master key.`);
+        setForgotError(`${result.error || 'Failed to send password reset email.'}`);
       }
     } catch (err: any) {
       setForgotError(`${err.message || 'Failed to dispatch password reset request.'}`);
     } finally {
       setForgotLoading(false);
+    }
+  };
+
+  // Cancel Pending Login Request
+  const handleCancelLoginRequest = async () => {
+    if (pendingLoginRequestId) {
+      await cancelLoginRequest(pendingLoginRequestId);
+    }
+    setShowApprovalWaitingScreen(false);
+    setPendingLoginRequestId(null);
+    setRejectionReason(null);
+    setIsApprovedSuccess(false);
+    showToast({
+      type: 'info',
+      message: 'Login request canceled. Returned to authentication portal.'
+    });
+  };
+
+  // Manual Check Status Button
+  const handleManualCheckStatus = async () => {
+    setCheckStatusLoading(true);
+    try {
+      const req = loginRequests.find(r => r.id === pendingLoginRequestId || r.email.toLowerCase() === pendingStaffEmail.toLowerCase());
+      if (req?.status === 'approved') {
+        setIsApprovedSuccess(true);
+        showToast({
+          type: 'success',
+          message: `🎉 Authorized by ${req.approvedBy || 'Admin'}!`
+        });
+        setTimeout(() => {
+          sessionStorage.removeItem('admin_authorized');
+          setOpMode('receptionist');
+          localLogin('staff', req.email, req.name);
+          setShowApprovalWaitingScreen(false);
+        }, 1000);
+      } else if (req?.status === 'rejected') {
+        setRejectionReason(req.rejectReason || 'Access request was declined by the Administrator.');
+      } else {
+        showToast({
+          type: 'info',
+          message: '⏳ Request is still awaiting Executive Administrator approval. Please notify Mr. Sajjad.'
+        });
+      }
+    } finally {
+      setCheckStatusLoading(false);
     }
   };
 
@@ -495,16 +481,13 @@ export const SecureGateway: React.FC = () => {
       }
     }
 
-    // 2. Security Passcode Verification:
+    // 2. Admin Master Key Verification (Admin tab only):
     const cleanAdminKey = adminMasterKey.trim().toUpperCase();
-    const cleanSecretPasscode = staffSecretPasscode.trim().toUpperCase();
-    const isMasterPasscodeMatch = masterStaffPasscode && cleanSecretPasscode === masterStaffPasscode.toUpperCase();
-    const isStaffSecretValid = VALID_STAFF_PASSCODES.includes(cleanSecretPasscode) || isMasterPasscodeMatch;
     const isAdminKeyValid = VALID_ADMIN_PASSCODES.includes(cleanAdminKey);
 
     if (isAdmin) {
       if (authMode === 'signup' && !isAdminKeyValid) {
-        setError('Access Denied: Creating an Admin account requires an authorized Admin Master Key.');
+        setError('Access Denied: Creating an Admin account requires a valid Admin Master Key (e.g. ADMIN2026).');
         return;
       }
 
@@ -514,23 +497,7 @@ export const SecureGateway: React.FC = () => {
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'admin');
 
         if (!existing && !isAdminKeyValid) {
-          setError('Access Denied: Please enter a valid authorized Admin Master Passcode.');
-          return;
-        }
-      }
-    } else {
-      if (authMode === 'signup' && !isStaffSecretValid) {
-        setError('Access Denied: Staff registration requires a valid authorized Staff Passcode.');
-        return;
-      }
-
-      if (authMode === 'signin' && !isStaffSecretValid) {
-        const storedUsers = localStorage.getItem('hotel_registered_users');
-        const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
-        const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'staff');
-        
-        if (!existing || (!existing.hrApproved && existing.staffSecretKey !== cleanSecretPasscode)) {
-          setError('Access Denied: Please enter an authorized Staff Passcode or await HR authorization.');
+          setError('Access Denied: Please enter a valid Admin Master Passcode to log in as Admin.');
           return;
         }
       }
@@ -557,12 +524,24 @@ export const SecureGateway: React.FC = () => {
               role: role,
               phone: phone,
               emailVerified: false,
-              hrApproved: isAdmin,
-              staffSecretKey: cleanSecretPasscode || masterStaffPasscode || '',
+              hrApproved: isAdmin ? true : false, // Staff accounts are NOT auto-approved!
+              staffSecretKey: '',
               registeredAt: new Date().toISOString()
             };
             
             await setDoc(doc(db, 'users', userCredential.user.uid), newUser);
+
+            // If staff, also create an initial registration request for the Admin
+            if (!isAdmin) {
+              await createLoginRequest({
+                name,
+                email: emailLower,
+                role: 'staff',
+                loginMethod: 'password',
+                deviceInfo: `${navigator.platform || 'Device'} • New Staff Registration`,
+                userId: userCredential.user.uid
+              });
+            }
 
             // CRITICAL: DO NOT automatically log in unverified user! Sign out immediately!
             await signOut(auth);
@@ -581,15 +560,16 @@ export const SecureGateway: React.FC = () => {
 
             showToast({
               type: 'info',
-              message: `✉️ Verification link sent to ${emailLower}! Please check your email inbox and click the verification link before logging in.`,
+              message: `✉️ Verification link sent to ${emailLower}! Please check your email inbox before logging in.`,
               duration: 12000
             });
           }
         } else {
-          // --- SIGN IN FLOW: STRICT AUTHENTICATION & AUTHORIZATION GATE ---
+          // --- SIGN IN FLOW ---
           const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
           
           if (userCredential.user) {
+            // Reload user state to fetch latest emailVerified token
             await userCredential.user.reload();
 
             // STRICT PROTECTION: If email is NOT verified, block sign-in immediately!
@@ -614,7 +594,7 @@ export const SecureGateway: React.FC = () => {
               return;
             }
 
-            // User is verified! Fetch or update profile
+            // User is email-verified! Fetch profile
             let loggedInName = userCredential.user.displayName || (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Staff');
             let loggedInRole: UserRole = role;
 
@@ -631,8 +611,8 @@ export const SecureGateway: React.FC = () => {
                   name: loggedInName,
                   role: loggedInRole,
                   emailVerified: true,
-                  hrApproved: isAdmin,
-                  staffSecretKey: cleanSecretPasscode || masterStaffPasscode || '',
+                  hrApproved: isAdmin ? true : false,
+                  staffSecretKey: '',
                   isOnline: true,
                   lastLoginAt: new Date().toISOString()
                 };
@@ -642,40 +622,41 @@ export const SecureGateway: React.FC = () => {
               console.warn("Could not sync user profile online:", docErr);
             }
 
-            if (loggedInRole === 'admin') {
+            // ADMIN LOGS IN DIRECTLY
+            if (loggedInRole === 'admin' || (isAdmin && isAdminKeyValid)) {
               sessionStorage.setItem('admin_authorized', 'true');
               setOpMode('admin');
-              localLogin(loggedInRole, emailLower, loggedInName);
-              await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
-
+              localLogin('admin', emailLower, loggedInName);
               showToast({
                 type: 'success',
-                message: `👋 Welcome back Executive Administrator, ${loggedInName}!`
+                message: `👋 Welcome back, Executive Administrator (${loggedInName})!`
               });
-            } else {
-              // STRICT AUTHORIZATION GATE FOR STAFF:
-              // Generate live Firestore login_requests doc and lock into Authorization Gate
-              const reqId = await createLoginRequest({
-                email: emailLower,
-                name: loggedInName,
-                role: 'staff',
-                phone: phone || '',
-                passcodeUsed: cleanSecretPasscode,
-                deviceInfo: navigator.userAgent
-              });
-
-              setApprovalRequestId(reqId);
-              setApprovalEmail(emailLower);
-              setApprovalName(loggedInName);
-              setApprovalStatus('WAITING_FOR_ADMIN_APPROVAL');
-              setWaitingApproval(true);
-
-              showToast({
-                type: 'info',
-                message: '⚡ Live Login Request Sent: Awaiting Executive Admin authorization...',
-                duration: 8000
-              });
+              setIsLoading(false);
+              return;
             }
+
+            // FRONT DESK / STAFF / HR ALWAYS REQUIRES ADMIN APPROVAL EVERY TIME!
+            requestStartTimeRef.current = Date.now();
+            const reqId = await createLoginRequest({
+              name: loggedInName,
+              email: emailLower,
+              role: 'staff',
+              loginMethod: 'password',
+              deviceInfo: `${navigator.platform || 'Browser'} • ${navigator.userAgent.slice(0, 45)}...`,
+              userId: userCredential.user.uid
+            });
+
+            setPendingLoginRequestId(reqId);
+            setPendingStaffEmail(emailLower);
+            setPendingStaffName(loggedInName);
+            setPendingStaffRole('staff');
+            setShowApprovalWaitingScreen(true);
+            setRejectionReason(null);
+
+            showToast({
+              type: 'info',
+              message: '⏳ Login request submitted. Awaiting real-time Admin approval from Mr. Sajjad.'
+            });
           }
         }
       } catch (err: any) {
@@ -715,8 +696,8 @@ export const SecureGateway: React.FC = () => {
             name: name,
             role: role,
             emailVerified: true,
-            hrApproved: isAdmin,
-            staffSecretKey: cleanSecretPasscode || masterStaffPasscode || '',
+            hrApproved: isAdmin ? true : false,
+            staffSecretKey: '',
             isOnline: true,
             lastLoginAt: new Date().toISOString()
           };
@@ -724,49 +705,56 @@ export const SecureGateway: React.FC = () => {
           usersList.push(newUser);
           localStorage.setItem('hotel_registered_users', JSON.stringify(usersList));
           
-          setPendingVerifyEmail(emailLower);
-          setPendingVerifyRole(role);
-          setPendingVerifyName(name);
-          setShowVerificationScreen(true);
-
-          await sendOtp(emailLower, name, role, true);
+          if (isAdmin) {
+            setPendingVerifyEmail(emailLower);
+            setPendingVerifyRole(role);
+            setPendingVerifyName(name);
+            setShowVerificationScreen(true);
+            await sendOtp(emailLower, name, role, true);
+          } else {
+            requestStartTimeRef.current = Date.now();
+            const reqId = await createLoginRequest({
+              name: name,
+              email: emailLower,
+              role: 'staff',
+              loginMethod: 'password',
+              deviceInfo: 'Local Sandbox Device'
+            });
+            setPendingLoginRequestId(reqId);
+            setPendingStaffEmail(emailLower);
+            setPendingStaffName(name);
+            setPendingStaffRole('staff');
+            setShowApprovalWaitingScreen(true);
+          }
         } else {
           const found = usersList.find(u => u.email === emailLower);
-          const resolvedName = found ? found.name : (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Staff');
+          const resolvedName = found ? found.name : (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Specialist');
           const resolvedRole: UserRole = found ? found.role : role;
           
-          if (resolvedRole === 'admin') {
+          if (resolvedRole === 'admin' || (isAdmin && isAdminKeyValid)) {
             sessionStorage.setItem('admin_authorized', 'true');
             setOpMode('admin');
-            localLogin(resolvedRole, emailLower, resolvedName);
-            await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
-
+            localLogin('admin', emailLower, resolvedName);
             showToast({
               type: 'success',
-              message: `👋 Welcome back Executive Administrator, ${resolvedName}!`
+              message: `👋 Welcome back, ${resolvedName}!`
             });
           } else {
-            // STRICT AUTHORIZATION GATE FOR STAFF IN FALLBACK MODE
+            // Staff / Front Desk login requires Admin Approval
+            requestStartTimeRef.current = Date.now();
             const reqId = await createLoginRequest({
-              email: emailLower,
               name: resolvedName,
+              email: emailLower,
               role: 'staff',
-              phone: phone || '',
-              passcodeUsed: cleanSecretPasscode,
-              deviceInfo: navigator.userAgent
+              loginMethod: 'password',
+              deviceInfo: 'Local Sandbox Device'
             });
-
-            setApprovalRequestId(reqId);
-            setApprovalEmail(emailLower);
-            setApprovalName(resolvedName);
-            setApprovalStatus('WAITING_FOR_ADMIN_APPROVAL');
-            setWaitingApproval(true);
-
-            showToast({
-              type: 'info',
-              message: '⚡ Live Login Request Sent: Awaiting Executive Admin authorization...',
-              duration: 8000
-            });
+            setPendingLoginRequestId(reqId);
+            setPendingStaffEmail(emailLower);
+            setPendingStaffName(resolvedName);
+            setPendingStaffRole('staff');
+            setShowApprovalWaitingScreen(true);
+            setRejectionReason(null);
           }
         }
       } catch (err: any) {
@@ -777,82 +765,160 @@ export const SecureGateway: React.FC = () => {
     }
   };
 
-  // --- REAL-TIME AUTHORIZATION GATE WAITING SCREEN ---
-  if (waitingApproval) {
+  // --- DEDICATED REAL-TIME ADMIN APPROVAL WAITING SCREEN ---
+  if (showApprovalWaitingScreen) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans animate-fadeIn">
-        <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-amber-50/80 via-slate-50/50 to-slate-50 pointer-events-none" />
+      <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden font-sans text-slate-100">
+        
+        {/* Background Ambience */}
+        <div className="absolute inset-0 bg-radial from-teal-950/60 via-slate-950 to-slate-950 pointer-events-none" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none animate-pulse" />
 
-        <div className="max-w-md w-full space-y-6 relative z-10">
-          <div className="bg-white rounded-3xl p-8 shadow-2xl border border-amber-200 text-center space-y-6">
-            
-            {/* Pulsing Radar Beacon */}
-            <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full bg-amber-400/20 animate-ping" />
-              <div className="absolute inset-2 rounded-full bg-amber-400/30 animate-pulse" />
-              <div className="relative w-14 h-14 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/30">
-                <ShieldCheck className="w-7 h-7" />
+        <div className="relative z-10 bg-slate-850 border border-slate-700/80 rounded-3xl w-full max-w-lg shadow-2xl p-6 sm:p-8 text-center space-y-6 animate-scaleUp">
+          
+          {/* Animated Header Badge */}
+          <div className="relative mx-auto w-24 h-24 flex items-center justify-center">
+            {isApprovedSuccess ? (
+              <div className="w-24 h-24 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/20 animate-bounce">
+                <CheckCircle2 className="w-12 h-12" />
               </div>
-            </div>
+            ) : rejectionReason ? (
+              <div className="w-24 h-24 bg-rose-500/20 border-2 border-rose-500 rounded-full flex items-center justify-center text-rose-400 shadow-lg shadow-rose-500/20">
+                <XCircle className="w-12 h-12" />
+              </div>
+            ) : (
+              <>
+                <div className="absolute inset-0 bg-amber-500/15 rounded-full animate-ping pointer-events-none" />
+                <div className="w-24 h-24 bg-amber-500/10 border-2 border-amber-500/60 rounded-full flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/10 relative z-10">
+                  <ShieldAlert className="w-12 h-12 animate-pulse" />
+                </div>
+              </>
+            )}
+          </div>
 
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[11px] font-bold tracking-wide uppercase">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span>Authorization Gate Active</span>
-              </div>
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                Waiting for Admin Approval
-              </h2>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Your staff login request has been dispatched in real time to the Executive Admin at <span className="font-semibold text-slate-800">islamiaguesthouse.com</span>.
-              </p>
-            </div>
-
-            {/* Request Summary Box */}
-            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/80 text-left space-y-2.5">
-              <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
-                <span className="text-slate-500">Request ID:</span>
-                <span className="font-mono font-bold text-slate-800">{approvalRequestId}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
-                <span className="text-slate-500">Staff Account:</span>
-                <span className="font-medium text-slate-800 truncate max-w-[200px]">{approvalEmail}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200">
-                <span className="text-slate-500">Terminal Role:</span>
-                <span className="font-semibold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md">Front Desk Receptionist</span>
-              </div>
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-500">Live Status:</span>
-                <span className="flex items-center gap-1.5 text-amber-700 font-bold">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
-                  <span>Pending Admin Authorization...</span>
+          {/* Heading & Information */}
+          <div className="space-y-2">
+            {isApprovedSuccess ? (
+              <>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded-full text-xs font-bold font-mono">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Access Granted</span>
                 </span>
-              </div>
-            </div>
+                <h2 className="text-2xl font-serif font-black text-white">
+                  Login Approved!
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300">
+                  The Executive Administrator has authorized your session. Entering Front Desk...
+                </p>
+              </>
+            ) : rejectionReason ? (
+              <>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/40 rounded-full text-xs font-bold font-mono">
+                  <X className="w-3.5 h-3.5" />
+                  <span>Access Declined</span>
+                </span>
+                <h2 className="text-2xl font-serif font-black text-white">
+                  Approval Declined
+                </h2>
+                <div className="p-3 bg-rose-950/60 border border-rose-800 text-rose-200 rounded-2xl text-xs text-left space-y-1">
+                  <p className="font-bold">Reason provided by Admin:</p>
+                  <p className="font-mono text-rose-300">{rejectionReason}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full text-xs font-bold font-mono">
+                  <Radio className="w-3.5 h-3.5 animate-pulse text-amber-400" />
+                  <span>Real-Time Admin Verification</span>
+                </span>
+                <h2 className="text-2xl font-serif font-black text-white tracking-tight">
+                  Admin Approval Required
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
+                  Every Front Desk &amp; Staff sign-in requires explicit real-time approval from Executive Administrator (Mr. Sajjad).
+                </p>
+              </>
+            )}
+          </div>
 
-            {/* Live Firestore Sync Notice */}
-            <div className="p-3 bg-teal-50/80 rounded-xl border border-teal-200/60 text-[11px] text-teal-800 flex items-start gap-2 text-left">
-              <RefreshCw className="w-4 h-4 text-teal-600 shrink-0 mt-0.5 animate-spin" />
-              <span>
-                <strong>Live Firestore Stream:</strong> Keep this window open. As soon as the Administrator authorizes your session in the Admin Panel, this page will automatically redirect to the Front Desk Console.
+          {/* Staff Info Card */}
+          <div className="p-4 bg-slate-800/80 border border-slate-700/80 rounded-2xl text-left space-y-2.5">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-700">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-teal-400" />
+                <span className="text-xs font-bold text-white">{pendingStaffName || 'Staff Member'}</span>
+              </div>
+              <span className="px-2 py-0.5 bg-teal-500/20 text-teal-300 text-[10px] font-mono font-bold rounded-md uppercase">
+                Front Desk
               </span>
             </div>
 
-            {/* Cancel Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setWaitingApproval(false);
-                setApprovalRequestId(null);
-                setError('');
-              }}
-              className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
-            >
-              Cancel Login Request
-            </button>
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">Email Address:</span>
+              <span className="font-mono text-slate-200 font-medium">{pendingStaffEmail}</span>
+            </div>
 
+            <div className="flex justify-between items-center text-xs">
+              <span className="text-slate-400">Request Status:</span>
+              {isApprovedSuccess ? (
+                <span className="text-emerald-400 font-bold flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" /> Approved
+                </span>
+              ) : rejectionReason ? (
+                <span className="text-rose-400 font-bold flex items-center gap-1">
+                  <X className="w-3.5 h-3.5" /> Declined
+                </span>
+              ) : (
+                <span className="text-amber-400 font-bold flex items-center gap-1.5 animate-pulse">
+                  <Clock className="w-3.5 h-3.5" /> Awaiting Mr. Sajjad's Approval...
+                </span>
+              )}
+            </div>
+
+            {pendingLoginRequestId && (
+              <div className="flex justify-between items-center text-[10px] font-mono text-slate-500 pt-1">
+                <span>Request Tracking ID:</span>
+                <span>#{pendingLoginRequestId.slice(0, 8)}</span>
+              </div>
+            )}
           </div>
+
+          {/* Action Buttons */}
+          <div className="space-y-2.5 pt-2">
+            {!isApprovedSuccess && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleManualCheckStatus}
+                  disabled={checkStatusLoading}
+                  className="w-full py-3 px-4 bg-teal-600 hover:bg-teal-500 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                >
+                  {checkStatusLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  <span>Check Approval Status</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCancelLoginRequest}
+                  className="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-semibold rounded-xl text-xs transition cursor-pointer"
+                >
+                  Cancel &amp; Return to Login
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Help Notice */}
+          <div className="text-[11px] text-slate-400 leading-relaxed bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+            <p>
+              💡 <strong>Note for Staff:</strong> Please inform the Hotel Administrator / Mr. Sajjad to open the <strong>Admin Control Center &gt; Staff Approvals</strong> and click <strong>"Authorize Access"</strong>.
+            </p>
+          </div>
+
         </div>
       </div>
     );
@@ -904,7 +970,7 @@ export const SecureGateway: React.FC = () => {
               <span>Instructions:</span>
             </p>
             <ol className="list-decimal pl-4 space-y-1 text-slate-600">
-              <li>Open your email provider (check <strong>Inbox</strong> & <strong>Spam/Junk</strong>).</li>
+              <li>Open your email provider (check <strong>Inbox</strong> &amp; <strong>Spam/Junk</strong>).</li>
               <li>Click the verification link from <strong>Google Firebase / Islamia Guest House</strong>.</li>
               <li>Return to this page and click <strong>"I Have Verified My Email"</strong>.</li>
             </ol>
@@ -1003,7 +1069,7 @@ export const SecureGateway: React.FC = () => {
           Islamia Guest House
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 mt-1.5 font-medium max-w-md mx-auto leading-relaxed">
-          Welcome to Islamia Reception & Security Gateway. Select your role below to proceed.
+          Welcome to Islamia Reception &amp; Security Gateway. Select your portal below.
         </p>
       </div>
 
@@ -1023,7 +1089,7 @@ export const SecureGateway: React.FC = () => {
             }`}
           >
             <Users className={`w-4 h-4 ${activeRoleTab === 'staff' ? 'text-teal-600' : 'text-slate-400'}`} />
-            <span>Staff Login</span>
+            <span>Staff Portal (Requires Admin Approval)</span>
           </button>
 
           {/* Admin / HR Tab */}
@@ -1037,7 +1103,7 @@ export const SecureGateway: React.FC = () => {
             }`}
           >
             <ShieldCheck className={`w-4 h-4 ${activeRoleTab === 'admin' ? 'text-amber-600' : 'text-slate-400'}`} />
-            <span>HR / Admin</span>
+            <span>Admin Executive</span>
           </button>
         </div>
 
@@ -1105,13 +1171,6 @@ export const SecureGateway: React.FC = () => {
                       <span>Switch to Sign In</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenForgotPassword(activeRoleTab === 'admin' ? adminEmail : staffEmail)}
-                      className="px-3 py-1.5 bg-white border border-rose-300 hover:bg-rose-100 text-rose-800 rounded-lg text-xs font-semibold transition cursor-pointer"
-                    >
-                      Instant Master Key Access
-                    </button>
                   </div>
                 )}
               </div>
@@ -1130,12 +1189,12 @@ export const SecureGateway: React.FC = () => {
             <h3 className="text-sm font-bold text-slate-800">
               {activeRoleTab === 'admin'
                 ? (authMode === 'signin' ? 'Executive Admin Authentication' : 'Register Admin Account')
-                : (authMode === 'signin' ? 'Staff Portal Sign In' : 'Register New Staff Profile')}
+                : (authMode === 'signin' ? 'Staff Portal Sign In' : 'Register Staff Account')}
             </h3>
             <p className="text-xs text-slate-500">
               {activeRoleTab === 'admin'
-                ? 'Enter your verified corporate credentials and Admin Master Key to access executive controls.'
-                : 'Access Front Desk room allocation, booking checkout, and bill printing.'}
+                ? 'Enter your corporate credentials and Admin Master Key to access executive controls.'
+                : 'Front Desk & Staff sign-in requests are submitted to the Hotel Administrator for real-time authorization.'}
             </p>
 
             {/* Mode Selector */}
@@ -1147,7 +1206,7 @@ export const SecureGateway: React.FC = () => {
                   setError('');
                   setUnverifiedNoticeEmail(null);
                 }}
-                className={`px-8 py-1.5 rounded-lg transition ${
+                className={`px-8 py-1.5 rounded-lg transition cursor-pointer ${
                   authMode === 'signin' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
                 }`}
               >
@@ -1160,7 +1219,7 @@ export const SecureGateway: React.FC = () => {
                   setError('');
                   setUnverifiedNoticeEmail(null);
                 }}
-                className={`px-8 py-1.5 rounded-lg transition ${
+                className={`px-8 py-1.5 rounded-lg transition cursor-pointer ${
                   authMode === 'signup' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'
                 }`}
               >
@@ -1182,7 +1241,7 @@ export const SecureGateway: React.FC = () => {
                     required
                     value={activeRoleTab === 'admin' ? adminName : staffName}
                     onChange={(e) => activeRoleTab === 'admin' ? setAdminName(e.target.value) : setStaffName(e.target.value)}
-                    placeholder="Full Name"
+                    placeholder="e.g. Tanvir Hasan"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none"
                   />
                 </div>
@@ -1192,7 +1251,7 @@ export const SecureGateway: React.FC = () => {
             {/* Email Address with Domain Recommendation */}
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
-                <label className="block text-xs font-semibold text-slate-700">Corporate Email *</label>
+                <label className="block text-xs font-semibold text-slate-700">Corporate / Official Email *</label>
                 {authMode === 'signup' && (
                   <span className="text-[10px] text-teal-600 font-medium">
                     @islamiaguesthouse.com or @gmail.com
@@ -1206,7 +1265,7 @@ export const SecureGateway: React.FC = () => {
                   required
                   value={activeRoleTab === 'admin' ? adminEmail : staffEmail}
                   onChange={(e) => activeRoleTab === 'admin' ? setAdminEmail(e.target.value) : setStaffEmail(e.target.value)}
-                  placeholder="user@islamiaguesthouse.com"
+                  placeholder="staff@islamiaguesthouse.com"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none"
                 />
               </div>
@@ -1264,28 +1323,40 @@ export const SecureGateway: React.FC = () => {
               </div>
             </div>
 
-            {/* Passcode / Master Key */}
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <label className="block text-xs font-semibold text-slate-700">
-                  {activeRoleTab === 'admin' ? 'Admin Master Key *' : 'Staff Passcode Key *'}
-                </label>
-                <span className="text-[10px] text-slate-400 font-medium">
-                  {activeRoleTab === 'admin' ? 'Authorized Key Required' : 'Authorized Passcode Required'}
-                </span>
+            {/* Admin Master Key (Only shown on Admin Tab) */}
+            {activeRoleTab === 'admin' && (
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Admin Master Passcode *
+                  </label>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    ADMIN2026
+                  </span>
+                </div>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    required
+                    value={adminMasterKey}
+                    onChange={(e) => setAdminMasterKey(e.target.value)}
+                    placeholder="Enter Admin Master Key"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none uppercase font-mono"
+                  />
+                </div>
               </div>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
-                <input
-                  type="password"
-                  required
-                  value={activeRoleTab === 'admin' ? adminMasterKey : staffSecretPasscode}
-                  onChange={(e) => activeRoleTab === 'admin' ? setAdminMasterKey(e.target.value) : setStaffSecretPasscode(e.target.value)}
-                  placeholder={activeRoleTab === 'admin' ? 'Enter authorized Admin Master Key' : 'Enter your authorized passcode'}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none font-mono"
-                />
+            )}
+
+            {/* Staff Security Notice (Staff Tab only) */}
+            {activeRoleTab === 'staff' && (
+              <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-[11px] text-amber-900 flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p>
+                  <strong>Admin Approval Enforced:</strong> When you log in, your request will be transmitted to the Hotel Administrator for real-time authorization before you can access the Front Desk.
+                </p>
               </div>
-            </div>
+            )}
 
             {/* Action Button */}
             <button
@@ -1297,7 +1368,11 @@ export const SecureGateway: React.FC = () => {
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <>
-                  <span>{authMode === 'signup' ? 'Create Account & Send Verification Email' : 'Sign In To Portal'}</span>
+                  <span>
+                    {authMode === 'signup' 
+                      ? 'Submit Registration & Request Approval' 
+                      : (activeRoleTab === 'admin' ? 'Sign In To Admin Control Center' : 'Submit Real-Time Login Request')}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -1314,112 +1389,97 @@ export const SecureGateway: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Account Recovery & Reset</h3>
-                <p className="text-[11px] text-slate-500">Access gateway without waiting for email delivery</p>
+                <h3 className="text-base font-serif font-bold text-slate-800">Account Recovery &amp; Reset</h3>
+                <p className="text-xs text-slate-500">Restore access to your account</p>
               </div>
               <button
                 onClick={() => setShowForgotPasswordModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Reset Method Tabs */}
-            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold gap-1">
+            {/* Recovery Mode Selector */}
+            <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold gap-1">
               <button
                 type="button"
-                onClick={() => {
-                  setResetMethod('master_key');
-                  setForgotError('');
-                  setForgotStatus('');
-                }}
-                className={`flex-1 py-1.5 rounded-lg transition ${
-                  resetMethod === 'master_key' ? 'bg-white text-teal-800 shadow-xs' : 'text-slate-500'
+                onClick={() => setResetMethod('master_key')}
+                className={`flex-1 py-1.5 rounded-lg transition cursor-pointer ${
+                  resetMethod === 'master_key' ? 'bg-white text-teal-800 shadow-xs' : 'text-slate-600'
                 }`}
               >
-                Instant Master Key
+                Admin Master Key
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setResetMethod('email');
-                  setForgotError('');
-                  setForgotStatus('');
-                }}
-                className={`flex-1 py-1.5 rounded-lg transition ${
-                  resetMethod === 'email' ? 'bg-white text-slate-800 shadow-xs' : 'text-slate-500'
+                onClick={() => setResetMethod('email')}
+                className={`flex-1 py-1.5 rounded-lg transition cursor-pointer ${
+                  resetMethod === 'email' ? 'bg-white text-teal-800 shadow-xs' : 'text-slate-600'
                 }`}
               >
-                Send Gmail Link
+                Email Reset Link
               </button>
             </div>
 
-            {forgotStatus && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-medium leading-relaxed">
-                {forgotStatus}
-              </div>
-            )}
-
             {forgotError && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium leading-relaxed">
-                {forgotError}
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{forgotError}</span>
               </div>
             )}
 
-            <form onSubmit={handleForgotPasswordSubmit} className="space-y-3.5">
+            {forgotStatus && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>{forgotStatus}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleForgotPasswordSubmit} className="space-y-3">
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700">Account Corporate Email *</label>
+                <label className="block text-xs font-semibold text-slate-700">Your Account Email</label>
                 <input
                   type="email"
                   required
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="islamiaguesthouse@gmail.com"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-600 font-medium"
+                  placeholder="name@islamiaguesthouse.com"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 rounded-xl text-xs focus:outline-none"
                 />
               </div>
 
-              {resetMethod === 'master_key' ? (
+              {resetMethod === 'master_key' && (
                 <div className="space-y-1">
                   <div className="flex justify-between items-center">
-                    <label className="text-xs font-semibold text-slate-700">Master Key / Passcode *</label>
+                    <label className="block text-xs font-semibold text-slate-700">Admin Master Key</label>
+                    <span className="text-[10px] text-slate-400 font-mono">ADMIN2026</span>
                   </div>
                   <input
-                    type="password"
+                    type="text"
                     required
                     value={forgotMasterKey}
                     onChange={(e) => setForgotMasterKey(e.target.value)}
-                    placeholder="Enter your authorized passcode"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-600 font-mono"
+                    placeholder="Enter ADMIN2026"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 rounded-xl text-xs focus:outline-none uppercase font-mono"
                   />
-                  <p className="text-[10px] text-slate-400">
-                    Bypasses email delivery delays and unlocks your portal access immediately.
-                  </p>
-                </div>
-              ) : (
-                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-500 leading-relaxed">
-                  Notice: Firebase email dispatch sends password reset links from Google services. Please check your Gmail Inbox & Spam folder.
                 </div>
               )}
 
-              <div className="flex gap-2 justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPasswordModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={forgotLoading}
-                  className="px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-md shadow-teal-700/10 active:scale-[0.98]"
-                >
-                  {forgotLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <span>{resetMethod === 'master_key' ? 'Unlock & Access Portal' : 'Send Reset Link'}</span>
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={forgotLoading}
+                className="w-full py-2.5 px-4 bg-teal-700 hover:bg-teal-800 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-60"
+              >
+                {forgotLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <span>{resetMethod === 'master_key' ? 'Unlock Account & Sign In' : 'Send Password Reset Link'}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
             </form>
           </div>
         </div>

@@ -96,24 +96,24 @@
     },
     "LoginRequest": {
       "title": "LoginRequest",
-      "description": "Real-time staff login authorization request requiring admin approval",
+      "description": "Real-time login session authorization request submitted by Front Desk and Staff members awaiting Admin approval",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "email": { "type": "string" },
+        "userId": { "type": "string" },
         "name": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "staff", "guest"] },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["staff", "guest", "admin"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "expired"] },
         "requestedAt": { "type": "string" },
-        "phone": { "type": "string" },
-        "passcodeUsed": { "type": "string" },
         "approvedAt": { "type": "string" },
         "approvedBy": { "type": "string" },
         "rejectedAt": { "type": "string" },
-        "rejectedBy": { "type": "string" },
+        "rejectedReason": { "type": "string" },
+        "loginMethod": { "type": "string" },
         "deviceInfo": { "type": "string" }
       },
-      "required": ["id", "email", "name", "role", "status", "requestedAt"]
+      "required": ["id", "name", "email", "role", "status", "requestedAt"]
     }
   },
   "firestore": {
@@ -143,7 +143,7 @@
     },
     "/login_requests/{requestId}": {
       "schema": "LoginRequest",
-      "description": "Real-time staff login authorization requests stream"
+      "description": "Staff login authorization sessions requiring Administrator sign-off"
     }
   }
 }
