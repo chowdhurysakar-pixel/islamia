@@ -313,7 +313,7 @@ export const SecureGateway: React.FC = () => {
       const isStaffKey = VALID_STAFF_PASSCODES.includes(cleanKey);
 
       if (!isAdminKey && !isStaffKey) {
-        setForgotError('Invalid Admin Master Key or Staff Passcode. Try ADMIN2026 or STAFF789.');
+        setForgotError('Invalid Admin Master Key or Staff Passcode.');
         setForgotLoading(false);
         return;
       }
@@ -404,7 +404,7 @@ export const SecureGateway: React.FC = () => {
 
     if (isAdmin) {
       if (authMode === 'signup' && !isAdminKeyValid) {
-        setError('Access Denied: Creating an Admin account requires a valid Admin Master Key (e.g. ADMIN2026).');
+        setError('Access Denied: Creating an Admin account requires a valid Admin Master Key.');
         return;
       }
 
@@ -420,7 +420,7 @@ export const SecureGateway: React.FC = () => {
       }
     } else {
       if (authMode === 'signup' && !isStaffSecretValid) {
-        setError(`Access Denied: Staff registration requires a valid Staff Secret Passcode (e.g. ${masterStaffPasscode || 'STAFF789'}).`);
+        setError('Access Denied: Staff registration requires a valid Staff Secret Passcode.');
         return;
       }
 
@@ -430,7 +430,7 @@ export const SecureGateway: React.FC = () => {
         const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'staff');
         
         if (!existing || (!existing.hrApproved && existing.staffSecretKey !== cleanSecretPasscode)) {
-          setError('Access Denied: Staff members must enter a valid Staff Passcode (e.g. STAFF789) or be approved by HR.');
+          setError('Access Denied: Staff members must enter a valid Staff Passcode or be approved by HR.');
           return;
         }
       }
@@ -1050,14 +1050,9 @@ export const SecureGateway: React.FC = () => {
 
             {/* Passcode / Master Key */}
             <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <label className="block text-xs font-semibold text-slate-700">
-                  {activeRoleTab === 'admin' ? 'Admin Master Key *' : 'Staff Passcode Key *'}
-                </label>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  {activeRoleTab === 'admin' ? 'E.G. ADMIN2026' : 'E.G. STAFF789'}
-                </span>
-              </div>
+              <label className="block text-xs font-semibold text-slate-700">
+                {activeRoleTab === 'admin' ? 'Admin Master Key *' : 'Staff Passcode Key *'}
+              </label>
               <div className="relative">
                 <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
                 <input
@@ -1065,7 +1060,7 @@ export const SecureGateway: React.FC = () => {
                   required
                   value={activeRoleTab === 'admin' ? adminMasterKey : staffSecretPasscode}
                   onChange={(e) => activeRoleTab === 'admin' ? setAdminMasterKey(e.target.value) : setStaffSecretPasscode(e.target.value)}
-                  placeholder={activeRoleTab === 'admin' ? 'E.G. ADMIN2026' : 'E.G. STAFF789'}
+                  placeholder={activeRoleTab === 'admin' ? 'Enter Admin Master Key' : 'Enter Staff Passcode Key'}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-teal-600 text-slate-900 rounded-xl text-xs transition focus:outline-none uppercase font-mono"
                 />
               </div>
@@ -1166,16 +1161,13 @@ export const SecureGateway: React.FC = () => {
 
               {resetMethod === 'master_key' ? (
                 <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <label className="text-xs font-semibold text-slate-700">Master Key / Passcode *</label>
-                    <span className="text-[10px] text-teal-600 font-mono font-bold">E.G. ADMIN2026</span>
-                  </div>
+                  <label className="text-xs font-semibold text-slate-700">Master Key / Passcode *</label>
                   <input
                     type="text"
                     required
                     value={forgotMasterKey}
                     onChange={(e) => setForgotMasterKey(e.target.value)}
-                    placeholder="Enter ADMIN2026 or STAFF789"
+                    placeholder="Enter Master Key or Staff Passcode"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-600 font-mono uppercase"
                   />
                   <p className="text-[10px] text-slate-400">
