@@ -93,27 +93,6 @@
         "updatedBy": { "type": "string" }
       },
       "required": ["id", "showLogo", "logoType"]
-    },
-    "LoginRequest": {
-      "title": "LoginRequest",
-      "description": "Real-time login session authorization request submitted by Front Desk and Staff members awaiting Admin approval",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "userId": { "type": "string" },
-        "name": { "type": "string" },
-        "email": { "type": "string" },
-        "role": { "type": "string", "enum": ["staff", "guest", "admin"] },
-        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "expired"] },
-        "requestedAt": { "type": "string" },
-        "approvedAt": { "type": "string" },
-        "approvedBy": { "type": "string" },
-        "rejectedAt": { "type": "string" },
-        "rejectedReason": { "type": "string" },
-        "loginMethod": { "type": "string" },
-        "deviceInfo": { "type": "string" }
-      },
-      "required": ["id", "name", "email", "role", "status", "requestedAt"]
     }
   },
   "firestore": {
@@ -140,10 +119,6 @@
     "/settings/{settingId}": {
       "schema": "Setting",
       "description": "Global application settings such as guest view logo and branding"
-    },
-    "/login_requests/{requestId}": {
-      "schema": "LoginRequest",
-      "description": "Staff login authorization sessions requiring Administrator sign-off"
     }
   }
 }
