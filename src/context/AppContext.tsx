@@ -116,6 +116,14 @@ interface AppContextType {
   recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
   masterStaffPasscode: string;
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
+  addStaffMember: (staffData: {
+    name: string;
+    email: string;
+    phone?: string;
+    role?: UserRole;
+    staffSecretKey?: string;
+    hrApproved?: boolean;
+  }) => Promise<{ success: boolean; error?: string }>;
   // Guest View Logo & Branding Management
   guestLogoSettings: GuestLogoSettings;
   updateGuestLogoSettings: (settings: Partial<GuestLogoSettings>) => Promise<void>;
@@ -1119,6 +1127,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const addStaffMember = async (staffData: {
+    name: string;
+    email: string;
+    phone?: string;
+    role?: UserRole;
+    staffSecretKey?: string;
+    hrApproved?: boolean;
+  }): Promise<{ success: boolean; error?: string }> => {
+    const emailLower = staffData.email.trim().toLowerCase();
+    if (!emailLower) {
+      return { success: false, error: 'Email address is required.' };
+    }
+    if (!staffData.name.trim()) {
+      return { success: false, error: 'Staff name is required.' };
+    }
+
+    const now = new Date().toISOString();
+    const userUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now().toString().slice(-4)}`;
+    const newProfile: UserProfile = {
+      uid: userUid,
+      email: emailLower,
+      name: staffData.name.trim(),
+      role: staffData.role || 'staff',
+      phone: staffData.phone?.trim() || '',
+      staffSecretKey: staffData.staffSecretKey?.trim() || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+      hrApproved: staffData.hrApproved !== undefined ? staffData.hrApproved : true,
+      emailVerified: true,
+      isOnline: false,
+      registeredAt: now,
+      lastLoginAt: now,
+      lastActiveAt: now,
+      loginMethod: 'passcode'
+    };
+
+    setRegisteredUsers(prev => {
+      const next = [...prev.filter(u => u.email.toLowerCase() !== emailLower), newProfile];
+      try {
+        localStorage.setItem('hotel_registered_users', JSON.stringify(next));
+        window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: newProfile }));
+      } catch (e) {}
+      return next;
+    });
+
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, 'users', userUid), sanitizeFirestoreData(newProfile));
+      } catch (e) {
+        console.warn("Notice saving new staff user to Firestore (using local fallback):", e);
+      }
+    }
+
+    showToast({
+      type: 'success',
+      message: `🎉 Staff member "${newProfile.name}" (${newProfile.email}) added to HR registry successfully!`
+    });
+
+    return { success: true };
+  };
+
   // Auth Functions
   const loginWithGoogle = async (role?: UserRole) => {
     const selectedRole = role || 'guest';
@@ -1717,12 +1784,20 @@ Islamia Guest House Dhanmondi System`;
       id: newId,
       number: roomData.number || newId,
       type: roomData.type || 'single',
+      title: roomData.title || (roomData.type ? `${roomData.type.charAt(0).toUpperCase() + roomData.type.slice(1)} Room` : 'Guest Room'),
       price: roomData.price || 1500,
       status: roomData.status || 'available',
       capacity: roomData.capacity || 2,
-      description: roomData.description || `${roomData.type ? roomData.type.toUpperCase() : 'Guest'} Room at Islamia Guest House`,
+      capacityText: roomData.capacityText || (roomData.capacity === 1 ? '1 Person' : `${roomData.capacity || 2} Persons`),
+      bedSize: roomData.bedSize || 'Standard Bed',
+      windows: roomData.windows || 'East Facing',
+      toilet: roomData.toilet || 'Private High Commode Toilet',
+      extra: roomData.extra || 'Cloth Rack',
+      startingPriceBanner: roomData.startingPriceBanner || '',
+      description: roomData.description || `${roomData.title || roomData.type} at Islamia Guest House`,
       image: roomData.image || (roomData as any).imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
-      amenities: roomData.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
+      images: roomData.images && roomData.images.length > 0 ? roomData.images : (roomData.image ? [roomData.image] : []),
+      amenities: roomData.amenities || ['Free WiFi', 'TV', '24/7 Electricity', 'Private Toilet']
     };
 
     // Optimistically update local state & localStorage immediately
@@ -2308,6 +2383,7 @@ Islamia Guest House, Dhanmondi`;
       recordStaffSignIn,
       masterStaffPasscode,
       updateMasterStaffPasscode,
+      addStaffMember,
       guestLogoSettings,
       updateGuestLogoSettings
     }}>

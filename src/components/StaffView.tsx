@@ -173,9 +173,16 @@ export const StaffView: React.FC = () => {
 
   // Room tracking edit states (money pricing, numbers, capacities, and statuses)
   const [editRoomNumber, setEditRoomNumber] = useState<string>('');
-  const [editRoomType, setEditRoomType] = useState<RoomType>('single');
-  const [editRoomPrice, setEditRoomPrice] = useState<number>(0);
-  const [editRoomCapacity, setEditRoomCapacity] = useState<number>(1);
+  const [editRoomTitle, setEditRoomTitle] = useState<string>('Double Deluxe');
+  const [editRoomType, setEditRoomType] = useState<RoomType>('deluxe');
+  const [editRoomPrice, setEditRoomPrice] = useState<number>(2000);
+  const [editRoomCapacity, setEditRoomCapacity] = useState<number>(4);
+  const [editRoomCapacityText, setEditRoomCapacityText] = useState<string>('Capacity 4 people');
+  const [editRoomBedSize, setEditRoomBedSize] = useState<string>('Double + Double Bed');
+  const [editRoomWindows, setEditRoomWindows] = useState<string>('West & South Facing');
+  const [editRoomToilet, setEditRoomToilet] = useState<string>('Private High Commode Toilet');
+  const [editRoomExtra, setEditRoomExtra] = useState<string>('Cloth Rack & All Facilities');
+  const [editRoomStartingPriceBanner, setEditRoomStartingPriceBanner] = useState<string>('Standard Rate');
   const [editRoomStatus, setEditRoomStatus] = useState<RoomStatus>('available');
   const [editRoomDescription, setEditRoomDescription] = useState<string>('');
   const [editRoomAmenities, setEditRoomAmenities] = useState<string[]>([]);
@@ -183,6 +190,101 @@ export const StaffView: React.FC = () => {
   const [newAmenity, setNewAmenity] = useState<string>('');
   const [newImage, setNewImage] = useState<string>('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
+
+  const applyRoomPreset = (presetKey: 'double_deluxe' | 'family' | 'executive_single' | 'triple' | 'standard_double' | 'single_economy') => {
+    switch (presetKey) {
+      case 'double_deluxe':
+        setEditRoomTitle('Double Deluxe');
+        setEditRoomType('deluxe');
+        setEditRoomPrice(2000);
+        setEditRoomCapacity(4);
+        setEditRoomCapacityText('Capacity 4 people');
+        setEditRoomBedSize('Double + Double Bed');
+        setEditRoomWindows('West & South Facing');
+        setEditRoomToilet('Private High Commode Toilet');
+        setEditRoomExtra('Cloth Rack & All Facilities');
+        setEditRoomStartingPriceBanner('Standard Rate');
+        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Refrigerator', 'Private High Commode Toilet', '24/7 Power Backup']);
+        setEditRoomDescription('Capacity 4 people, Double + Double Bed, West & South Facing, Private High Commode Toilet, TV, Free WiFi, Refrigerator, AC/Non-AC and all facilities.');
+        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800']);
+        break;
+      case 'family':
+        setEditRoomTitle('Family Room');
+        setEditRoomType('family');
+        setEditRoomPrice(2000);
+        setEditRoomCapacity(4);
+        setEditRoomCapacityText('Capacity 2 adults + 2 children');
+        setEditRoomBedSize('Double + Semi Double Bed');
+        setEditRoomWindows('West & North Facing');
+        setEditRoomToilet('Private High Commode Toilet');
+        setEditRoomExtra('Sofa & Cloth Rack');
+        setEditRoomStartingPriceBanner('Family Special');
+        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Comfortable Sofa', 'Private High Commode Toilet', '24/7 Electricity']);
+        setEditRoomDescription('Capacity 2 adults + 2 children, Double + Semi Double Bed, West & North Facing, Private High Commode Toilet and Sofa.');
+        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&q=80&w=800']);
+        break;
+      case 'executive_single':
+        setEditRoomTitle('Double - Executive Single');
+        setEditRoomType('double');
+        setEditRoomPrice(1500);
+        setEditRoomCapacity(2);
+        setEditRoomCapacityText('Capacity 1/2 people');
+        setEditRoomBedSize('Queen Size Bed');
+        setEditRoomWindows('East & North Facing');
+        setEditRoomToilet('Private High Commode Toilet');
+        setEditRoomExtra('AC/Non-AC Option');
+        setEditRoomStartingPriceBanner('Executive Deal');
+        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning / Non-AC Option', 'Flat-screen TV', 'Private High Commode Toilet', 'Work Desk', '24/7 Electricity']);
+        setEditRoomDescription('Capacity 1/2 people, Queen Size Bed, East & North Facing, Private High Commode Toilet, AC/Non-AC option.');
+        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=800']);
+        break;
+      case 'triple':
+        setEditRoomTitle('Triple Room');
+        setEditRoomType('triple');
+        setEditRoomPrice(1800);
+        setEditRoomCapacity(3);
+        setEditRoomCapacityText('Capacity 3 people');
+        setEditRoomBedSize('Double + Single Bed');
+        setEditRoomWindows('West & South Facing');
+        setEditRoomToilet('Private High Commode Toilet');
+        setEditRoomExtra('Balcony & Full Facilities');
+        setEditRoomStartingPriceBanner('Group Saver');
+        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Private Balcony', 'Private High Commode Toilet', 'Flat-screen TV', '24/7 Electricity']);
+        setEditRoomDescription('Capacity 3 people, Double + Single Bed, West & South Facing, Private High Commode Toilet, Balcony and full facilities.');
+        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&q=80&w=800']);
+        break;
+      case 'standard_double':
+        setEditRoomTitle('Standard Double');
+        setEditRoomType('double');
+        setEditRoomPrice(1700);
+        setEditRoomCapacity(3);
+        setEditRoomCapacityText('Capacity 2 people + 1 child (below 6 years)');
+        setEditRoomBedSize('King Size Bed');
+        setEditRoomWindows('East & South Facing');
+        setEditRoomToilet('Private Pan Toilet');
+        setEditRoomExtra('Balcony & Ceiling Fan');
+        setEditRoomStartingPriceBanner('Standard Double');
+        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Attached Balcony', 'Flat-screen TV', 'Private Pan Toilet', 'Ceiling Fan', '24/7 Electricity']);
+        setEditRoomDescription('Capacity 2 people + 1 child (below 6 years), King Size Bed, East & South Facing, Private Pan Toilet and Balcony.');
+        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&q=80&w=800']);
+        break;
+      case 'single_economy':
+        setEditRoomTitle('Single - Economy');
+        setEditRoomType('single');
+        setEditRoomPrice(700);
+        setEditRoomCapacity(1);
+        setEditRoomCapacityText('Capacity 1 person');
+        setEditRoomBedSize("Single Bed (3' / 7')");
+        setEditRoomWindows('East Facing');
+        setEditRoomToilet('Common Pan Toilet');
+        setEditRoomExtra('24/7 Electricity & Wi-Fi');
+        setEditRoomStartingPriceBanner('Budget Friendly');
+        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Single Bed', 'Common Pan Toilet', '24/7 Electricity', 'Fresh Bedding']);
+        setEditRoomDescription("Capacity 1 person, Single Bed (3' / 7'), East Facing, Common Pan Toilet, Wi-Fi and 24/7 electricity facilities.");
+        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=800']);
+        break;
+    }
+  };
 
   const handleComputerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -220,13 +322,20 @@ export const StaffView: React.FC = () => {
 
   React.useEffect(() => {
     if (selectedRoomToManage) {
-      setEditRoomNumber(selectedRoomToManage.number);
-      setEditRoomType(selectedRoomToManage.type);
-      setEditRoomPrice(selectedRoomToManage.price);
-      setEditRoomCapacity(selectedRoomToManage.capacity);
-      setEditRoomStatus(selectedRoomToManage.status);
+      setEditRoomNumber(selectedRoomToManage.number || '');
+      setEditRoomTitle(selectedRoomToManage.title || (selectedRoomToManage.type === 'deluxe' ? 'Double Deluxe' : selectedRoomToManage.type === 'family' ? 'Family Room' : selectedRoomToManage.type === 'triple' ? 'Triple Room' : selectedRoomToManage.type === 'double' ? 'Standard Double' : selectedRoomToManage.type === 'single' ? 'Single - Economy' : 'Executive Suite'));
+      setEditRoomType(selectedRoomToManage.type || 'deluxe');
+      setEditRoomPrice(selectedRoomToManage.price || 2000);
+      setEditRoomCapacity(selectedRoomToManage.capacity || 2);
+      setEditRoomCapacityText(selectedRoomToManage.capacityText || `Capacity ${selectedRoomToManage.capacity || 2} people`);
+      setEditRoomBedSize(selectedRoomToManage.bedSize || 'King Size Bed');
+      setEditRoomWindows(selectedRoomToManage.windows || 'West & South Facing');
+      setEditRoomToilet(selectedRoomToManage.toilet || 'Private High Commode Toilet');
+      setEditRoomExtra(selectedRoomToManage.extra || 'Cloth Rack & All Facilities');
+      setEditRoomStartingPriceBanner(selectedRoomToManage.startingPriceBanner || 'Standard Rate');
+      setEditRoomStatus(selectedRoomToManage.status || 'available');
       setEditRoomDescription(selectedRoomToManage.description || '');
-      setEditRoomAmenities(selectedRoomToManage.amenities || []);
+      setEditRoomAmenities(selectedRoomToManage.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', '24/7 Electricity']);
       setEditRoomImages(selectedRoomToManage.images || (selectedRoomToManage.image ? [selectedRoomToManage.image] : []));
       setNewAmenity('');
       setNewImage('');

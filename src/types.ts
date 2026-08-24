@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type RoomType = 'single' | 'double' | 'suite' | 'deluxe';
+export type RoomType = 'single' | 'double' | 'suite' | 'deluxe' | 'family' | 'triple';
 export type RoomStatus = 'available' | 'occupied' | 'maintenance' | 'cleaning';
 export type BookingStatus = 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'checked_out' | 'cancelled';
 export type ServiceRequestType = 'housekeeping' | 'room-service' | 'maintenance' | 'concierge';

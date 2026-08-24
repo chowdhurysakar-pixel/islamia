@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from '../types';
+import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile, UserRole } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { 
@@ -107,6 +107,7 @@ export const AdminPanel: React.FC = () => {
     deleteStaffAccount,
     masterStaffPasscode,
     updateMasterStaffPasscode,
+    addStaffMember,
     currentUser,
     currentRole,
     guestLogoSettings,
@@ -196,11 +197,132 @@ export const AdminPanel: React.FC = () => {
   // Chamber Creation / Editing State
   const [isAddRoomOpen, setIsAddRoomOpen] = useState<boolean>(false);
   const [newRoomNo, setNewRoomNo] = useState<string>('');
-  const [newRoomType, setNewRoomType] = useState<RoomType>('single');
-  const [newRoomPrice, setNewRoomPrice] = useState<number>(1500);
-  const [newRoomCapacity, setNewRoomCapacity] = useState<number>(2);
-  const [newRoomDesc, setNewRoomDesc] = useState<string>('');
-  const [newRoomImg, setNewRoomImg] = useState<string>('');
+  const [newRoomTitle, setNewRoomTitle] = useState<string>('Double Deluxe');
+  const [newRoomType, setNewRoomType] = useState<RoomType>('deluxe');
+  const [newRoomPrice, setNewRoomPrice] = useState<number>(2000);
+  const [newRoomCapacity, setNewRoomCapacity] = useState<number>(4);
+  const [newRoomCapacityText, setNewRoomCapacityText] = useState<string>('Capacity 4 people');
+  const [newRoomBedSize, setNewRoomBedSize] = useState<string>('Double + Double Bed');
+  const [newRoomWindows, setNewRoomWindows] = useState<string>('West & South Facing');
+  const [newRoomToilet, setNewRoomToilet] = useState<string>('Private High Commode Toilet');
+  const [newRoomExtra, setNewRoomExtra] = useState<string>('Cloth Rack & All Facilities');
+  const [newRoomStartingPriceBanner, setNewRoomStartingPriceBanner] = useState<string>('Standard Rate');
+  const [newRoomAmenities, setNewRoomAmenities] = useState<string[]>([
+    'Free High-Speed Wi-Fi',
+    'Air Conditioning',
+    'Flat-screen TV',
+    'Refrigerator',
+    'Private High Commode Toilet',
+    '24/7 Power Backup'
+  ]);
+  const [newRoomDesc, setNewRoomDesc] = useState<string>('Capacity 4 people, Double + Double Bed, West & South Facing, Private High Commode Toilet, TV, Free WiFi, Refrigerator, AC/Non-AC and all facilities.');
+  const [newRoomImg, setNewRoomImg] = useState<string>('https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800');
+
+  // HR Add Staff Modal State
+  const [isAddStaffOpen, setIsAddStaffOpen] = useState<boolean>(false);
+  const [newStaffName, setNewStaffName] = useState<string>('');
+  const [newStaffEmail, setNewStaffEmail] = useState<string>('');
+  const [newStaffPhone, setNewStaffPhone] = useState<string>('');
+  const [newStaffRole, setNewStaffRole] = useState<UserRole>('staff');
+  const [newStaffPasscode, setNewStaffPasscode] = useState<string>('STAFF-2026');
+  const [newStaffApproved, setNewStaffApproved] = useState<boolean>(true);
+  const [isSubmittingStaff, setIsSubmittingStaff] = useState<boolean>(false);
+
+  // Preset Template loader for 6 Standard Room Types
+  const applyRoomPreset = (presetKey: 'double_deluxe' | 'family' | 'executive_single' | 'triple' | 'standard_double' | 'single_economy') => {
+    switch (presetKey) {
+      case 'double_deluxe':
+        setNewRoomTitle('Double Deluxe');
+        setNewRoomType('deluxe');
+        setNewRoomPrice(2000);
+        setNewRoomCapacity(4);
+        setNewRoomCapacityText('Capacity 4 people');
+        setNewRoomBedSize('Double + Double Bed');
+        setNewRoomWindows('West & South Facing');
+        setNewRoomToilet('Private High Commode Toilet');
+        setNewRoomExtra('Cloth Rack & All Facilities');
+        setNewRoomStartingPriceBanner('Standard Rate');
+        setNewRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Refrigerator', 'Private High Commode Toilet', '24/7 Power Backup']);
+        setNewRoomDesc('Capacity 4 people, Double + Double Bed, West & South Facing, Private High Commode Toilet, TV, Free WiFi, Refrigerator, AC/Non-AC and all facilities.');
+        setNewRoomImg('https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800');
+        break;
+      case 'family':
+        setNewRoomTitle('Family Room');
+        setNewRoomType('family');
+        setNewRoomPrice(2000);
+        setNewRoomCapacity(4);
+        setNewRoomCapacityText('Capacity 2 adults + 2 children');
+        setNewRoomBedSize('Double + Semi Double Bed');
+        setNewRoomWindows('West & North Facing');
+        setNewRoomToilet('Private High Commode Toilet');
+        setNewRoomExtra('Sofa & Cloth Rack');
+        setNewRoomStartingPriceBanner('Family Special');
+        setNewRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Comfortable Sofa', 'Private High Commode Toilet', '24/7 Electricity']);
+        setNewRoomDesc('Capacity 2 adults + 2 children, Double + Semi Double Bed, West & North Facing, Private High Commode Toilet and Sofa.');
+        setNewRoomImg('https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&q=80&w=800');
+        break;
+      case 'executive_single':
+        setNewRoomTitle('Double - Executive Single');
+        setNewRoomType('double');
+        setNewRoomPrice(1500);
+        setNewRoomCapacity(2);
+        setNewRoomCapacityText('Capacity 1/2 people');
+        setNewRoomBedSize('Queen Size Bed');
+        setNewRoomWindows('East & North Facing');
+        setNewRoomToilet('Private High Commode Toilet');
+        setNewRoomExtra('AC/Non-AC Option');
+        setNewRoomStartingPriceBanner('Executive Deal');
+        setNewRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning / Non-AC Option', 'Flat-screen TV', 'Private High Commode Toilet', 'Work Desk', '24/7 Electricity']);
+        setNewRoomDesc('Capacity 1/2 people, Queen Size Bed, East & North Facing, Private High Commode Toilet, AC/Non-AC option.');
+        setNewRoomImg('https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=800');
+        break;
+      case 'triple':
+        setNewRoomTitle('Triple Room');
+        setNewRoomType('triple');
+        setNewRoomPrice(1800);
+        setNewRoomCapacity(3);
+        setNewRoomCapacityText('Capacity 3 people');
+        setNewRoomBedSize('Double + Single Bed');
+        setNewRoomWindows('West & South Facing');
+        setNewRoomToilet('Private High Commode Toilet');
+        setNewRoomExtra('Balcony & Full Facilities');
+        setNewRoomStartingPriceBanner('Group Saver');
+        setNewRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Private Balcony', 'Private High Commode Toilet', 'Flat-screen TV', '24/7 Electricity']);
+        setNewRoomDesc('Capacity 3 people, Double + Single Bed, West & South Facing, Private High Commode Toilet, Balcony and full facilities.');
+        setNewRoomImg('https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&q=80&w=800');
+        break;
+      case 'standard_double':
+        setNewRoomTitle('Standard Double');
+        setNewRoomType('double');
+        setNewRoomPrice(1700);
+        setNewRoomCapacity(3);
+        setNewRoomCapacityText('Capacity 2 people + 1 child (below 6 years)');
+        setNewRoomBedSize('King Size Bed');
+        setNewRoomWindows('East & South Facing');
+        setNewRoomToilet('Private Pan Toilet');
+        setNewRoomExtra('Balcony & Private Pan Toilet');
+        setNewRoomStartingPriceBanner('Standard Value');
+        setNewRoomAmenities(['Free High-Speed Wi-Fi', 'King Size Bed', 'Private Balcony', 'Private Pan Toilet', 'Air Conditioning', '24/7 Electricity']);
+        setNewRoomDesc('Capacity 2 people + 1 child (below 6 years), King Size Bed, East & South Facing, Private Pan Toilet and Balcony.');
+        setNewRoomImg('https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&q=80&w=800');
+        break;
+      case 'single_economy':
+        setNewRoomTitle('Single - Economy');
+        setNewRoomType('single');
+        setNewRoomPrice(700);
+        setNewRoomCapacity(1);
+        setNewRoomCapacityText('Capacity 1 person');
+        setNewRoomBedSize("Single Bed (3' / 7')");
+        setNewRoomWindows('East Facing');
+        setNewRoomToilet('Common Pan Toilet');
+        setNewRoomExtra('WiFi & 24/7 Electricity Facilities');
+        setNewRoomStartingPriceBanner('Budget Choice');
+        setNewRoomAmenities(['Free High-Speed Wi-Fi', '24/7 Electricity', 'Common Pan Toilet', 'Ceiling Fan', 'Clean Linen']);
+        setNewRoomDesc("Capacity 1 person, Single Bed (3' / 7'), East Facing, Common Pan Toilet, WiFi and 24/7 electricity facilities.");
+        setNewRoomImg('https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=800');
+        break;
+    }
+  };
 
   // Editing price modal / state
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
@@ -660,30 +782,89 @@ export const AdminPanel: React.FC = () => {
       e.preventDefault();
     }
     const trimmedNo = newRoomNo.trim();
-    if (!trimmedNo) return;
+    if (!trimmedNo) {
+      showToast({ type: 'warning', message: 'Please provide a valid room number.' });
+      return;
+    }
 
     const parsedPrice = Number(newRoomPrice) || 0;
     const parsedCapacity = Number(newRoomCapacity) || 1;
 
     await addRoom({
       number: trimmedNo,
+      title: newRoomTitle.trim() || `${newRoomType.toUpperCase()} Room`,
       type: newRoomType,
       price: parsedPrice,
       status: 'available',
       capacity: parsedCapacity,
-      description: newRoomDesc || `${newRoomType.toUpperCase()} Room at Islamia Guest House Dhanmondi`,
+      capacityText: newRoomCapacityText || `Capacity ${parsedCapacity} people`,
+      bedSize: newRoomBedSize,
+      windows: newRoomWindows,
+      toilet: newRoomToilet,
+      extra: newRoomExtra,
+      startingPriceBanner: newRoomStartingPriceBanner,
+      description: newRoomDesc || `${newRoomTitle} at Islamia Guest House Dhanmondi`,
       image: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
-      amenities: ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Clean Toiletries']
+      images: [newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800'],
+      amenities: newRoomAmenities.length > 0 ? newRoomAmenities : ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Private Toilet']
     });
 
     setIsAddRoomOpen(false);
     setNewRoomNo('');
     setNewRoomDesc('');
-    setNewRoomImg('');
+    setNewRoomImg('https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800');
     showToast({
       type: 'success',
-      message: `🏨 New Room #${trimmedNo} added to inventory!`
+      message: `🏨 New Room #${trimmedNo} (${newRoomTitle}) added to inventory!`
     });
+  };
+
+  // Handle HR Add Staff Submit
+  const handleAddStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanEmail = newStaffEmail.trim().toLowerCase();
+    const cleanName = newStaffName.trim();
+    if (!cleanEmail || !cleanName) {
+      showToast({ type: 'warning', message: 'Name and email are required.' });
+      return;
+    }
+
+    setIsSubmittingStaff(true);
+    try {
+      const res = await addStaffMember({
+        name: cleanName,
+        email: cleanEmail,
+        phone: newStaffPhone.trim(),
+        role: newStaffRole,
+        staffSecretKey: newStaffPasscode.trim() || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+        hrApproved: newStaffApproved
+      });
+
+      if (res.success) {
+        setIsAddStaffOpen(false);
+        setNewStaffName('');
+        setNewStaffEmail('');
+        setNewStaffPhone('');
+        setNewStaffPasscode('STAFF-2026');
+        setNewStaffApproved(true);
+        showToast({
+          type: 'success',
+          message: `👤 Staff member ${cleanName} (${cleanEmail}) registered successfully!`
+        });
+      } else {
+        showToast({
+          type: 'error',
+          message: res.error || 'Failed to add staff member.'
+        });
+      }
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        message: err?.message || 'Error registering staff.'
+      });
+    } finally {
+      setIsSubmittingStaff(false);
+    }
   };
 
   // Save Edit Price
@@ -1350,7 +1531,7 @@ export const AdminPanel: React.FC = () => {
               </div>
 
               {!isEditingPasscode ? (
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <div className="px-3.5 py-1.5 bg-slate-950 border border-amber-500/30 text-amber-300 font-mono font-bold rounded-xl text-xs tracking-wider flex items-center gap-2">
                     <span>{masterStaffPasscode || 'ISLAMIA-STAFF-2026'}</span>
                   </div>
@@ -1363,6 +1544,13 @@ export const AdminPanel: React.FC = () => {
                   >
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>Change Passcode</span>
+                  </button>
+                  <button
+                    onClick={() => setIsAddStaffOpen(true)}
+                    className="px-3.5 py-1.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Staff / Employee</span>
                   </button>
                 </div>
               ) : (
@@ -2961,155 +3149,429 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Add Room Modal Dialog */}
+      {/* HR New Room Section / Add Room Modal Dialog */}
       {isAddRoomOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-2xl w-full p-6 shadow-2xl space-y-5 my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
-                <Building className="w-4 h-4 text-teal-600" />
-                <span>Add New Guest House Room</span>
-              </h3>
+              <div>
+                <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
+                  <Building className="w-5 h-5 text-teal-600" />
+                  <span>HR Room Section: Add New Guest Chamber</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Configure chamber specifications, amenities, bed configuration, toilet type, and nightly tariffs.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsAddRoomOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm font-bold transition cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
+            {/* Quick 1-Click Preset Template Bar */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <span>Quick Template Presets (Click to Auto-fill):</span>
+                </span>
+                <span className="text-[10px] text-slate-400">6 Standard Configurations</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyRoomPreset('double_deluxe')}
+                  className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
+                >
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Double Deluxe</div>
+                  <div className="text-[10px] font-mono text-teal-600 font-semibold">৳2,000 · 4 Persons</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyRoomPreset('family')}
+                  className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
+                >
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Family Room</div>
+                  <div className="text-[10px] font-mono text-teal-600 font-semibold">৳2,000 · 2A + 2C</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyRoomPreset('executive_single')}
+                  className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
+                >
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Double - Exec Single</div>
+                  <div className="text-[10px] font-mono text-teal-600 font-semibold">৳1,500 · 1/2 Persons</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyRoomPreset('triple')}
+                  className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
+                >
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Triple Room</div>
+                  <div className="text-[10px] font-mono text-teal-600 font-semibold">৳1,800 · 3 Persons</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyRoomPreset('standard_double')}
+                  className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
+                >
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Standard Double</div>
+                  <div className="text-[10px] font-mono text-teal-600 font-semibold">৳1,700 · 2A + 1C</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyRoomPreset('single_economy')}
+                  className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
+                >
+                  <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Single - Economy</div>
+                  <div className="text-[10px] font-mono text-teal-600 font-semibold">৳700 · 1 Person</div>
+                </button>
+              </div>
+            </div>
+
             <form onSubmit={handleAddRoomSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Room Number *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Room Number *</label>
                   <input
                     type="text"
                     required
                     value={newRoomNo}
                     onChange={(e) => setNewRoomNo(e.target.value)}
-                    placeholder="e.g. 501"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono font-bold"
+                    placeholder="e.g. 101, 204, 305"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono font-bold text-slate-900"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Category *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Room Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newRoomTitle}
+                    onChange={(e) => setNewRoomTitle(e.target.value)}
+                    placeholder="e.g. Double Deluxe"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-bold text-slate-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Category Code *</label>
                   <select
                     value={newRoomType}
                     onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold text-slate-900"
                   >
-                    <option value="single">Standard Single</option>
-                    <option value="double">Deluxe Double</option>
-                    <option value="deluxe">Executive Premium</option>
-                    <option value="suite">Family Suite</option>
+                    <option value="deluxe">Deluxe</option>
+                    <option value="suite">Suite</option>
+                    <option value="double">Double</option>
+                    <option value="single">Single</option>
+                    <option value="family">Family</option>
+                    <option value="triple">Triple</option>
                   </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Nightly Tariff (৳ BDT) *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Nightly Tariff (৳ BDT) *</label>
                   <input
                     type="number"
                     min="0"
                     required
                     value={newRoomPrice || ''}
                     onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
-                    placeholder="e.g. 2500"
+                    placeholder="e.g. 2000"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold text-teal-700"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Guest Capacity *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Guest Capacity (Max Count) *</label>
                   <input
                     type="number"
+                    min="1"
                     required
                     value={newRoomCapacity}
                     onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold"
                   />
                 </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Capacity Display Text</label>
+                  <input
+                    type="text"
+                    value={newRoomCapacityText}
+                    onChange={(e) => setNewRoomCapacityText(e.target.value)}
+                    placeholder="e.g. Capacity 4 people"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-600 mb-1">Room Photo (From Computer)</label>
-                <div className="flex gap-2 items-center bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+              {/* Room Specifications Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Bed Configuration</label>
                   <input
-                    type="file"
-                    id="admin-new-room-photo-upload"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        try {
-                          const dataUrl = await processUploadedImage(file);
-                          setNewRoomImg(dataUrl);
-                          showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
-                        } catch (err) {
-                          showToast({ type: 'error', message: 'Failed to process image.' });
-                        }
-                      }
-                    }}
+                    type="text"
+                    value={newRoomBedSize}
+                    onChange={(e) => setNewRoomBedSize(e.target.value)}
+                    placeholder="e.g. Double + Double Bed"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                   />
-                  <label
-                    htmlFor="admin-new-room-photo-upload"
-                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-2xs"
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Window Direction / Facing</label>
+                  <input
+                    type="text"
+                    value={newRoomWindows}
+                    onChange={(e) => setNewRoomWindows(e.target.value)}
+                    placeholder="e.g. West & South Facing"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Toilet / Washroom Type</label>
+                  <select
+                    value={newRoomToilet}
+                    onChange={(e) => setNewRoomToilet(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
                   >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Photo</span>
-                  </label>
-                  {newRoomImg ? (
-                    <div className="flex items-center gap-2">
+                    <option value="Private High Commode Toilet">Private High Commode Toilet</option>
+                    <option value="Private Pan Toilet">Private Pan Toilet</option>
+                    <option value="Common Pan Toilet">Common Pan Toilet</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Extra Facilities / Tag</label>
+                  <input
+                    type="text"
+                    value={newRoomExtra}
+                    onChange={(e) => setNewRoomExtra(e.target.value)}
+                    placeholder="e.g. Cloth Rack & All Facilities, Balcony"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Starting Price Tag / Banner</label>
+                  <input
+                    type="text"
+                    value={newRoomStartingPriceBanner}
+                    onChange={(e) => setNewRoomStartingPriceBanner(e.target.value)}
+                    placeholder="e.g. Standard Rate, Family Special"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Photo Upload & Preview */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Room Photo (Upload from Computer or Image URL)</label>
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-slate-50 border border-slate-200 p-3 rounded-2xl">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      id="admin-new-room-photo-upload"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const dataUrl = await processUploadedImage(file);
+                            setNewRoomImg(dataUrl);
+                            showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
+                          } catch (err) {
+                            showToast({ type: 'error', message: 'Failed to process image.' });
+                          }
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="admin-new-room-photo-upload"
+                      className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-sm"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload from PC</span>
+                    </label>
+                  </div>
+
+                  <div className="flex-1 w-full flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newRoomImg}
+                      onChange={(e) => setNewRoomImg(e.target.value)}
+                      placeholder="Or enter Image URL..."
+                      className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none text-slate-700 font-mono"
+                    />
+                    {newRoomImg && (
                       <img 
                         src={newRoomImg} 
                         alt="Preview" 
-                        className="w-8 h-8 rounded-md object-cover border border-slate-300" 
+                        className="w-9 h-9 rounded-lg object-cover border border-slate-300 shrink-0" 
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
                         }}
                       />
-                      <button
-                        type="button"
-                        onClick={() => setNewRoomImg('')}
-                        className="text-rose-600 hover:text-rose-800 text-[10px] font-bold cursor-pointer"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-400 italic">No file chosen (default photo will be used)</span>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-600 mb-1">Description / Amenities</label>
+                <label className="block font-semibold text-slate-700 mb-1">Full Chamber Description</label>
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={newRoomDesc}
                   onChange={(e) => setNewRoomDesc(e.target.value)}
-                  placeholder="e.g. AC, Attached Bath, High-speed Wi-Fi, Balcony..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                  placeholder="e.g. Capacity 4 people, Double + Double Bed, West & South Facing, Private High Commode Toilet, TV, Free WiFi, Refrigerator..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none text-slate-800 leading-relaxed"
                 />
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-3 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAddRoomOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-semibold rounded-xl"
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition"
+                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition shadow-sm cursor-pointer"
                 >
-                  Create Room
+                  Create &amp; Publish Room
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* HR Add Staff Member Modal Dialog */}
+      {isAddStaffOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-teal-600" />
+                  <span>HR: Register New Staff Member</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Create a front-desk receptionist or administrator account with immediate HR authorization.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddStaffOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm font-bold transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddStaffSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Full Employee / Staff Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={newStaffName}
+                  onChange={(e) => setNewStaffName(e.target.value)}
+                  placeholder="e.g. Md. Rafiqul Islam"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-medium text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Gmail / Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={newStaffEmail}
+                  onChange={(e) => setNewStaffEmail(e.target.value)}
+                  placeholder="e.g. rafiq.islamia@gmail.com"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Contact Phone</label>
+                  <input
+                    type="text"
+                    value={newStaffPhone}
+                    onChange={(e) => setNewStaffPhone(e.target.value)}
+                    placeholder="017XX-XXXXXX"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Role Permission *</label>
+                  <select
+                    value={newStaffRole}
+                    onChange={(e) => setNewStaffRole(e.target.value as UserRole)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold"
+                  >
+                    <option value="staff">Staff / Receptionist</option>
+                    <option value="admin">System Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Assigned Passcode / Key</label>
+                <input
+                  type="text"
+                  value={newStaffPasscode}
+                  onChange={(e) => setNewStaffPasscode(e.target.value.toUpperCase())}
+                  placeholder="e.g. STAFF-2026"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold text-amber-800 uppercase"
+                />
+              </div>
+
+              <div className="p-3 bg-teal-50 border border-teal-200/60 rounded-xl flex items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  id="new-staff-hr-approved-chk"
+                  checked={newStaffApproved}
+                  onChange={(e) => setNewStaffApproved(e.target.checked)}
+                  className="w-4 h-4 text-teal-600 rounded cursor-pointer"
+                />
+                <label htmlFor="new-staff-hr-approved-chk" className="text-xs font-semibold text-teal-900 cursor-pointer">
+                  Authorize immediate HR access to Reception &amp; Front Desk
+                </label>
+              </div>
+
+              <div className="flex gap-3 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddStaffOpen(false)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingStaff}
+                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  {isSubmittingStaff ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
+                  <span>Register Staff Member</span>
                 </button>
               </div>
             </form>
