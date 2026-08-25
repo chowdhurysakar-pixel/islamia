@@ -202,9 +202,9 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: true,
     emailVerified: true,
-    isOnline: false,
-    lastLoginAt: new Date(Date.now() - 1800000).toISOString(),
-    lastActiveAt: new Date(Date.now() - 1800000).toISOString(),
+    isOnline: true,
+    lastLoginAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
     loginMethod: 'passcode'
   },
   {
@@ -296,17 +296,6 @@ const getAdminNameForEmail = (email: string, fallbackName?: string): string => {
 const isAdminEmail = (email?: string | null): boolean => {
   if (!email) return false;
   return ADMIN_EMAIL_WHITELIST.includes(email.trim().toLowerCase());
-};
-
-// Helper to broadcast presence changes across open tabs/windows
-const broadcastPresence = (message: any) => {
-  try {
-    if (typeof BroadcastChannel !== 'undefined') {
-      const ch = new BroadcastChannel('hotel_presence_channel');
-      ch.postMessage(message);
-      ch.close();
-    }
-  } catch (e) {}
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -486,14 +475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   uData.name = getAdminNameForEmail(emailLower, uData.name);
                 }
               }
-              const now = new Date().toISOString();
-              const updatedProfile: UserProfile = {
-                ...uData,
-                isOnline: true,
-                lastLoginAt: uData.lastLoginAt || now,
-                lastActiveAt: now
-              };
-              setCurrentUser(updatedProfile);
+              setCurrentUser(uData);
               setCurrentRole(uData.role);
               if (uData.role === 'admin') {
                 sessionStorage.setItem('admin_authorized', 'true');
@@ -503,16 +485,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 setOpMode('receptionist');
               }
               try {
-                localStorage.setItem('hotel_current_user', JSON.stringify(updatedProfile));
+                localStorage.setItem('hotel_current_user', JSON.stringify(uData));
                 localStorage.setItem('hotel_current_role', uData.role);
               } catch (e) {}
-              
-              setDoc(doc(db, 'users', fbUser.uid), sanitizeFirestoreData({
-                isOnline: true,
-                lastActiveAt: now,
-                lastLoginAt: uData.lastLoginAt || now
-              }), { merge: true }).catch(() => {});
-              
               setIsLoading(false);
               return;
             }
@@ -537,18 +512,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || existingLocal?.name || fbUser.displayName || (isAdminAccount ? getAdminNameForEmail(emailLower) : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User');
           localStorage.removeItem(`pending_name_${emailLower}`);
 
-          const now = new Date().toISOString();
           const profile: UserProfile = {
             uid: fbUser.uid,
             email: fbUser.email || '',
             name: pendingName,
-            role: chosenRole,
-            isOnline: true,
-            lastLoginAt: now,
-            lastActiveAt: now,
-            hrApproved: isAdminAccount || (existingLocal?.hrApproved ?? false),
-            staffSecretKey: existingLocal?.staffSecretKey || 'ISLAMIA-STAFF-2026',
-            emailVerified: true
+            role: chosenRole
           };
           setCurrentUser(profile);
           setCurrentRole(chosenRole);
@@ -564,7 +532,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem('hotel_current_role', chosenRole);
           } catch (e) {}
           
-          setDoc(doc(db, 'users', fbUser.uid), sanitizeFirestoreData(profile), { merge: true }).catch(e => {
+          setDoc(doc(db, 'users', fbUser.uid), profile).catch(e => {
             console.error("Failed to sync user profile to Firestore:", e);
           });
         } else {
@@ -903,26 +871,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         const merged = mergeWithDefaultRegisteredUsers(usersList, currentUser);
         setRegisteredUsers(merged);
-
-        // Real-time synchronization for currently logged-in user profile (e.g. HR approval granted live)
-        if (currentUser?.email) {
-          const currentEmailLower = currentUser.email.toLowerCase();
-          const matchedProfile = merged.find(u => u.email.toLowerCase() === currentEmailLower);
-          if (matchedProfile) {
-            setCurrentUser(prev => {
-              if (!prev) return null;
-              if (
-                prev.hrApproved !== matchedProfile.hrApproved ||
-                prev.role !== matchedProfile.role ||
-                prev.name !== matchedProfile.name
-              ) {
-                return { ...prev, ...matchedProfile };
-              }
-              return prev;
-            });
-          }
-        }
-
         try {
           localStorage.setItem('hotel_registered_users', JSON.stringify(merged));
         } catch (e) {}
@@ -946,39 +894,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser || !currentUser.email) return;
 
     const emailLower = currentUser.email.toLowerCase();
-    const userUid = auth?.currentUser?.uid || (currentUser.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `user_${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
+    const userUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
     const pingOnline = async () => {
       const now = new Date().toISOString();
-      broadcastPresence({ type: 'PING', email: emailLower, now });
       if (isFirebaseActive && db && userUid) {
         try {
-          await setDoc(doc(db, 'users', userUid), sanitizeFirestoreData({
-            uid: userUid,
-            email: emailLower,
-            name: currentUser.name || (currentUser.role === 'admin' ? 'Administrator' : 'Staff Member'),
-            role: currentUser.role || 'staff',
-            hrApproved: currentUser.hrApproved ?? (currentUser.role === 'admin'),
-            staffSecretKey: currentUser.staffSecretKey || 'ISLAMIA-STAFF-2026',
+          await setDoc(doc(db, 'users', userUid), {
             isOnline: true,
-            lastActiveAt: now,
-            lastLoginAt: currentUser.lastLoginAt || now,
-            loginMethod: currentUser.loginMethod || 'passcode'
-          }), { merge: true });
-        } catch (e) {
-          console.warn("Presence heartbeat write notice:", e);
-        }
+            lastActiveAt: now
+          }, { merge: true });
+        } catch (e) {}
       }
     };
 
     // Ping immediately on mount/login
     pingOnline();
 
-    // Ping every 10 seconds
-    const interval = setInterval(pingOnline, 10000);
+    // Ping every 30 seconds
+    const interval = setInterval(pingOnline, 30000);
 
     const handleOffline = async () => {
-      broadcastPresence({ type: 'SIGN_OUT', email: emailLower });
       if (isFirebaseActive && db && userUid) {
         try {
           await setDoc(doc(db, 'users', userUid), {
@@ -997,37 +933,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, isFirebaseActive]);
 
-  // Sync with local storage events and BroadcastChannel across browser tabs
+  // Sync with local storage events across browser tabs
   useEffect(() => {
-    let channel: BroadcastChannel | null = null;
-    try {
-      if (typeof BroadcastChannel !== 'undefined') {
-        channel = new BroadcastChannel('hotel_presence_channel');
-        channel.onmessage = (event) => {
-          const data = event.data;
-          if (!data) return;
-          if (data.type === 'SIGN_IN' && data.user) {
-            setRegisteredUsers(prev => {
-              const next = [...prev];
-              const idx = next.findIndex(u => u.email.toLowerCase() === data.user.email.toLowerCase());
-              if (idx >= 0) {
-                next[idx] = { ...next[idx], ...data.user, isOnline: true };
-              } else {
-                next.unshift(data.user);
-              }
-              return next;
-            });
-          } else if (data.type === 'SIGN_OUT' && data.email) {
-            setRegisteredUsers(prev => prev.map(u => u.email.toLowerCase() === data.email.toLowerCase() ? { ...u, isOnline: false } : u));
-          } else if (data.type === 'APPROVAL_UPDATE') {
-            setRegisteredUsers(prev => prev.map(u => u.email.toLowerCase() === data.email.toLowerCase() ? { ...u, hrApproved: data.approved } : u));
-          } else if (data.type === 'PING') {
-            setRegisteredUsers(prev => prev.map(u => u.email.toLowerCase() === data.email.toLowerCase() ? { ...u, isOnline: true, lastActiveAt: data.now } : u));
-          }
-        };
-      }
-    } catch (e) {}
-
     const handleStorageOrCustom = () => {
       const stored = localStorage.getItem('hotel_registered_users');
       if (stored) {
@@ -1045,11 +952,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.addEventListener('hotel_presence_updated', handleStorageOrCustom);
 
     return () => {
-      if (channel) {
-        try {
-          channel.close();
-        } catch (e) {}
-      }
       window.removeEventListener('storage', handleStorageOrCustom);
       window.removeEventListener('hotel_presence_updated', handleStorageOrCustom);
     };
@@ -1101,25 +1003,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isAdmin = isAdminEmail(emailLower) || role === 'admin';
     const finalRole: UserRole = isAdmin ? 'admin' : role;
     const finalName = isAdmin ? getAdminNameForEmail(emailLower, name) : (name || 'Staff Member');
-    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `user_${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
-
-    // Check if user already exists in registry to preserve approval status
-    const existing = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
-    const hrApprovedStatus = isAdmin ? true : (existing?.hrApproved ?? false);
+    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
     const userProfile: UserProfile = {
       uid: userUid,
       email: emailLower,
       name: finalName,
       role: finalRole,
-      staffSecretKey: passcodeUsed || existing?.staffSecretKey || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
-      hrApproved: hrApprovedStatus,
+      staffSecretKey: passcodeUsed || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+      hrApproved: true,
       emailVerified: true,
       isOnline: true,
       lastLoginAt: now,
       lastActiveAt: now,
       loginMethod: loginMethod,
-      registeredAt: existing?.registeredAt || now
+      registeredAt: now
     };
 
     setRegisteredUsers(prev => {
@@ -1133,7 +1031,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem('hotel_registered_users', JSON.stringify(next));
         window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: userProfile }));
-        broadcastPresence({ type: 'SIGN_IN', user: userProfile });
       } catch (e) {}
       return next;
     });
@@ -1161,15 +1058,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
         window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: { email: emailLower, hrApproved: approved } }));
-        broadcastPresence({ type: 'APPROVAL_UPDATE', email: emailLower, approved });
       } catch (e) {}
       return updated;
     });
-
-    // If current logged-in user is the one being updated, update immediately
-    if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
-      setCurrentUser(prev => prev ? ({ ...prev, hrApproved: approved }) : prev);
-    }
 
     // 2. Update Firestore document in real-time
     if (isFirebaseActive && db) {
@@ -1331,19 +1222,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         finalName = getAdminNameForEmail(emailLower, finalName);
       }
     }
-    const existing = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
-    const hrApprovedStatus = isAdminEmail(emailLower) || finalRole === 'admin' ? true : (existing?.hrApproved ?? false);
-
     const fakeProfile: UserProfile = {
-      uid: existing?.uid || `local-${finalRole}-${Date.now().toString().slice(-4)}`,
+      uid: `local-${finalRole}-${Date.now().toString().slice(-4)}`,
       email,
       name: finalName,
       role: finalRole,
       isOnline: true,
       lastLoginAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
-      hrApproved: hrApprovedStatus,
-      staffSecretKey: existing?.staffSecretKey || 'ISLAMIA-STAFF-2026',
+      hrApproved: true,
       emailVerified: true
     };
     setCurrentUser(fakeProfile);
@@ -1379,7 +1266,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           localStorage.setItem('hotel_registered_users', JSON.stringify(next));
           window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: { email: emailLower, isOnline: false } }));
-          broadcastPresence({ type: 'SIGN_OUT', email: emailLower });
         } catch (e) {}
         return next;
       });

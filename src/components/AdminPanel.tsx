@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile, UserRole } from '../types';
 import { RoomCard } from './RoomCard';
@@ -178,15 +178,6 @@ export const AdminPanel: React.FC = () => {
   const [editingPasscode, setEditingPasscode] = useState<string>(masterStaffPasscode || 'ISLAMIA-STAFF-2026');
   const [isEditingPasscode, setIsEditingPasscode] = useState<boolean>(false);
   const [staffFilterTab, setStaffFilterTab] = useState<'all' | 'online' | 'pending' | 'admins' | 'staff'>('all');
-  const [presenceTick, setPresenceTick] = useState<number>(0);
-
-  // Periodic ticker to recalculate dynamic live presence every 5 seconds
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setPresenceTick(t => t + 1);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Search & Filter States
   const [staffSearch, setStaffSearch] = useState<string>('');
@@ -522,12 +513,12 @@ export const AdminPanel: React.FC = () => {
 
   // Helper to determine real-time live online presence
   const isUserOnline = (u: UserProfile) => {
-    if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
-    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com' && (currentUser?.role === 'admin' || opMode === 'admin')) return true;
     if (u.isOnline) return true;
+    if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
+    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com') return true;
     if (u.lastActiveAt) {
       const diff = Date.now() - new Date(u.lastActiveAt).getTime();
-      if (diff < 5 * 60 * 1000) return true; // active within last 5 minutes
+      if (diff < 10 * 60 * 1000) return true;
     }
     return false;
   };
@@ -552,7 +543,7 @@ export const AdminPanel: React.FC = () => {
       if (staffFilterTab === 'staff') return u.role === 'staff';
       return true;
     });
-  }, [registeredUsers, staffSearch, staffFilterTab, currentUser, presenceTick, opMode]);
+  }, [registeredUsers, staffSearch, staffFilterTab, currentUser]);
 
   // Filtered Chambers for Chambers tab
   const filteredChambers = useMemo(() => {
@@ -1216,23 +1207,21 @@ export const AdminPanel: React.FC = () => {
         {/* Metric 4: Staff HR Approvals */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-2">
           <div className="flex justify-between items-center text-slate-400">
-            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Staff &amp; Live Presence</span>
+            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Staff Approvals</span>
             <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
               <UserCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="text-xl font-bold font-mono text-slate-850 flex items-center gap-2">
-            <span>{registeredUsers.filter(u => isUserOnline(u)).length} Online</span>
-            <span className="text-xs text-slate-400 font-normal">({metrics.staffAccountsCount} total)</span>
+            <span>{metrics.staffAccountsCount} Staff</span>
             {metrics.pendingStaffApprovals > 0 && (
               <span className="px-2 py-0.5 bg-rose-100 text-rose-700 font-sans font-bold text-[10px] rounded-full animate-pulse">
                 {metrics.pendingStaffApprovals} Pending
               </span>
             )}
           </div>
-          <p className="text-[11px] text-slate-500 flex items-center justify-between">
-            <span>Master Passcode: <strong className="font-mono text-slate-700">{masterStaffPasscode}</strong></span>
-            <button onClick={() => setActiveTab('staff')} className="text-teal-700 font-semibold hover:underline cursor-pointer">View Staff →</button>
+          <p className="text-[11px] text-slate-500">
+            Master Key: <span className="font-mono font-bold text-slate-700">{masterStaffPasscode}</span>
           </p>
         </div>
 
@@ -1419,87 +1408,6 @@ export const AdminPanel: React.FC = () => {
                   </p>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Live Staff On-Duty Realtime Quick Monitor */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
-                  <span className="flex h-2.5 w-2.5 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                  </span>
-                  <span>Front Desk Staff Live Presence &amp; Login Monitor</span>
-                  <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/60">
-                    {registeredUsers.filter(u => isUserOnline(u)).length} Online Now
-                  </span>
-                </h3>
-                <p className="text-xs text-slate-400">Real-time status of staff signed in across all reception devices and consoles.</p>
-              </div>
-              <button
-                onClick={() => setActiveTab('staff')}
-                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                <UserCheck className="w-3.5 h-3.5 text-amber-400" />
-                <span>Open Staff &amp; HR Panel</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {registeredUsers.map((u, idx) => {
-                const online = isUserOnline(u);
-                return (
-                  <div 
-                    key={u.uid || idx} 
-                    className={`p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 ${
-                      online 
-                        ? 'bg-emerald-50/50 border-emerald-200 shadow-xs' 
-                        : 'bg-slate-50 border-slate-200/70 opacity-75'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="relative shrink-0">
-                        <div className={`w-9 h-9 rounded-full ${u.role === 'admin' ? 'bg-purple-900 text-purple-100' : 'bg-slate-800 text-white'} font-bold flex items-center justify-center text-xs font-mono uppercase shadow-xs`}>
-                          {u.name.slice(0, 1)}
-                        </div>
-                        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                          online ? 'bg-emerald-500' : 'bg-slate-300'
-                        }`}></span>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-bold text-slate-900 text-xs truncate flex items-center gap-1">
-                          <span>{u.name}</span>
-                          {u.role === 'admin' && <Shield className="w-3 h-3 text-purple-600 shrink-0" />}
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-500 truncate">{u.email}</div>
-                        <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                          {online ? (
-                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                              <span>Active Live</span>
-                            </span>
-                          ) : (
-                            <span>Offline</span>
-                          )}
-                          {u.lastActiveAt && (
-                            <span>• {new Date(u.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
-                        online ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
-                      }`}>
-                        {online ? 'ONLINE' : 'OFFLINE'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
@@ -1856,25 +1764,25 @@ export const AdminPanel: React.FC = () => {
                                   type="button"
                                   disabled={isLoadingThis}
                                   onClick={() => handleApproveStaff(user)}
-                                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 active:scale-95"
+                                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
                                   title="Approve staff join request and grant front-desk access"
                                 >
                                   {isLoadingThis ? (
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                   ) : (
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
                                   )}
-                                  <span>Approve Access</span>
+                                  <span>Approve</span>
                                 </button>
                                 <button
                                   type="button"
                                   disabled={isLoadingThis}
                                   onClick={() => handleDeleteStaffUser(user)}
-                                  className="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                                  className="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
                                   title="Delete / Reject this staff join request"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
-                                  <span>Reject / Delete Request</span>
+                                  <span>Delete</span>
                                 </button>
                               </>
                             ) : (
@@ -1884,7 +1792,7 @@ export const AdminPanel: React.FC = () => {
                                     type="button"
                                     disabled={isLoadingThis}
                                     onClick={() => handleRevokeStaff(user)}
-                                    className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
+                                    className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                                     title="Revoke HR authorization and place back to pending review"
                                   >
                                     {isLoadingThis ? (
@@ -1892,7 +1800,7 @@ export const AdminPanel: React.FC = () => {
                                     ) : (
                                       <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
                                     )}
-                                    <span>Revoke Access</span>
+                                    <span>Revoke</span>
                                   </button>
                                 )}
                                 {!isPrimaryAdmin && !isCurrentActiveUser && (
@@ -1900,11 +1808,10 @@ export const AdminPanel: React.FC = () => {
                                     type="button"
                                     disabled={isLoadingThis}
                                     onClick={() => handleDeleteStaffUser(user)}
-                                    className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200/60 rounded-xl transition flex items-center gap-1 font-bold text-[11px] cursor-pointer disabled:opacity-50 active:scale-95"
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer disabled:opacity-50"
                                     title="Permanently remove user record from system"
                                   >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Delete Account</span>
+                                    <Trash2 className="w-4 h-4" />
                                   </button>
                                 )}
                               </>

@@ -54,22 +54,13 @@
     },
     "UserProfile": {
       "title": "UserProfile",
-      "description": "A registered user profile with permissions, live presence status, and HR authorization",
+      "description": "A registered user profile with permissions",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
         "name": { "type": "string" },
-        "role": { "type": "string", "enum": ["admin", "staff", "guest"] },
-        "phone": { "type": "string" },
-        "staffSecretKey": { "type": "string" },
-        "hrApproved": { "type": "boolean" },
-        "emailVerified": { "type": "boolean" },
-        "isOnline": { "type": "boolean" },
-        "lastLoginAt": { "type": "string" },
-        "lastActiveAt": { "type": "string" },
-        "loginMethod": { "type": "string" },
-        "registeredAt": { "type": "string" }
+        "role": { "type": "string", "enum": ["admin", "staff", "guest"] }
       },
       "required": ["uid", "email", "name", "role"]
     },

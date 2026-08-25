@@ -209,24 +209,18 @@ export const SecureGateway: React.FC = () => {
       const res = await verifyOtp(pendingVerifyEmail, otpCodeInput.trim(), true, pendingVerifyName, pendingVerifyRole);
       if (res.success) {
         setShowVerificationScreen(false);
-        const loggedInRole: UserRole = pendingVerifyRole || 'staff';
-        const loggedInName = pendingVerifyName || (loggedInRole === 'admin' ? 'Mr. Sajjad (Admin)' : 'Front Desk Staff');
-        
-        if (loggedInRole === 'admin') {
-          sessionStorage.setItem('admin_authorized', 'true');
-          setOpMode('admin');
-        } else {
-          sessionStorage.removeItem('admin_authorized');
-          setOpMode('receptionist');
-        }
-
-        localLogin(loggedInRole, pendingVerifyEmail, loggedInName);
-        await recordStaffSignIn(pendingVerifyEmail, loggedInName, loggedInRole, 'passcode', staffSecretPasscode.trim().toUpperCase() || masterStaffPasscode);
-
         showToast({
           type: 'success',
-          message: `🎉 Email verified successfully! Welcome to Islamia Guest House, ${loggedInName}.`
+          message: `🎉 Email verified successfully! You can now log in with your credentials.`
         });
+        setAuthMode('signin');
+        if (pendingVerifyRole === 'admin') {
+          setActiveRoleTab('admin');
+          setAdminEmail(pendingVerifyEmail);
+        } else {
+          setActiveRoleTab('staff');
+          setStaffEmail(pendingVerifyEmail);
+        }
       } else {
         setOtpError(res.error || 'Invalid or expired verification code. Please check and try again.');
       }
@@ -463,7 +457,7 @@ export const SecureGateway: React.FC = () => {
               role: role,
               phone: phone,
               emailVerified: false,
-              hrApproved: isAdmin ? true : false,
+              hrApproved: true,
               staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
               registeredAt: new Date().toISOString()
             };
@@ -499,10 +493,9 @@ export const SecureGateway: React.FC = () => {
             // Reload user state to fetch latest emailVerified token
             await userCredential.user.reload();
 
-            // Check email verification status, allowing verified staff passcode as alternative authorization
-            const hasPasscodeBypass = isStaffSecretValid || isAdminKeyValid || (cleanSecretPasscode && (cleanSecretPasscode === masterStaffPasscode || cleanSecretPasscode === 'ISLAMIA-STAFF-2026' || cleanSecretPasscode === 'ADMIN2026'));
-            if (!userCredential.user.emailVerified && !hasPasscodeBypass && !isAdmin) {
-              // Sign out unverified account if no valid authorization passcode provided
+            // STRICT PROTECTION: If email is NOT verified, block sign-in immediately!
+            if (!userCredential.user.emailVerified) {
+              // Sign out immediately
               await signOut(auth);
               sessionStorage.removeItem('admin_authorized');
               
@@ -512,11 +505,11 @@ export const SecureGateway: React.FC = () => {
               setPendingVerifyRole(role);
               setPendingVerifyName(userCredential.user.displayName || name || 'Team Member');
 
-              setError(`⚠️ Email Verification Required: Your email address (${emailLower}) has not been verified yet. Please check your inbox and verify your email before logging in, or enter your valid Staff Passcode.`);
+              setError(`⚠️ Email Verification Required: Your email address (${emailLower}) has not been verified yet. Please check your inbox and verify your email before logging in.`);
               
               showToast({
                 type: 'warning',
-                message: `⚠️ Access Blocked: Please verify your email (${emailLower}) or use your Staff Secret Passcode.`,
+                message: `⚠️ Access Blocked: Please verify your email (${emailLower}) before logging in.`,
                 duration: 10000
               });
               setIsLoading(false);
@@ -540,7 +533,7 @@ export const SecureGateway: React.FC = () => {
                   name: loggedInName,
                   role: loggedInRole,
                   emailVerified: true,
-                  hrApproved: isAdmin ? true : false,
+                  hrApproved: true,
                   staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
                   isOnline: true,
                   lastLoginAt: new Date().toISOString()
@@ -606,7 +599,7 @@ export const SecureGateway: React.FC = () => {
             name: name,
             role: role,
             emailVerified: true,
-            hrApproved: isAdmin ? true : false,
+            hrApproved: true,
             staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
             isOnline: true,
             lastLoginAt: new Date().toISOString()
