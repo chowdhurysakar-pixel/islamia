@@ -457,7 +457,7 @@ export const SecureGateway: React.FC = () => {
               role: role,
               phone: phone,
               emailVerified: false,
-              hrApproved: true,
+              hrApproved: isAdmin ? true : false,
               staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
               registeredAt: new Date().toISOString()
             };
@@ -533,7 +533,7 @@ export const SecureGateway: React.FC = () => {
                   name: loggedInName,
                   role: loggedInRole,
                   emailVerified: true,
-                  hrApproved: true,
+                  hrApproved: isAdmin ? true : false,
                   staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
                   isOnline: true,
                   lastLoginAt: new Date().toISOString()
@@ -599,7 +599,7 @@ export const SecureGateway: React.FC = () => {
             name: name,
             role: role,
             emailVerified: true,
-            hrApproved: true,
+            hrApproved: isAdmin ? true : false,
             staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
             isOnline: true,
             lastLoginAt: new Date().toISOString()

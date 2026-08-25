@@ -871,6 +871,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
         const merged = mergeWithDefaultRegisteredUsers(usersList, currentUser);
         setRegisteredUsers(merged);
+
+        // Real-time synchronization for currently logged-in user profile (e.g. HR approval granted live)
+        if (currentUser?.email) {
+          const currentEmailLower = currentUser.email.toLowerCase();
+          const matchedProfile = merged.find(u => u.email.toLowerCase() === currentEmailLower);
+          if (matchedProfile) {
+            setCurrentUser(prev => {
+              if (!prev) return null;
+              if (
+                prev.hrApproved !== matchedProfile.hrApproved ||
+                prev.role !== matchedProfile.role ||
+                prev.name !== matchedProfile.name
+              ) {
+                return { ...prev, ...matchedProfile };
+              }
+              return prev;
+            });
+          }
+        }
+
         try {
           localStorage.setItem('hotel_registered_users', JSON.stringify(merged));
         } catch (e) {}
@@ -1005,19 +1025,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const finalName = isAdmin ? getAdminNameForEmail(emailLower, name) : (name || 'Staff Member');
     const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
+    // Check if user already exists in registry to preserve approval status
+    const existing = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
+    const hrApprovedStatus = isAdmin ? true : (existing?.hrApproved ?? false);
+
     const userProfile: UserProfile = {
       uid: userUid,
       email: emailLower,
       name: finalName,
       role: finalRole,
-      staffSecretKey: passcodeUsed || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
-      hrApproved: true,
+      staffSecretKey: passcodeUsed || existing?.staffSecretKey || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+      hrApproved: hrApprovedStatus,
       emailVerified: true,
       isOnline: true,
       lastLoginAt: now,
       lastActiveAt: now,
       loginMethod: loginMethod,
-      registeredAt: now
+      registeredAt: existing?.registeredAt || now
     };
 
     setRegisteredUsers(prev => {
@@ -1061,6 +1085,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e) {}
       return updated;
     });
+
+    // If current logged-in user is the one being updated, update immediately
+    if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
+      setCurrentUser(prev => prev ? ({ ...prev, hrApproved: approved }) : prev);
+    }
 
     // 2. Update Firestore document in real-time
     if (isFirebaseActive && db) {
@@ -1222,15 +1251,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         finalName = getAdminNameForEmail(emailLower, finalName);
       }
     }
+    const existing = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
+    const hrApprovedStatus = isAdminEmail(emailLower) || finalRole === 'admin' ? true : (existing?.hrApproved ?? false);
+
     const fakeProfile: UserProfile = {
-      uid: `local-${finalRole}-${Date.now().toString().slice(-4)}`,
+      uid: existing?.uid || `local-${finalRole}-${Date.now().toString().slice(-4)}`,
       email,
       name: finalName,
       role: finalRole,
       isOnline: true,
       lastLoginAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
-      hrApproved: true,
+      hrApproved: hrApprovedStatus,
+      staffSecretKey: existing?.staffSecretKey || 'ISLAMIA-STAFF-2026',
       emailVerified: true
     };
     setCurrentUser(fakeProfile);
@@ -1908,7 +1941,7 @@ Location:
 House No: 55/C/1, Road No: 9/A, Dhanmondi-1209, Dhaka
 (Opposite Ibne Sina 9/A, Behind Meena Bazar)
 
-Hotline & bKash: 01832-841818
+Hotline & bKash Payment: 01832-841818
 Call: 01909-806960
 WhatsApp: 01799-148408
 Thank you for choosing Islamia Guest House!`;
@@ -1989,7 +2022,7 @@ House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209, Dhaka, Bangladesh
 Landmarks: Opposite Ibne Sina 9/A, Behind Meena Bazar, Adjacent to Northern Medical College Building
 
 For any support or questions, please reach us on:
-- bKash/Hotline: 01832-841818
+- bKash Payment / Hotline: 01832-841818
 - Phone Call: 01909-806960
 - WhatsApp: 01799-148408
 

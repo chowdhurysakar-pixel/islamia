@@ -107,7 +107,6 @@ export const AdminPanel: React.FC = () => {
     deleteStaffAccount,
     masterStaffPasscode,
     updateMasterStaffPasscode,
-    addStaffMember,
     currentUser,
     currentRole,
     guestLogoSettings,
@@ -217,16 +216,6 @@ export const AdminPanel: React.FC = () => {
   ]);
   const [newRoomDesc, setNewRoomDesc] = useState<string>('Capacity 4 people, Double + Double Bed, West & South Facing, Private High Commode Toilet, TV, Free WiFi, Refrigerator, AC/Non-AC and all facilities.');
   const [newRoomImg, setNewRoomImg] = useState<string>('https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800');
-
-  // HR Add Staff Modal State
-  const [isAddStaffOpen, setIsAddStaffOpen] = useState<boolean>(false);
-  const [newStaffName, setNewStaffName] = useState<string>('');
-  const [newStaffEmail, setNewStaffEmail] = useState<string>('');
-  const [newStaffPhone, setNewStaffPhone] = useState<string>('');
-  const [newStaffRole, setNewStaffRole] = useState<UserRole>('staff');
-  const [newStaffPasscode, setNewStaffPasscode] = useState<string>('STAFF-2026');
-  const [newStaffApproved, setNewStaffApproved] = useState<boolean>(true);
-  const [isSubmittingStaff, setIsSubmittingStaff] = useState<boolean>(false);
 
   // Preset Template loader for 6 Standard Room Types
   const applyRoomPreset = (presetKey: 'double_deluxe' | 'family' | 'executive_single' | 'triple' | 'standard_double' | 'single_economy') => {
@@ -817,54 +806,6 @@ export const AdminPanel: React.FC = () => {
       type: 'success',
       message: `🏨 New Room #${trimmedNo} (${newRoomTitle}) added to inventory!`
     });
-  };
-
-  // Handle HR Add Staff Submit
-  const handleAddStaffSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanEmail = newStaffEmail.trim().toLowerCase();
-    const cleanName = newStaffName.trim();
-    if (!cleanEmail || !cleanName) {
-      showToast({ type: 'warning', message: 'Name and email are required.' });
-      return;
-    }
-
-    setIsSubmittingStaff(true);
-    try {
-      const res = await addStaffMember({
-        name: cleanName,
-        email: cleanEmail,
-        phone: newStaffPhone.trim(),
-        role: newStaffRole,
-        staffSecretKey: newStaffPasscode.trim() || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
-        hrApproved: newStaffApproved
-      });
-
-      if (res.success) {
-        setIsAddStaffOpen(false);
-        setNewStaffName('');
-        setNewStaffEmail('');
-        setNewStaffPhone('');
-        setNewStaffPasscode('STAFF-2026');
-        setNewStaffApproved(true);
-        showToast({
-          type: 'success',
-          message: `👤 Staff member ${cleanName} (${cleanEmail}) registered successfully!`
-        });
-      } else {
-        showToast({
-          type: 'error',
-          message: res.error || 'Failed to add staff member.'
-        });
-      }
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        message: err?.message || 'Error registering staff.'
-      });
-    } finally {
-      setIsSubmittingStaff(false);
-    }
   };
 
   // Save Edit Price
@@ -1545,13 +1486,6 @@ export const AdminPanel: React.FC = () => {
                     <Edit3 className="w-3.5 h-3.5" />
                     <span>Change Passcode</span>
                   </button>
-                  <button
-                    onClick={() => setIsAddStaffOpen(true)}
-                    className="px-3.5 py-1.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Staff / Employee</span>
-                  </button>
                 </div>
               ) : (
                 <form onSubmit={handleSaveMasterPasscode} className="flex items-center gap-2">
@@ -1830,25 +1764,25 @@ export const AdminPanel: React.FC = () => {
                                   type="button"
                                   disabled={isLoadingThis}
                                   onClick={() => handleApproveStaff(user)}
-                                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-1.5 shadow-xs cursor-pointer disabled:opacity-50 active:scale-95"
                                   title="Approve staff join request and grant front-desk access"
                                 >
                                   {isLoadingThis ? (
                                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                   ) : (
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
                                   )}
-                                  <span>Approve</span>
+                                  <span>Approve Access</span>
                                 </button>
                                 <button
                                   type="button"
                                   disabled={isLoadingThis}
                                   onClick={() => handleDeleteStaffUser(user)}
-                                  className="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  className="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
                                   title="Delete / Reject this staff join request"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
-                                  <span>Delete</span>
+                                  <span>Reject / Delete Request</span>
                                 </button>
                               </>
                             ) : (
@@ -1858,7 +1792,7 @@ export const AdminPanel: React.FC = () => {
                                     type="button"
                                     disabled={isLoadingThis}
                                     onClick={() => handleRevokeStaff(user)}
-                                    className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                    className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 active:scale-95"
                                     title="Revoke HR authorization and place back to pending review"
                                   >
                                     {isLoadingThis ? (
@@ -1866,7 +1800,7 @@ export const AdminPanel: React.FC = () => {
                                     ) : (
                                       <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
                                     )}
-                                    <span>Revoke</span>
+                                    <span>Revoke Access</span>
                                   </button>
                                 )}
                                 {!isPrimaryAdmin && !isCurrentActiveUser && (
@@ -1874,10 +1808,11 @@ export const AdminPanel: React.FC = () => {
                                     type="button"
                                     disabled={isLoadingThis}
                                     onClick={() => handleDeleteStaffUser(user)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer disabled:opacity-50"
+                                    className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200/60 rounded-xl transition flex items-center gap-1 font-bold text-[11px] cursor-pointer disabled:opacity-50 active:scale-95"
                                     title="Permanently remove user record from system"
                                   >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Delete Account</span>
                                   </button>
                                 )}
                               </>
@@ -3453,125 +3388,6 @@ export const AdminPanel: React.FC = () => {
                   className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition shadow-sm cursor-pointer"
                 >
                   Create &amp; Publish Room
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* HR Add Staff Member Modal Dialog */}
-      {isAddStaffOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
-                  <UserCheck className="w-5 h-5 text-teal-600" />
-                  <span>HR: Register New Staff Member</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Create a front-desk receptionist or administrator account with immediate HR authorization.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddStaffOpen(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-sm font-bold transition cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleAddStaffSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Full Employee / Staff Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={newStaffName}
-                  onChange={(e) => setNewStaffName(e.target.value)}
-                  placeholder="e.g. Md. Rafiqul Islam"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-medium text-slate-900"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Gmail / Email Address *</label>
-                <input
-                  type="email"
-                  required
-                  value={newStaffEmail}
-                  onChange={(e) => setNewStaffEmail(e.target.value)}
-                  placeholder="e.g. rafiq.islamia@gmail.com"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono text-slate-900"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Contact Phone</label>
-                  <input
-                    type="text"
-                    value={newStaffPhone}
-                    onChange={(e) => setNewStaffPhone(e.target.value)}
-                    placeholder="017XX-XXXXXX"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Role Permission *</label>
-                  <select
-                    value={newStaffRole}
-                    onChange={(e) => setNewStaffRole(e.target.value as UserRole)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold"
-                  >
-                    <option value="staff">Staff / Receptionist</option>
-                    <option value="admin">System Admin</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Assigned Passcode / Key</label>
-                <input
-                  type="text"
-                  value={newStaffPasscode}
-                  onChange={(e) => setNewStaffPasscode(e.target.value.toUpperCase())}
-                  placeholder="e.g. STAFF-2026"
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold text-amber-800 uppercase"
-                />
-              </div>
-
-              <div className="p-3 bg-teal-50 border border-teal-200/60 rounded-xl flex items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  id="new-staff-hr-approved-chk"
-                  checked={newStaffApproved}
-                  onChange={(e) => setNewStaffApproved(e.target.checked)}
-                  className="w-4 h-4 text-teal-600 rounded cursor-pointer"
-                />
-                <label htmlFor="new-staff-hr-approved-chk" className="text-xs font-semibold text-teal-900 cursor-pointer">
-                  Authorize immediate HR access to Reception &amp; Front Desk
-                </label>
-              </div>
-
-              <div className="flex gap-3 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsAddStaffOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingStaff}
-                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  {isSubmittingStaff ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCheck className="w-4 h-4" />}
-                  <span>Register Staff Member</span>
                 </button>
               </div>
             </form>

@@ -10,6 +10,7 @@ import { GuestView } from './components/GuestView';
 import { StaffView } from './components/StaffView';
 import { AdminPanel } from './components/AdminPanel';
 import { SecureGateway } from './components/SecureGateway';
+import { RequireAdminApproval } from './components/RequireAdminApproval';
 import { Loader2, Hotel, Sparkles, LogOut, LogIn, AlertCircle, Shield, Users, User, X, Mail, CheckCircle, ExternalLink, Smartphone, MessageSquare, Copy, Check } from 'lucide-react';
 import { UserRole } from './types';
 
@@ -230,7 +231,13 @@ const MainLayout: React.FC = () => {
             </div>
           </div>
 
-          {opMode === 'admin' ? <AdminPanel /> : <StaffView />}
+          {opMode === 'admin' ? (
+            <AdminPanel />
+          ) : (
+            <RequireAdminApproval>
+              <StaffView />
+            </RequireAdminApproval>
+          )}
         </main>
 
         <footer className="border-t border-slate-200/80 bg-white/80 py-6">
