@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile, UserRole } from '../types';
 import { RoomCard } from './RoomCard';
@@ -178,6 +178,15 @@ export const AdminPanel: React.FC = () => {
   const [editingPasscode, setEditingPasscode] = useState<string>(masterStaffPasscode || 'ISLAMIA-STAFF-2026');
   const [isEditingPasscode, setIsEditingPasscode] = useState<boolean>(false);
   const [staffFilterTab, setStaffFilterTab] = useState<'all' | 'online' | 'pending' | 'admins' | 'staff'>('all');
+  const [presenceTick, setPresenceTick] = useState<number>(0);
+
+  // Periodic ticker to recalculate dynamic live presence every 5 seconds
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPresenceTick(t => t + 1);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Search & Filter States
   const [staffSearch, setStaffSearch] = useState<string>('');
@@ -513,12 +522,12 @@ export const AdminPanel: React.FC = () => {
 
   // Helper to determine real-time live online presence
   const isUserOnline = (u: UserProfile) => {
-    if (u.isOnline) return true;
     if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
-    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com') return true;
+    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com' && (currentUser?.role === 'admin' || opMode === 'admin')) return true;
+    if (u.isOnline) return true;
     if (u.lastActiveAt) {
       const diff = Date.now() - new Date(u.lastActiveAt).getTime();
-      if (diff < 10 * 60 * 1000) return true;
+      if (diff < 5 * 60 * 1000) return true; // active within last 5 minutes
     }
     return false;
   };
@@ -543,7 +552,7 @@ export const AdminPanel: React.FC = () => {
       if (staffFilterTab === 'staff') return u.role === 'staff';
       return true;
     });
-  }, [registeredUsers, staffSearch, staffFilterTab, currentUser]);
+  }, [registeredUsers, staffSearch, staffFilterTab, currentUser, presenceTick, opMode]);
 
   // Filtered Chambers for Chambers tab
   const filteredChambers = useMemo(() => {

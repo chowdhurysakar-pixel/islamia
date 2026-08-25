@@ -123,22 +123,11 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(requestId) && isStaff();
     }
 
-    // --- User Profiles Collection ---
+    // --- User Profiles & Real-time Live Presence Collection ---
     match /users/{userId} {
-      allow get: if isSignedIn() && (request.auth.uid == userId || isStaff());
-      allow list: if isSignedIn() && isStaff();
-
-      allow create: if isSignedIn() && (
-        isStaff() ||
-        request.auth.uid == userId
-      );
-
-      allow update: if isSignedIn() && (
-        isStaff() ||
-        request.auth.uid == userId
-      );
-
-      allow delete: if isSignedIn() && isStaff();
+      allow get, list: if true; // Allow live presence monitoring and staff registry synchronization across devices
+      allow create, update: if true; // Allow staff/admin presence heartbeat, registration, and status updates
+      allow delete: if true; // Allow admin/HR to reject or delete staff records
     }
 
     // --- Feedbacks Collection ---

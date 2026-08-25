@@ -202,9 +202,9 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: true,
     emailVerified: true,
-    isOnline: true,
-    lastLoginAt: new Date().toISOString(),
-    lastActiveAt: new Date().toISOString(),
+    isOnline: false,
+    lastLoginAt: new Date(Date.now() - 1800000).toISOString(),
+    lastActiveAt: new Date(Date.now() - 1800000).toISOString(),
     loginMethod: 'passcode'
   },
   {
@@ -914,25 +914,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!currentUser || !currentUser.email) return;
 
     const emailLower = currentUser.email.toLowerCase();
-    const userUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const userUid = auth?.currentUser?.uid || (currentUser.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `user_${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
     const pingOnline = async () => {
       const now = new Date().toISOString();
       if (isFirebaseActive && db && userUid) {
         try {
-          await setDoc(doc(db, 'users', userUid), {
+          await setDoc(doc(db, 'users', userUid), sanitizeFirestoreData({
+            uid: userUid,
+            email: emailLower,
+            name: currentUser.name || (currentUser.role === 'admin' ? 'Administrator' : 'Staff Member'),
+            role: currentUser.role || 'staff',
+            hrApproved: currentUser.hrApproved ?? (currentUser.role === 'admin'),
+            staffSecretKey: currentUser.staffSecretKey || 'ISLAMIA-STAFF-2026',
             isOnline: true,
-            lastActiveAt: now
-          }, { merge: true });
-        } catch (e) {}
+            lastActiveAt: now,
+            lastLoginAt: currentUser.lastLoginAt || now,
+            loginMethod: currentUser.loginMethod || 'passcode'
+          }), { merge: true });
+        } catch (e) {
+          console.warn("Presence heartbeat write notice:", e);
+        }
       }
     };
 
     // Ping immediately on mount/login
     pingOnline();
 
-    // Ping every 30 seconds
-    const interval = setInterval(pingOnline, 30000);
+    // Ping every 10 seconds
+    const interval = setInterval(pingOnline, 10000);
 
     const handleOffline = async () => {
       if (isFirebaseActive && db && userUid) {
@@ -1023,7 +1033,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isAdmin = isAdminEmail(emailLower) || role === 'admin';
     const finalRole: UserRole = isAdmin ? 'admin' : role;
     const finalName = isAdmin ? getAdminNameForEmail(emailLower, name) : (name || 'Staff Member');
-    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
+    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `user_${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
     // Check if user already exists in registry to preserve approval status
     const existing = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
