@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from '../types';
+import { OFFICIAL_ROOM_TYPES, RoomTypePreset } from '../data/roomTypePresets';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { 
@@ -14,7 +15,8 @@ import {
   Printer, Receipt, Settings, DollarSign, UserCheck, UserX, Lock, 
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
   ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
-  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare
+  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare,
+  BedDouble, Compass, Bath, Shirt, Tag, Wind, Tv, Wifi, Sliders, Layers
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -91,7 +93,9 @@ export const AdminPanel: React.FC = () => {
     updateStaffApproval,
     deleteStaffAccount,
     masterStaffPasscode,
-    updateMasterStaffPasscode
+    updateMasterStaffPasscode,
+    currentUser,
+    currentRole
   } = useApp();
 
   // Admin Active Tab
@@ -174,14 +178,70 @@ export const AdminPanel: React.FC = () => {
     return new Date().toISOString().split('T')[0];
   });
 
-  // Chamber Creation / Editing State
+  // Chamber Creation / Editing State with 6 Official Room Types
   const [isAddRoomOpen, setIsAddRoomOpen] = useState<boolean>(false);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('double-deluxe');
+  const [newRoomTitle, setNewRoomTitle] = useState<string>('Double Deluxe');
   const [newRoomNo, setNewRoomNo] = useState<string>('');
-  const [newRoomType, setNewRoomType] = useState<RoomType>('single');
-  const [newRoomPrice, setNewRoomPrice] = useState<number>(1500);
-  const [newRoomCapacity, setNewRoomCapacity] = useState<number>(2);
-  const [newRoomDesc, setNewRoomDesc] = useState<string>('');
-  const [newRoomImg, setNewRoomImg] = useState<string>('');
+  const [newRoomType, setNewRoomType] = useState<RoomType>('deluxe');
+  const [newRoomPrice, setNewRoomPrice] = useState<number>(2500);
+  const [newRoomCapacity, setNewRoomCapacity] = useState<number>(4);
+  const [newRoomCapacityText, setNewRoomCapacityText] = useState<string>('4 Adults');
+  const [newRoomBedSize, setNewRoomBedSize] = useState<string>('Double + Double');
+  const [newRoomWindows, setNewRoomWindows] = useState<string>('West & South Facing');
+  const [newRoomToilet, setNewRoomToilet] = useState<string>('Private Toilet (High Commode)');
+  const [newRoomExtra, setNewRoomExtra] = useState<string>('Cloth Rack');
+  const [newRoomStartingPriceBanner, setNewRoomStartingPriceBanner] = useState<string>('');
+  const [newRoomAmenities, setNewRoomAmenities] = useState<string[]>([
+    'TV', 'Free WiFi', 'Common Refrigeration', 'Tea Table', '24/7 Electricity', 'Stand Lamp', 'Sofa', 'AC/Non-AC'
+  ]);
+  const [newRoomDesc, setNewRoomDesc] = useState<string>('Double Deluxe room with spacious layout featuring two double beds, dual aspect windows (West & South), and complete luxury amenities for up to 4 adults.');
+  const [newRoomImg, setNewRoomImg] = useState<string>('https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800&q=80');
+  const [customAmenityInput, setCustomAmenityInput] = useState<string>('');
+
+  const applyRoomPreset = (preset: RoomTypePreset) => {
+    setSelectedPresetId(preset.id);
+    setNewRoomTitle(preset.name);
+    setNewRoomType(preset.roomType);
+    setNewRoomPrice(preset.defaultPrice);
+    setNewRoomCapacity(preset.capacity);
+    setNewRoomCapacityText(preset.capacityText);
+    setNewRoomBedSize(preset.bedSize);
+    setNewRoomWindows(preset.windows);
+    setNewRoomToilet(preset.toilet);
+    setNewRoomExtra(preset.extra);
+    setNewRoomStartingPriceBanner(preset.startingPriceBanner || '');
+    setNewRoomAmenities([...preset.amenities]);
+    setNewRoomDesc(preset.description);
+    setNewRoomImg(preset.defaultImage);
+  };
+
+  const handleOpenAddRoom = (presetId?: string) => {
+    const numericIds = rooms.map(r => Number(r.number) || Number(r.id) || 0).filter(n => !isNaN(n));
+    const maxVal = numericIds.length > 0 ? Math.max(...numericIds) : 100;
+    const nextNo = (maxVal >= 100 ? maxVal + 1 : 104).toString();
+    setNewRoomNo(nextNo);
+
+    const preset = OFFICIAL_ROOM_TYPES.find(p => p.id === presetId) || OFFICIAL_ROOM_TYPES[0];
+    applyRoomPreset(preset);
+    setIsAddRoomOpen(true);
+  };
+
+  const toggleNewRoomAmenity = (amenityName: string) => {
+    if (newRoomAmenities.includes(amenityName)) {
+      setNewRoomAmenities(newRoomAmenities.filter(a => a !== amenityName));
+    } else {
+      setNewRoomAmenities([...newRoomAmenities, amenityName]);
+    }
+  };
+
+  const addCustomNewRoomAmenity = () => {
+    const trimmed = customAmenityInput.trim();
+    if (trimmed && !newRoomAmenities.includes(trimmed)) {
+      setNewRoomAmenities([...newRoomAmenities, trimmed]);
+      setCustomAmenityInput('');
+    }
+  };
 
   // Editing price modal / state
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
@@ -197,29 +257,110 @@ export const AdminPanel: React.FC = () => {
   });
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
-  // Update staff HR Approval status with instant Firestore sync
-  const toggleStaffApproval = async (email: string) => {
-    const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!targetUser) return;
-    const nextApproved = !targetUser.hrApproved;
-    await updateStaffApproval(email, nextApproved, targetUser.uid);
-    showToast({
-      type: 'success',
-      message: nextApproved 
-        ? `✅ Staff account for ${targetUser.name} approved by HR/Admin!` 
-        : `⚠️ HR authorization revoked for ${targetUser.name}.`
-    });
+  // Staff Deletion Modal & Async Action States
+  const [userPendingDeletion, setUserPendingDeletion] = useState<UserProfile | null>(null);
+  const [actionLoadingEmail, setActionLoadingEmail] = useState<string | null>(null);
+
+  // Approve single staff / join request
+  const handleApproveStaff = async (user: UserProfile) => {
+    setActionLoadingEmail(user.email);
+    try {
+      await updateStaffApproval(user.email, true, user.uid);
+      showToast({
+        type: 'success',
+        message: `✅ Staff join request for ${user.name} approved! Front-desk access granted.`
+      });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: `Could not approve account for ${user.name}.`
+      });
+    } finally {
+      setActionLoadingEmail(null);
+    }
   };
 
-  // Delete staff user profile with instant Firestore sync
-  const deleteStaffUser = async (email: string) => {
-    const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (window.confirm(`Are you sure you want to remove user account ${email}?`)) {
-      await deleteStaffAccount(email, targetUser?.uid);
+  // Revoke or place on pending
+  const handleRevokeStaff = async (user: UserProfile) => {
+    setActionLoadingEmail(user.email);
+    try {
+      await updateStaffApproval(user.email, false, user.uid);
       showToast({
         type: 'info',
-        message: `User record for ${email} removed from system registry.`
+        message: `⚠️ Access authorization revoked for ${user.name}.`
       });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: `Could not update status for ${user.name}.`
+      });
+    } finally {
+      setActionLoadingEmail(null);
+    }
+  };
+
+  // Bulk Approve All Pending Join Requests
+  const handleApproveAllPending = async () => {
+    const pendingUsers = registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved);
+    if (pendingUsers.length === 0) return;
+    
+    setActionLoadingEmail('bulk-pending');
+    try {
+      for (const u of pendingUsers) {
+        await updateStaffApproval(u.email, true, u.uid);
+      }
+      showToast({
+        type: 'success',
+        message: `✅ Approved all ${pendingUsers.length} pending staff join request(s)!`
+      });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: 'Failed to approve some accounts.'
+      });
+    } finally {
+      setActionLoadingEmail(null);
+    }
+  };
+
+  // Trigger staff user or join request deletion modal
+  const handleDeleteStaffUser = (user: UserProfile) => {
+    if (currentUser?.email && currentUser.email.toLowerCase() === user.email.toLowerCase()) {
+      showToast({
+        type: 'error',
+        message: 'Cannot delete your own currently active admin account.'
+      });
+      return;
+    }
+    if (user.email.toLowerCase() === 'islamiaguesthouse@gmail.com') {
+      showToast({
+        type: 'error',
+        message: 'Primary master administrator account cannot be deleted.'
+      });
+      return;
+    }
+    setUserPendingDeletion(user);
+  };
+
+  // Confirm delete staff account / join request
+  const handleConfirmDeleteStaff = async () => {
+    if (!userPendingDeletion) return;
+    const user = userPendingDeletion;
+    setActionLoadingEmail(user.email);
+    try {
+      await deleteStaffAccount(user.email, user.uid);
+      showToast({
+        type: 'info',
+        message: `🗑️ ${user.name} (${user.email}) has been permanently deleted from staff registry.`
+      });
+    } catch (e) {
+      showToast({
+        type: 'error',
+        message: `Failed to delete ${user.name}.`
+      });
+    } finally {
+      setActionLoadingEmail(null);
+      setUserPendingDeletion(null);
     }
   };
 
@@ -236,9 +377,24 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
+  // Helper to determine real-time live online presence
+  const isUserOnline = (u: UserProfile) => {
+    if (u.isOnline) return true;
+    if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
+    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com') return true;
+    if (u.lastActiveAt) {
+      const diff = Date.now() - new Date(u.lastActiveAt).getTime();
+      if (diff < 10 * 60 * 1000) return true;
+    }
+    return false;
+  };
+
   // Filtered Users for Staff tab with live presence filters
   const filteredStaff = useMemo(() => {
-    return registeredUsers.filter(u => {
+    return registeredUsers.map(u => {
+      const online = isUserOnline(u);
+      return online && !u.isOnline ? { ...u, isOnline: true } : u;
+    }).filter(u => {
       const matchesSearch = 
         u.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
         u.email.toLowerCase().includes(staffSearch.toLowerCase()) ||
@@ -247,13 +403,13 @@ export const AdminPanel: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      if (staffFilterTab === 'online') return !!u.isOnline;
+      if (staffFilterTab === 'online') return isUserOnline(u);
       if (staffFilterTab === 'pending') return u.role === 'staff' && !u.hrApproved;
       if (staffFilterTab === 'admins') return u.role === 'admin';
       if (staffFilterTab === 'staff') return u.role === 'staff';
       return true;
     });
-  }, [registeredUsers, staffSearch, staffFilterTab]);
+  }, [registeredUsers, staffSearch, staffFilterTab, currentUser]);
 
   // Filtered Chambers for Chambers tab
   const filteredChambers = useMemo(() => {
@@ -488,22 +644,26 @@ export const AdminPanel: React.FC = () => {
 
     await addRoom({
       number: trimmedNo,
+      title: newRoomTitle,
       type: newRoomType,
       price: parsedPrice,
       status: 'available',
       capacity: parsedCapacity,
-      description: newRoomDesc || `${newRoomType.toUpperCase()} Room at Islamia Guest House Dhanmondi`,
+      capacityText: newRoomCapacityText,
+      bedSize: newRoomBedSize,
+      windows: newRoomWindows,
+      toilet: newRoomToilet,
+      extra: newRoomExtra,
+      startingPriceBanner: newRoomStartingPriceBanner.trim() || undefined,
+      description: newRoomDesc || `${newRoomTitle} at Islamia Guest House Dhanmondi`,
       image: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
-      amenities: ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Clean Toiletries']
+      amenities: newRoomAmenities.length > 0 ? newRoomAmenities : ['Free WiFi', '24/7 Electricity', 'Tea Table']
     });
 
     setIsAddRoomOpen(false);
-    setNewRoomNo('');
-    setNewRoomDesc('');
-    setNewRoomImg('');
     showToast({
       type: 'success',
-      message: `🏨 New Room #${trimmedNo} added to inventory!`
+      message: `🏨 New Room #${trimmedNo} (${newRoomTitle}) added to inventory!`
     });
   };
 
@@ -599,7 +759,6 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
-  const { currentUser } = useApp();
   const [panelUnlocked, setPanelUnlocked] = useState<boolean>(() => {
     if (currentUser?.role === 'admin') return true;
     if (currentUser?.role === 'staff') return false;
@@ -1144,7 +1303,7 @@ export const AdminPanel: React.FC = () => {
                   <div>
                     <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Online Now</div>
                     <div className="text-sm font-bold text-emerald-400 font-mono">
-                      {registeredUsers.filter(u => u.isOnline).length} Active
+                      {registeredUsers.filter(u => isUserOnline(u)).length} Active
                     </div>
                   </div>
                 </div>
@@ -1217,6 +1376,44 @@ export const AdminPanel: React.FC = () => {
 
           {/* Registered Staff Accounts & HR Approvals Table */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+            {/* Action Banner for Pending Staff Join Requests */}
+            {registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length > 0 && (
+              <div className="bg-amber-500/10 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold shrink-0">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5 flex-wrap">
+                      <span>{registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length} Staff Join Request(s) Pending HR Review</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-mono font-bold uppercase">Action Required</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800">
+                      Staff registrations await administrator approval before accessing front-desk checkout and room assignment consoles.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStaffFilterTab('pending')}
+                    className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold transition cursor-pointer"
+                  >
+                    Filter Pending ({registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length})
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionLoadingEmail === 'bulk-pending'}
+                    onClick={handleApproveAllPending}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                  >
+                    {actionLoadingEmail === 'bulk-pending' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    <span>Approve All</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
@@ -1232,7 +1429,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs">
                   <button
                     onClick={() => setStaffFilterTab('all')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
                       staffFilterTab === 'all' ? 'bg-white text-slate-850 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
@@ -1240,17 +1437,17 @@ export const AdminPanel: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setStaffFilterTab('online')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
                       staffFilterTab === 'online' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-emerald-700'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span>Online ({registeredUsers.filter(u => u.isOnline).length})</span>
+                    <span>Online ({registeredUsers.filter(u => isUserOnline(u)).length})</span>
                   </button>
                   <button
                     onClick={() => setStaffFilterTab('pending')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
-                      staffFilterTab === 'pending' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500 hover:text-amber-700'
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                      staffFilterTab === 'pending' ? 'bg-white text-amber-700 shadow-sm font-bold' : 'text-slate-500 hover:text-amber-700'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -1267,6 +1464,15 @@ export const AdminPanel: React.FC = () => {
                     placeholder="Search name, email, passcode..."
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
                   />
+                  {staffSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setStaffSearch('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -1293,8 +1499,15 @@ export const AdminPanel: React.FC = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredStaff.map((user, idx) => (
-                      <tr key={user.uid || idx} className="hover:bg-slate-50/80 transition">
+                    filteredStaff.map((user, idx) => {
+                      const userOnline = isUserOnline(user);
+                      const isPending = user.role === 'staff' && !user.hrApproved;
+                      const isPrimaryAdmin = user.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
+                      const isCurrentActiveUser = currentUser?.email && currentUser.email.toLowerCase() === user.email.toLowerCase();
+                      const isLoadingThis = actionLoadingEmail === user.email;
+
+                      return (
+                      <tr key={user.uid || idx} className={`hover:bg-slate-50/80 transition ${isPending ? 'bg-amber-50/40' : ''}`}>
                         {/* Profile Info */}
                         <td className="p-3 font-semibold text-slate-800">
                           <div className="flex items-center gap-3">
@@ -1303,14 +1516,17 @@ export const AdminPanel: React.FC = () => {
                                 {user.name.slice(0, 1)}
                               </div>
                               <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                                user.isOnline ? 'bg-emerald-500' : 'bg-slate-300'
-                              }`} title={user.isOnline ? 'Active Online' : 'Offline'}></span>
+                                userOnline ? 'bg-emerald-500' : 'bg-slate-300'
+                              }`} title={userOnline ? 'Active Online' : 'Offline'}></span>
                             </div>
                             <div>
                               <div className="font-bold text-slate-900 flex items-center gap-1.5">
                                 <span>{user.name}</span>
                                 {user.role === 'admin' && (
                                   <Shield className="w-3.5 h-3.5 text-purple-600" />
+                                )}
+                                {isPending && (
+                                  <span className="px-1.5 py-0.2 bg-amber-200 text-amber-900 text-[9px] font-bold rounded">JOIN REQUEST</span>
                                 )}
                               </div>
                               <div className="font-mono text-[11px] text-slate-500">{user.email}</div>
@@ -1321,14 +1537,14 @@ export const AdminPanel: React.FC = () => {
 
                         {/* Live Presence */}
                         <td className="p-3">
-                          {user.isOnline ? (
+                          {userOnline ? (
                             <div className="flex flex-col gap-0.5">
                               <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded-full text-[10px] flex items-center gap-1.5 w-fit">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-ping"></span>
                                 <span>LIVE ONLINE</span>
                               </span>
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                Active at Front Desk
+                              <span className="text-[10px] text-emerald-700 font-mono font-medium">
+                                {user.role === 'admin' ? 'Active in Admin Console' : 'Active at Front Desk'}
                               </span>
                             </div>
                           ) : (
@@ -1399,27 +1615,71 @@ export const AdminPanel: React.FC = () => {
                         </td>
 
                         {/* Actions */}
-                        <td className="p-3 text-right space-x-2">
-                          <button
-                            onClick={() => toggleStaffApproval(user.email)}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer ${
-                              user.hrApproved
-                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-                                : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold shadow-sm'
-                            }`}
-                          >
-                            {user.hrApproved ? 'Revoke Access' : 'Approve Staff'}
-                          </button>
-                          <button
-                            onClick={() => deleteStaffUser(user.email)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            title="Remove User Record"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {!user.hrApproved ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isLoadingThis}
+                                  onClick={() => handleApproveStaff(user)}
+                                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                                  title="Approve staff join request and grant front-desk access"
+                                >
+                                  {isLoadingThis ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
+                                  )}
+                                  <span>Approve</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isLoadingThis}
+                                  onClick={() => handleDeleteStaffUser(user)}
+                                  className="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="Delete / Reject this staff join request"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>Delete</span>
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                {user.role !== 'admin' && (
+                                  <button
+                                    type="button"
+                                    disabled={isLoadingThis}
+                                    onClick={() => handleRevokeStaff(user)}
+                                    className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                    title="Revoke HR authorization and place back to pending review"
+                                  >
+                                    {isLoadingThis ? (
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                                    )}
+                                    <span>Revoke</span>
+                                  </button>
+                                )}
+                                {!isPrimaryAdmin && !isCurrentActiveUser && (
+                                  <button
+                                    type="button"
+                                    disabled={isLoadingThis}
+                                    onClick={() => handleDeleteStaffUser(user)}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer disabled:opacity-50"
+                                    title="Permanently remove user record from system"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1432,14 +1692,14 @@ export const AdminPanel: React.FC = () => {
       {activeTab === 'chambers' && (
         <div className="space-y-6 animate-fadeIn">
           {/* Room Control Bar */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
                   <Building className="w-4 h-4 text-teal-600" />
                   <span>Room Inventory &amp; Tariff Management</span>
                 </h3>
-                <p className="text-xs text-slate-400">Add new rooms, update nightly pricing (৳), and change room maintenance statuses.</p>
+                <p className="text-xs text-slate-400">Add new rooms across 6 official room types, update nightly pricing (৳), and manage room statuses.</p>
               </div>
 
               <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -1455,12 +1715,48 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <button
-                  onClick={() => setIsAddRoomOpen(true)}
+                  type="button"
+                  onClick={() => handleOpenAddRoom()}
                   className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-2 cursor-pointer shrink-0 shadow-sm"
                 >
                   <Plus className="w-4 h-4 text-teal-400" />
                   <span>Add Room</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Quick 6 Room Type Templates */}
+            <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-3.5 h-3.5 text-teal-600" />
+                  <span className="text-xs font-bold text-slate-800">6 Official Room Types &amp; Specifications</span>
+                </div>
+                <span className="text-[11px] text-slate-500 font-medium">Click any room type below to quickly add a room</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                {OFFICIAL_ROOM_TYPES.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleOpenAddRoom(preset.id)}
+                    className="p-2.5 bg-white hover:bg-teal-50/60 border border-slate-200 hover:border-teal-400 rounded-xl text-left transition group shadow-2xs cursor-pointer flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[11px] font-bold text-slate-850 group-hover:text-teal-700 leading-tight">
+                          {preset.name}
+                        </span>
+                        <Plus className="w-3 h-3 text-slate-400 group-hover:text-teal-600 shrink-0" />
+                      </div>
+                      <p className="text-[9.5px] text-slate-500 line-clamp-1 mb-1">{preset.bedSize}</p>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[9.5px]">
+                      <span className="font-mono font-bold text-teal-700">৳{preset.defaultPrice.toLocaleString()}</span>
+                      <span className="text-slate-400">{preset.capacityText}</span>
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -1470,7 +1766,7 @@ export const AdminPanel: React.FC = () => {
                 <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] tracking-wider border-b border-slate-200/60">
                   <tr>
                     <th className="p-3">Room #</th>
-                    <th className="p-3">Category</th>
+                    <th className="p-3">Category / Room Type</th>
                     <th className="p-3">Nightly Tariff (৳)</th>
                     <th className="p-3">Capacity</th>
                     <th className="p-3">Current Status</th>
@@ -1484,9 +1780,14 @@ export const AdminPanel: React.FC = () => {
                         #{room.number}
                       </td>
                       <td className="p-3">
-                        <span className="font-semibold text-slate-800 capitalize">
-                          {room.type} Room
-                        </span>
+                        <div>
+                          <span className="font-bold text-slate-800">
+                            {room.title || `${room.type.charAt(0).toUpperCase() + room.type.slice(1)} Room`}
+                          </span>
+                          {room.bedSize && (
+                            <span className="block text-[10px] text-slate-400 font-mono">{room.bedSize}</span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 font-mono font-bold text-teal-700">
                         {editingRoomId === room.id ? (
@@ -2385,155 +2686,404 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Add Room Modal Dialog */}
+      {/* Add Room Modal Dialog with 6 Official Room Types */}
       {isAddRoomOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
-                <Building className="w-4 h-4 text-teal-600" />
-                <span>Add New Guest House Room</span>
-              </h3>
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
+                  <Building className="w-4 h-4 text-teal-600" />
+                  <span>Add New Room (6 Official Room Types)</span>
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Select an official room template or customize specifications and amenities.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsAddRoomOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddRoomSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Room Number *</label>
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleAddRoomSubmit} className="overflow-y-auto p-6 space-y-5 text-xs flex-1">
+              {/* Preset Selector Grid */}
+              <div className="space-y-2">
+                <label className="block font-bold text-slate-700">
+                  Step 1: Choose from 6 Official Room Types
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {OFFICIAL_ROOM_TYPES.map((preset) => {
+                    const isSelected = selectedPresetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => applyRoomPreset(preset)}
+                        className={`p-3 rounded-2xl border text-left transition relative cursor-pointer flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-teal-50/80 border-teal-500 ring-2 ring-teal-500/20 shadow-sm'
+                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="absolute top-2.5 right-2.5 w-4 h-4 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px]">
+                            ✓
+                          </div>
+                        )}
+                        <div>
+                          <div className="font-bold text-slate-850 text-xs pr-5">
+                            {preset.name}
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                            {preset.bedSize}
+                          </div>
+                          <div className="text-[9.5px] text-teal-700 font-medium mt-1">
+                            {preset.windows}
+                          </div>
+                        </div>
+
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
+                          <span className="font-mono font-bold text-teal-700 text-xs">
+                            ৳{preset.defaultPrice.toLocaleString()}
+                          </span>
+                          <span className="text-[9.5px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md font-medium">
+                            {preset.capacityText}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Step 2: Room Specifications */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <label className="block font-bold text-slate-700">
+                  Step 2: Room Specifications &amp; Pricing
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Room Number *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newRoomNo}
+                      onChange={(e) => setNewRoomNo(e.target.value)}
+                      placeholder="e.g. 104"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono font-bold text-slate-800"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Room Title / Category Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newRoomTitle}
+                      onChange={(e) => setNewRoomTitle(e.target.value)}
+                      placeholder="e.g. Double Deluxe"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-semibold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Base Type Category *
+                    </label>
+                    <select
+                      value={newRoomType}
+                      onChange={(e) => setNewRoomType(e.target.value as RoomType)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold"
+                    >
+                      <option value="deluxe">Deluxe (Double Deluxe / Triple Room)</option>
+                      <option value="suite">Suite (Family Room)</option>
+                      <option value="double">Double (Executive Single / Standard Double)</option>
+                      <option value="single">Single (Single Economy)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Nightly Tariff (৳ BDT) *
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={newRoomPrice || ''}
+                      onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
+                      placeholder="e.g. 2500"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold text-teal-700"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Guest Capacity (Count) *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={newRoomCapacity}
+                      onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Capacity Label
+                    </label>
+                    <input
+                      type="text"
+                      value={newRoomCapacityText}
+                      onChange={(e) => setNewRoomCapacityText(e.target.value)}
+                      placeholder="e.g. 4 Adults / 2 Adults + 2 Child"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Bed Setup &amp; Size
+                    </label>
+                    <input
+                      type="text"
+                      value={newRoomBedSize}
+                      onChange={(e) => setNewRoomBedSize(e.target.value)}
+                      placeholder="e.g. Double + Double, Queen Size, King Size, Single (3'/7')"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Window Orientation &amp; View
+                    </label>
+                    <input
+                      type="text"
+                      value={newRoomWindows}
+                      onChange={(e) => setNewRoomWindows(e.target.value)}
+                      placeholder="e.g. West & South Facing / East & North Facing"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Toilet / Washroom Type
+                    </label>
+                    <select
+                      value={newRoomToilet}
+                      onChange={(e) => setNewRoomToilet(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
+                    >
+                      <option value="Private Toilet (High Commode)">Private Toilet (High Commode)</option>
+                      <option value="Private Toilet (Pan)">Private Toilet (Pan)</option>
+                      <option value="Common Toilet (Pan)">Common Toilet (Pan)</option>
+                      <option value="Attached Bath">Attached Bath</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Extra Features / Fittings
+                    </label>
+                    <input
+                      type="text"
+                      value={newRoomExtra}
+                      onChange={(e) => setNewRoomExtra(e.target.value)}
+                      placeholder="e.g. Cloth Rack, Balcony"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-600 mb-1">
+                      Promo / Price Banner (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={newRoomStartingPriceBanner}
+                      onChange={(e) => setNewRoomStartingPriceBanner(e.target.value)}
+                      placeholder="e.g. Starts from 700/- (*T&C Apply)"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 3: Amenities Selection */}
+              <div className="space-y-2.5 pt-2 border-t border-slate-100">
+                <label className="block font-bold text-slate-700">
+                  Step 3: Room Amenities &amp; Inclusions
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    'TV',
+                    'Free WiFi',
+                    'Common Refrigeration',
+                    'Tea Table',
+                    '24/7 Electricity',
+                    'Stand Lamp',
+                    'Sofa',
+                    'Balcony',
+                    'AC/Non-AC',
+                    'Attached Bath',
+                    'Cloth Rack'
+                  ].map((amenity) => {
+                    const isChecked = newRoomAmenities.includes(amenity);
+                    return (
+                      <button
+                        key={amenity}
+                        type="button"
+                        onClick={() => toggleNewRoomAmenity(amenity)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+                          isChecked
+                            ? 'bg-teal-600 text-white shadow-2xs'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
+                      >
+                        {isChecked && <Check className="w-3 h-3 text-white" />}
+                        <span>{amenity}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
                   <input
                     type="text"
-                    required
-                    value={newRoomNo}
-                    onChange={(e) => setNewRoomNo(e.target.value)}
-                    placeholder="e.g. 501"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Category *</label>
-                  <select
-                    value={newRoomType}
-                    onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold"
-                  >
-                    <option value="single">Standard Single</option>
-                    <option value="double">Deluxe Double</option>
-                    <option value="deluxe">Executive Premium</option>
-                    <option value="suite">Family Suite</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Nightly Tariff (৳ BDT) *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={newRoomPrice || ''}
-                    onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
-                    placeholder="e.g. 2500"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold text-teal-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Guest Capacity *</label>
-                  <input
-                    type="number"
-                    required
-                    value={newRoomCapacity}
-                    onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-600 mb-1">Room Photo (From Computer)</label>
-                <div className="flex gap-2 items-center bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-                  <input
-                    type="file"
-                    id="admin-new-room-photo-upload"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        try {
-                          const dataUrl = await processUploadedImage(file);
-                          setNewRoomImg(dataUrl);
-                          showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
-                        } catch (err) {
-                          showToast({ type: 'error', message: 'Failed to process image.' });
-                        }
+                    value={customAmenityInput}
+                    onChange={(e) => setCustomAmenityInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomNewRoomAmenity();
                       }
                     }}
+                    placeholder="Add custom amenity (press Enter)..."
+                    className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
                   />
-                  <label
-                    htmlFor="admin-new-room-photo-upload"
-                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-2xs"
+                  <button
+                    type="button"
+                    onClick={addCustomNewRoomAmenity}
+                    className="px-3 py-1.5 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-700 transition cursor-pointer"
                   >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Photo</span>
-                  </label>
-                  {newRoomImg ? (
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={newRoomImg} 
-                        alt="Preview" 
-                        className="w-8 h-8 rounded-md object-cover border border-slate-300" 
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setNewRoomImg('')}
-                        className="text-rose-600 hover:text-rose-800 text-[10px] font-bold cursor-pointer"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-400 italic">No file chosen (default photo will be used)</span>
-                  )}
+                    + Add
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-600 mb-1">Description / Amenities</label>
-                <textarea
-                  rows={2}
-                  value={newRoomDesc}
-                  onChange={(e) => setNewRoomDesc(e.target.value)}
-                  placeholder="e.g. AC, Attached Bath, High-speed Wi-Fi, Balcony..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                />
+              {/* Step 4: Photo & Description */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <label className="block font-bold text-slate-700">
+                  Step 4: Room Photo &amp; Description
+                </label>
+
+                <div>
+                  <label className="block font-semibold text-slate-600 mb-1">
+                    Room Photo
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-slate-50 border border-slate-200 p-3 rounded-2xl">
+                    <input
+                      type="file"
+                      id="admin-new-room-photo-upload"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const dataUrl = await processUploadedImage(file);
+                            setNewRoomImg(dataUrl);
+                            showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
+                          } catch (err) {
+                            showToast({ type: 'error', message: 'Failed to process image.' });
+                          }
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="admin-new-room-photo-upload"
+                      className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-2xs"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload from Computer</span>
+                    </label>
+
+                    {newRoomImg ? (
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={newRoomImg} 
+                          alt="Preview" 
+                          className="w-12 h-10 rounded-lg object-cover border border-slate-300 shadow-xs" 
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setNewRoomImg('')}
+                          className="text-rose-600 hover:text-rose-800 text-[11px] font-bold cursor-pointer underline"
+                        >
+                          Remove Photo
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">
+                        Official room type photo will be used automatically.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-600 mb-1">
+                    Room Overview / Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={newRoomDesc}
+                    onChange={(e) => setNewRoomDesc(e.target.value)}
+                    placeholder="Provide highlights of room comforts, bed details, and facing..."
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                  />
+                </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAddRoomOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-semibold rounded-xl"
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition"
+                  className="flex-1 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-2xl transition shadow-sm cursor-pointer"
                 >
-                  Create Room
+                  Create &amp; Add Room #{newRoomNo || 'New'}
                 </button>
               </div>
             </form>
@@ -2548,6 +3098,75 @@ export const AdminPanel: React.FC = () => {
           rooms={rooms}
           onClose={() => setSelectedInvoiceBooking(null)}
         />
+      )}
+
+      {/* Delete Staff / Join Request Modal */}
+      {userPendingDeletion && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  {userPendingDeletion.hrApproved ? 'Delete Staff Account' : 'Delete Staff Join Request'}
+                </h3>
+                <p className="text-xs text-slate-500">Confirm permanent removal from system registry</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Name:</span>
+                <span className="font-bold text-slate-900">{userPendingDeletion.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Email:</span>
+                <span className="font-mono text-slate-800 font-medium">{userPendingDeletion.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Role &amp; Status:</span>
+                <span className="font-semibold text-slate-800">
+                  {userPendingDeletion.role.toUpperCase()} • {userPendingDeletion.hrApproved ? 'HR Authorized' : 'Pending Join Request'}
+                </span>
+              </div>
+              {userPendingDeletion.phone && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Phone:</span>
+                  <span className="font-mono text-slate-800">{userPendingDeletion.phone}</span>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200/80 rounded-xl p-3">
+              ⚠️ This action will immediately remove this user account from the Islamia Guest House system and reject any active access.
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserPendingDeletion(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoadingEmail === userPendingDeletion.email}
+                onClick={handleConfirmDeleteStaff}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {actionLoadingEmail === userPendingDeletion.email ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                <span>Confirm &amp; Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

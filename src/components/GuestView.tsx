@@ -55,7 +55,8 @@ export const GuestView: React.FC = () => {
     deleteFeedback,
     triggerSmsConfirmation,
     getBookingSmsText,
-    showToast
+    showToast,
+    guestLogoSettings
   } = useApp();
 
   // Instant Text confirmation states
@@ -648,12 +649,24 @@ export const GuestView: React.FC = () => {
             }} 
             className="flex items-center gap-2.5 group cursor-pointer"
           >
-            <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition">
-              ◆
-            </span>
+            {guestLogoSettings?.logoType === 'image' && guestLogoSettings.customLogoUrl ? (
+              <img 
+                src={guestLogoSettings.customLogoUrl} 
+                alt={guestLogoSettings.logoText || "Islamia Guest House"} 
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-md object-contain border border-[#af8a52]/40 shadow-xs group-hover:scale-105 transition bg-white"
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            ) : (
+              <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition">
+                ◆
+              </span>
+            )}
             <div className="flex flex-col">
               <span className="font-serif text-base sm:text-xl text-[#0e2b33] font-bold tracking-tight leading-tight">
-                ISLAMIA GUEST HOUSE
+                {guestLogoSettings?.logoText || "ISLAMIA GUEST HOUSE"}
               </span>
               <span className="text-[9px] tracking-[0.25em] text-[#af8a52] font-semibold uppercase">
                 DHANMONDI, DHAKA
@@ -2261,8 +2274,20 @@ export const GuestView: React.FC = () => {
           <div className="flex flex-col md:flex-row justify-between items-start gap-8 pb-8 border-b border-white/10">
             <div>
               <div className="font-serif text-xl text-[#af8a52] font-semibold tracking-wide mb-2 flex items-center gap-2">
-                <span className="text-[#af8a52]">◆</span>
-                <span>ISLAMIA GUEST HOUSE</span>
+                {guestLogoSettings?.logoType === 'image' && guestLogoSettings.customLogoUrl ? (
+                  <img 
+                    src={guestLogoSettings.customLogoUrl} 
+                    alt={guestLogoSettings.logoText || "Logo"} 
+                    className="w-6 h-6 rounded object-contain border border-[#d7bd8a]/40 bg-white"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <span className="text-[#af8a52]">◆</span>
+                )}
+                <span>{guestLogoSettings?.logoText || "ISLAMIA GUEST HOUSE"}</span>
               </div>
               <p className="text-xs text-[#efe8d8]/60 max-w-sm leading-relaxed">
                 Dhanmondi Road 9/A. Homely luxury, family-friendly security, and peaceful accommodations.

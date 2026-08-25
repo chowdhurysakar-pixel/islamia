@@ -78,6 +78,21 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "userId", "userName", "userEmail", "rating", "comment", "createdAt"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Global application configuration and guest view settings including logo visibility and branding",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "showLogo": { "type": "boolean" },
+        "logoType": { "type": "string", "enum": ["emblem", "image"] },
+        "customLogoUrl": { "type": "string" },
+        "logoText": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["id", "showLogo", "logoType"]
     }
   },
   "firestore": {
@@ -100,6 +115,10 @@
     "/feedbacks/{feedbackId}": {
       "schema": "Feedback",
       "description": "Star ratings and written reviews submitted by guests"
+    },
+    "/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "Global application settings such as guest view logo and branding"
     }
   }
 }

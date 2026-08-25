@@ -34,8 +34,7 @@ service cloud.firestore {
         (request.auth.token.email in ["islamiaguesthouse@gmail.com", "admin@islamiaguesthouse.com", "chowdhurysakar@gmail.com", "hr.manager@islamiaguesthouse.com"] ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
           (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "staff" ||
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")) ||
-         (exists(/databases/$(database)/documents/staff_profiles/$(request.auth.uid))));
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")));
     }
 
     function isAdmin() {
@@ -48,15 +47,6 @@ service cloud.firestore {
     // --- Connection Test Collection ---
     match /test/{testId} {
       allow read: if true;
-    }
-
-    // --- Staff Profiles & Live Presence Collection (FIXED & ADDED) ---
-    match /staff_profiles/{staffId} {
-      // Allow any logged in user to write/update their own live status upon sign-in
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create, update: if isSignedIn() && (request.auth.uid == staffId || isStaff());
-      allow delete: if isSignedIn() && (isStaff() || isAdmin());
     }
 
     // --- Rooms Collection ---
@@ -166,6 +156,12 @@ service cloud.firestore {
         incoming().comment is string && incoming().comment.size() <= 2000;
 
       allow delete: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
+    }
+
+    // --- Settings & Brand Configuration Collection ---
+    match /settings/{settingId} {
+      allow get, list: if true; // Publicly readable for guest branding and logo display
+      allow create, update, delete: if isSignedIn() && isValidId(settingId) && isStaff();
     }
   }
 }
