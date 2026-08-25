@@ -406,8 +406,6 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
                   <option value="suite">Suite</option>
                   <option value="double">Double</option>
                   <option value="single">Single</option>
-                  <option value="family">Family</option>
-                  <option value="triple">Triple</option>
                 </select>
               </div>
 

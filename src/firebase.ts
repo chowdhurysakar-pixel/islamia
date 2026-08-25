@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApp, getApps } from 'firebase/app';
 import { 
   getAuth, 
   signInWithPopup, 
@@ -11,27 +11,11 @@ import {
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendEmailVerification,
-  Auth
+  sendEmailVerification
 } from 'firebase/auth';
-import { 
-  getFirestore, 
-  Firestore,
-  collection, 
-  doc, 
-  query, 
-  where, 
-  getDocs, 
-  getDoc, 
-  setDoc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  onSnapshot, 
-  getDocFromServer 
-} from 'firebase/firestore';
-import firebaseConfig from './firebase-applet-config.json';
+import { getFirestore, collection, doc, query, where, getDocs, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot, getDocFromServer } from 'firebase/firestore';
 
+// We define a stub interface to avoid compilation errors if config is empty.
 export interface FirebaseConfig {
   apiKey: string;
   authDomain: string;
@@ -42,38 +26,70 @@ export interface FirebaseConfig {
   firestoreDatabaseId?: string;
 }
 
-let firebaseApp: FirebaseApp;
-let db: Firestore;
-let auth: Auth;
+let firebaseApp: any = null;
+let dbInstance: any = null;
+let authInstance: any = null;
 let isFirebaseAvailable = false;
 
+// Attempt to load and initialize Firebase
 try {
-  if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== 'placeholder' && !firebaseConfig.apiKey.includes('MY_')) {
-    firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    
-    // Critical: Connect to specific database if provided, or default
-    if (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)') {
-      db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
-    } else {
-      db = getFirestore(firebaseApp);
-    }
-    
-    auth = getAuth(firebaseApp);
-    isFirebaseAvailable = true;
-    console.log("Firebase Connected successfully to:", firebaseConfig.projectId, firebaseConfig.firestoreDatabaseId);
-  } else {
-    firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig as any) : getApp();
-    db = getFirestore(firebaseApp);
-    auth = getAuth(firebaseApp);
-  }
+  // We can dynamically check if there's a real config or if we should use fallback
+  // In React/Vite, we can import it using dynamic import or standard import
+  // To protect compiler against a missing JSON file, we can require/import it safely
+  // If we write a placeholder json file first, it prevents compile errors.
 } catch (e) {
-  console.warn("Firebase initialization notice:", e);
+  console.warn("Firebase not initialized yet. Running in high-fidelity Sandbox Sandbox Mode.", e);
 }
 
-export function initFirebase(_customConfig?: FirebaseConfig): boolean {
-  return isFirebaseAvailable;
+export function initFirebase(config?: FirebaseConfig) {
+  // Load and check from Vite environment variables first
+  const metaEnv = (import.meta as any).env || {};
+  const envConfig: FirebaseConfig = {
+    apiKey: (metaEnv.VITE_FIREBASE_API_KEY || "").trim(),
+    authDomain: (metaEnv.VITE_FIREBASE_AUTH_DOMAIN || "").trim(),
+    projectId: (metaEnv.VITE_FIREBASE_PROJECT_ID || "").trim(),
+    storageBucket: (metaEnv.VITE_FIREBASE_STORAGE_BUCKET || "").trim(),
+    messagingSenderId: (metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID || "").trim(),
+    appId: (metaEnv.VITE_FIREBASE_APP_ID || "").trim(),
+    firestoreDatabaseId: (metaEnv.VITE_FIREBASE_FIRESTORE_DATABASE_ID || "").trim()
+  };
+
+  const finalConfig = (envConfig.apiKey && envConfig.apiKey !== 'placeholder' && !envConfig.apiKey.includes('MY_'))
+    ? envConfig
+    : (config || {} as FirebaseConfig);
+
+  if (finalConfig && finalConfig.apiKey && finalConfig.apiKey !== 'placeholder' && !finalConfig.apiKey.includes('MY_')) {
+    try {
+      if (getApps().length === 0) {
+        firebaseApp = initializeApp(finalConfig);
+      } else {
+        firebaseApp = getApp();
+      }
+
+      const requestedDbId = finalConfig.firestoreDatabaseId || config?.firestoreDatabaseId;
+      try {
+        if (requestedDbId && requestedDbId !== '(default)') {
+          dbInstance = getFirestore(firebaseApp, requestedDbId);
+        } else {
+          dbInstance = getFirestore(firebaseApp);
+        }
+      } catch (dbErr) {
+        console.warn("Falling back to default Firestore database instance:", dbErr);
+        dbInstance = getFirestore(firebaseApp);
+      }
+
+      authInstance = getAuth(firebaseApp);
+      isFirebaseAvailable = true;
+      console.log("Firebase Successfully Connected using live credentials!", finalConfig.projectId);
+      return true;
+    } catch (err) {
+      console.error("Failed to initialize Firebase with provided config:", err);
+    }
+  }
+  return false;
 }
 
+// Error Handler following the 3rd guidelines rule from standard firebase integration skill
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -97,7 +113,7 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const currentAuth = auth;
+  const currentAuth = authInstance;
   const errMsg = error instanceof Error ? error.message : String(error);
   const errInfo: FirestoreErrorInfo = {
     error: errMsg,
@@ -118,12 +134,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     errMsg.includes('offline') || 
     errMsg.includes('Could not reach Cloud Firestore') ||
     errMsg.includes('failed-precondition') ||
-    errMsg.includes('the client is offline') ||
-    errMsg.includes('Failed to get document because the client is offline') ||
     operationType === OperationType.GET ||
     operationType === OperationType.LIST
   ) {
-    console.warn('Firestore Network/Cache Notice: ', JSON.stringify(errInfo));
+    console.warn('Firestore Network/Cache Info: ', JSON.stringify(errInfo));
     return errInfo;
   }
 
@@ -131,4 +145,4 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-export { firebaseApp, db, auth, isFirebaseAvailable };
+export { firebaseApp, dbInstance as db, authInstance as auth, isFirebaseAvailable };

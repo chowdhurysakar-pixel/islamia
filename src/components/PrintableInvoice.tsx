@@ -619,7 +619,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                             {phoneBkash && (
                               <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-800">
                                 <BkashLogo className="w-4 h-4 shadow-xs" />
-                                <span>{phoneBkash} (bKash Payment)</span>
+                                <span>{phoneBkash} (bKash)</span>
                               </div>
                             )}
                             {phoneCall && (

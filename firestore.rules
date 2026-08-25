@@ -106,12 +106,6 @@ service cloud.firestore {
       allow delete: if isSignedIn() && isValidId(bookingId) && isStaff();
     }
 
-    // --- Archived Bookings Collection ---
-    match /archived_bookings/{bookingId} {
-      allow list, get: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
-      allow create, update, delete: if isSignedIn() && isValidId(bookingId) && isStaff();
-    }
-
     // --- Service Requests Collection ---
     match /serviceRequests/{requestId} {
       allow list: if isSignedIn() && (isStaff() || get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.userId == request.auth.uid);
@@ -172,12 +166,6 @@ service cloud.firestore {
         incoming().comment is string && incoming().comment.size() <= 2000;
 
       allow delete: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
-    }
-
-    // --- Settings & Brand Configuration Collection ---
-    match /settings/{settingId} {
-      allow get, list: if true; // Publicly readable for guest branding and logo display
-      allow create, update, delete: if isSignedIn() && isValidId(settingId) && isStaff();
     }
   }
 }

@@ -173,16 +173,9 @@ export const StaffView: React.FC = () => {
 
   // Room tracking edit states (money pricing, numbers, capacities, and statuses)
   const [editRoomNumber, setEditRoomNumber] = useState<string>('');
-  const [editRoomTitle, setEditRoomTitle] = useState<string>('Double Deluxe');
-  const [editRoomType, setEditRoomType] = useState<RoomType>('deluxe');
-  const [editRoomPrice, setEditRoomPrice] = useState<number>(2000);
-  const [editRoomCapacity, setEditRoomCapacity] = useState<number>(4);
-  const [editRoomCapacityText, setEditRoomCapacityText] = useState<string>('Capacity 4 people');
-  const [editRoomBedSize, setEditRoomBedSize] = useState<string>('Double + Double Bed');
-  const [editRoomWindows, setEditRoomWindows] = useState<string>('West & South Facing');
-  const [editRoomToilet, setEditRoomToilet] = useState<string>('Private High Commode Toilet');
-  const [editRoomExtra, setEditRoomExtra] = useState<string>('Cloth Rack & All Facilities');
-  const [editRoomStartingPriceBanner, setEditRoomStartingPriceBanner] = useState<string>('Standard Rate');
+  const [editRoomType, setEditRoomType] = useState<RoomType>('single');
+  const [editRoomPrice, setEditRoomPrice] = useState<number>(0);
+  const [editRoomCapacity, setEditRoomCapacity] = useState<number>(1);
   const [editRoomStatus, setEditRoomStatus] = useState<RoomStatus>('available');
   const [editRoomDescription, setEditRoomDescription] = useState<string>('');
   const [editRoomAmenities, setEditRoomAmenities] = useState<string[]>([]);
@@ -190,101 +183,6 @@ export const StaffView: React.FC = () => {
   const [newAmenity, setNewAmenity] = useState<string>('');
   const [newImage, setNewImage] = useState<string>('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
-
-  const applyRoomPreset = (presetKey: 'double_deluxe' | 'family' | 'executive_single' | 'triple' | 'standard_double' | 'single_economy') => {
-    switch (presetKey) {
-      case 'double_deluxe':
-        setEditRoomTitle('Double Deluxe');
-        setEditRoomType('deluxe');
-        setEditRoomPrice(2000);
-        setEditRoomCapacity(4);
-        setEditRoomCapacityText('Capacity 4 people');
-        setEditRoomBedSize('Double + Double Bed');
-        setEditRoomWindows('West & South Facing');
-        setEditRoomToilet('Private High Commode Toilet');
-        setEditRoomExtra('Cloth Rack & All Facilities');
-        setEditRoomStartingPriceBanner('Standard Rate');
-        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Refrigerator', 'Private High Commode Toilet', '24/7 Power Backup']);
-        setEditRoomDescription('Capacity 4 people, Double + Double Bed, West & South Facing, Private High Commode Toilet, TV, Free WiFi, Refrigerator, AC/Non-AC and all facilities.');
-        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800']);
-        break;
-      case 'family':
-        setEditRoomTitle('Family Room');
-        setEditRoomType('family');
-        setEditRoomPrice(2000);
-        setEditRoomCapacity(4);
-        setEditRoomCapacityText('Capacity 2 adults + 2 children');
-        setEditRoomBedSize('Double + Semi Double Bed');
-        setEditRoomWindows('West & North Facing');
-        setEditRoomToilet('Private High Commode Toilet');
-        setEditRoomExtra('Sofa & Cloth Rack');
-        setEditRoomStartingPriceBanner('Family Special');
-        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Comfortable Sofa', 'Private High Commode Toilet', '24/7 Electricity']);
-        setEditRoomDescription('Capacity 2 adults + 2 children, Double + Semi Double Bed, West & North Facing, Private High Commode Toilet and Sofa.');
-        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&q=80&w=800']);
-        break;
-      case 'executive_single':
-        setEditRoomTitle('Double - Executive Single');
-        setEditRoomType('double');
-        setEditRoomPrice(1500);
-        setEditRoomCapacity(2);
-        setEditRoomCapacityText('Capacity 1/2 people');
-        setEditRoomBedSize('Queen Size Bed');
-        setEditRoomWindows('East & North Facing');
-        setEditRoomToilet('Private High Commode Toilet');
-        setEditRoomExtra('AC/Non-AC Option');
-        setEditRoomStartingPriceBanner('Executive Deal');
-        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning / Non-AC Option', 'Flat-screen TV', 'Private High Commode Toilet', 'Work Desk', '24/7 Electricity']);
-        setEditRoomDescription('Capacity 1/2 people, Queen Size Bed, East & North Facing, Private High Commode Toilet, AC/Non-AC option.');
-        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&q=80&w=800']);
-        break;
-      case 'triple':
-        setEditRoomTitle('Triple Room');
-        setEditRoomType('triple');
-        setEditRoomPrice(1800);
-        setEditRoomCapacity(3);
-        setEditRoomCapacityText('Capacity 3 people');
-        setEditRoomBedSize('Double + Single Bed');
-        setEditRoomWindows('West & South Facing');
-        setEditRoomToilet('Private High Commode Toilet');
-        setEditRoomExtra('Balcony & Full Facilities');
-        setEditRoomStartingPriceBanner('Group Saver');
-        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Air Conditioning', 'Private Balcony', 'Private High Commode Toilet', 'Flat-screen TV', '24/7 Electricity']);
-        setEditRoomDescription('Capacity 3 people, Double + Single Bed, West & South Facing, Private High Commode Toilet, Balcony and full facilities.');
-        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&q=80&w=800']);
-        break;
-      case 'standard_double':
-        setEditRoomTitle('Standard Double');
-        setEditRoomType('double');
-        setEditRoomPrice(1700);
-        setEditRoomCapacity(3);
-        setEditRoomCapacityText('Capacity 2 people + 1 child (below 6 years)');
-        setEditRoomBedSize('King Size Bed');
-        setEditRoomWindows('East & South Facing');
-        setEditRoomToilet('Private Pan Toilet');
-        setEditRoomExtra('Balcony & Ceiling Fan');
-        setEditRoomStartingPriceBanner('Standard Double');
-        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Attached Balcony', 'Flat-screen TV', 'Private Pan Toilet', 'Ceiling Fan', '24/7 Electricity']);
-        setEditRoomDescription('Capacity 2 people + 1 child (below 6 years), King Size Bed, East & South Facing, Private Pan Toilet and Balcony.');
-        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&q=80&w=800']);
-        break;
-      case 'single_economy':
-        setEditRoomTitle('Single - Economy');
-        setEditRoomType('single');
-        setEditRoomPrice(700);
-        setEditRoomCapacity(1);
-        setEditRoomCapacityText('Capacity 1 person');
-        setEditRoomBedSize("Single Bed (3' / 7')");
-        setEditRoomWindows('East Facing');
-        setEditRoomToilet('Common Pan Toilet');
-        setEditRoomExtra('24/7 Electricity & Wi-Fi');
-        setEditRoomStartingPriceBanner('Budget Friendly');
-        setEditRoomAmenities(['Free High-Speed Wi-Fi', 'Single Bed', 'Common Pan Toilet', '24/7 Electricity', 'Fresh Bedding']);
-        setEditRoomDescription("Capacity 1 person, Single Bed (3' / 7'), East Facing, Common Pan Toilet, Wi-Fi and 24/7 electricity facilities.");
-        setEditRoomImages(prev => prev.length > 0 ? prev : ['https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&q=80&w=800']);
-        break;
-    }
-  };
 
   const handleComputerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -322,20 +220,13 @@ export const StaffView: React.FC = () => {
 
   React.useEffect(() => {
     if (selectedRoomToManage) {
-      setEditRoomNumber(selectedRoomToManage.number || '');
-      setEditRoomTitle(selectedRoomToManage.title || (selectedRoomToManage.type === 'deluxe' ? 'Double Deluxe' : selectedRoomToManage.type === 'family' ? 'Family Room' : selectedRoomToManage.type === 'triple' ? 'Triple Room' : selectedRoomToManage.type === 'double' ? 'Standard Double' : selectedRoomToManage.type === 'single' ? 'Single - Economy' : 'Executive Suite'));
-      setEditRoomType(selectedRoomToManage.type || 'deluxe');
-      setEditRoomPrice(selectedRoomToManage.price || 2000);
-      setEditRoomCapacity(selectedRoomToManage.capacity || 2);
-      setEditRoomCapacityText(selectedRoomToManage.capacityText || `Capacity ${selectedRoomToManage.capacity || 2} people`);
-      setEditRoomBedSize(selectedRoomToManage.bedSize || 'King Size Bed');
-      setEditRoomWindows(selectedRoomToManage.windows || 'West & South Facing');
-      setEditRoomToilet(selectedRoomToManage.toilet || 'Private High Commode Toilet');
-      setEditRoomExtra(selectedRoomToManage.extra || 'Cloth Rack & All Facilities');
-      setEditRoomStartingPriceBanner(selectedRoomToManage.startingPriceBanner || 'Standard Rate');
-      setEditRoomStatus(selectedRoomToManage.status || 'available');
+      setEditRoomNumber(selectedRoomToManage.number);
+      setEditRoomType(selectedRoomToManage.type);
+      setEditRoomPrice(selectedRoomToManage.price);
+      setEditRoomCapacity(selectedRoomToManage.capacity);
+      setEditRoomStatus(selectedRoomToManage.status);
       setEditRoomDescription(selectedRoomToManage.description || '');
-      setEditRoomAmenities(selectedRoomToManage.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', '24/7 Electricity']);
+      setEditRoomAmenities(selectedRoomToManage.amenities || []);
       setEditRoomImages(selectedRoomToManage.images || (selectedRoomToManage.image ? [selectedRoomToManage.image] : []));
       setNewAmenity('');
       setNewImage('');
@@ -1622,22 +1513,22 @@ export const StaffView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setGuestHistoryPhoneSearch('01712-345678');
-                  setSelectedHistoryGuestPhone('01712-345678');
+                  setGuestHistoryPhoneSearch('+1 (555) 321-9876');
+                  setSelectedHistoryGuestPhone('+1 (555) 321-9876');
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
               >
-                01712-345678
+                +1 (555) 321-9876
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setGuestHistoryPhoneSearch('01832-841818');
-                  setSelectedHistoryGuestPhone('01832-841818');
+                  setGuestHistoryPhoneSearch('+1 (555) 789-1234');
+                  setSelectedHistoryGuestPhone('+1 (555) 789-1234');
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
+                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
               >
-                01832-841818
+                +1 (555) 789-1234
               </button>
             </div>
           </div>
@@ -1651,7 +1542,7 @@ export const StaffView: React.FC = () => {
               <input
                 id="hr-history-phone-search-input"
                 type="text"
-                placeholder="Enter guest contact/phone number (e.g. 01712-345678 or 01832-841818)..."
+                placeholder="Enter guest contact/phone number (e.g. 01712xxxxxx or +1)..."
                 value={guestHistoryPhoneSearch}
                 onChange={(e) => setGuestHistoryPhoneSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -1831,7 +1722,7 @@ export const StaffView: React.FC = () => {
                     No past stay records found for contact number: <span className="text-white font-mono font-bold">"{selectedHistoryGuestPhone}"</span>
                   </p>
                   <p className="text-[10px] text-slate-500 font-normal">
-                    Check if the phone matches exactly, or trace check-ins by searching '01712' or '01832'.
+                    Check if the phone matches exactly, or trace check-ins by searching '01712' or '555'.
                   </p>
                 </div>
               )}
@@ -2204,29 +2095,23 @@ export const StaffView: React.FC = () => {
       {/* 6. ROOM STATUS, PRICING & ROOM DUTY SETTINGS MANAGER */}
       {selectedRoomToManage && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full overflow-hidden">
             
             {/* Header */}
-            <div className="p-6 pb-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-teal-600/10 flex items-center justify-center text-teal-600">
-                  <Settings className="w-5 h-5" />
-                </div>
+            <div className="p-6 pb-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-teal-600" />
                 <div>
-                  <h3 className="font-serif text-base font-bold text-slate-850 flex items-center gap-2">
-                    <span>Room Settings &amp; Status Tracker</span>
-                    <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 text-[10px] font-bold font-mono uppercase">
-                      HR &amp; Front Desk
-                    </span>
+                  <h3 className="font-serif text-base font-bold text-slate-800">
+                    Room Settings & Status Tracker
                   </h3>
-                  <p className="text-[11px] text-slate-500 font-medium">
-                    Room #{editRoomNumber || selectedRoomToManage.number} • {editRoomTitle || selectedRoomToManage.type.toUpperCase()}
+                  <p className="text-[10px] text-slate-400 uppercase font-mono tracking-wider font-bold">
+                    Room {selectedRoomToManage.number} • {selectedRoomToManage.type}
                   </p>
                 </div>
               </div>
               <button
                 id="close-status-manager-btn"
-                type="button"
                 onClick={() => {
                   const num = selectedRoomToManage.number;
                   setSelectedRoomToManage(null);
@@ -2235,14 +2120,14 @@ export const StaffView: React.FC = () => {
                     message: `ℹ️ Room #${num} settings closed.`
                   });
                 }}
-                className="text-slate-400 hover:text-slate-600 p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl shadow-2xs transition"
+                className="text-slate-400 hover:text-slate-600 p-1 bg-white border border-slate-200 rounded-lg shadow-sm"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Body */}
-            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
 
               {/* If room is occupied, show prominent quick Checkout & Show Bill Banner */}
               {selectedRoomToManage.status === 'occupied' && (
@@ -2275,214 +2160,65 @@ export const StaffView: React.FC = () => {
                   </button>
                 </div>
               )}
-
-              {/* Quick 1-Click Preset Template Bar */}
-              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Quick Template Presets (Click to Auto-fill):</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-medium">6 Standard Configurations</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => applyRoomPreset('double_deluxe')}
-                    className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
-                  >
-                    <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Double Deluxe</div>
-                    <div className="text-[10px] font-mono text-teal-600 font-semibold">৳2,000 · 4 Persons</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyRoomPreset('family')}
-                    className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
-                  >
-                    <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Family Room</div>
-                    <div className="text-[10px] font-mono text-teal-600 font-semibold">৳2,000 · 2A + 2C</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyRoomPreset('executive_single')}
-                    className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
-                  >
-                    <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Double - Exec Single</div>
-                    <div className="text-[10px] font-mono text-teal-600 font-semibold">৳1,500 · 1/2 Persons</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyRoomPreset('triple')}
-                    className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
-                  >
-                    <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Triple Room</div>
-                    <div className="text-[10px] font-mono text-teal-600 font-semibold">৳1,800 · 3 Persons</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyRoomPreset('standard_double')}
-                    className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
-                  >
-                    <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Standard Double</div>
-                    <div className="text-[10px] font-mono text-teal-600 font-semibold">৳1,700 · 2A + 1C</div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyRoomPreset('single_economy')}
-                    className="px-2.5 py-1.5 bg-white hover:bg-teal-50 border border-slate-200 hover:border-teal-300 rounded-xl text-left transition cursor-pointer group shadow-2xs"
-                  >
-                    <div className="text-xs font-bold text-slate-800 group-hover:text-teal-700">Single - Economy</div>
-                    <div className="text-[10px] font-mono text-teal-600 font-semibold">৳700 · 1 Person</div>
-                  </button>
-                </div>
-              </div>
               
-              {/* Settings Fields: Room details, capacity, and PRICE */}
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Room Number *</label>
+              {/* Settings Fields: Room details, capacity, and PRICE (Money edit!) */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-4">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-slate-500 block font-bold">Room & Tracker Settings</span>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Room Number</label>
                     <input
                       id="edit-room-number-input"
                       type="text"
-                      required
                       value={editRoomNumber}
                       onChange={(e) => setEditRoomNumber(e.target.value)}
-                      placeholder="e.g. 101, 204, 305"
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white font-mono font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-mono"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Room Title *</label>
-                    <input
-                      id="edit-room-title-input"
-                      type="text"
-                      required
-                      value={editRoomTitle}
-                      onChange={(e) => setEditRoomTitle(e.target.value)}
-                      placeholder="e.g. Double Deluxe"
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white font-bold text-slate-900 focus:outline-none focus:border-teal-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Category Code *</label>
-                    <select
-                      id="edit-room-type-select"
-                      value={editRoomType}
-                      onChange={(e) => setEditRoomType(e.target.value as RoomType)}
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white font-semibold text-slate-900 focus:outline-none"
-                    >
-                      <option value="deluxe">Deluxe</option>
-                      <option value="suite">Suite</option>
-                      <option value="double">Double</option>
-                      <option value="single">Single</option>
-                      <option value="family">Family</option>
-                      <option value="triple">Triple</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Nightly Tariff (৳ BDT) *</label>
+                  {/* Money Editing Option */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Nightly Price (৳ BDT)</label>
                     <input
                       id="edit-room-price-input"
                       type="number"
                       min="0"
-                      required
                       value={editRoomPrice || ''}
                       onChange={(e) => setEditRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
-                      placeholder="e.g. 2000"
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white font-mono font-bold text-teal-700 focus:outline-none"
+                      placeholder="e.g. 2500"
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-mono font-bold text-teal-700"
                     />
                   </div>
+                </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Guest Capacity (Max Count) *</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Room Type</label>
+                    <select
+                      id="edit-room-type-select"
+                      value={editRoomType}
+                      onChange={(e) => setEditRoomType(e.target.value as RoomType)}
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-medium"
+                    >
+                      <option value="single">Single</option>
+                      <option value="double">Double</option>
+                      <option value="deluxe">Deluxe</option>
+                      <option value="suite">Suite</option>
+                      <option value="family">Family Suite</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-600 uppercase">Capacity (Persons)</label>
                     <input
                       id="edit-room-capacity-input"
                       type="number"
                       min={1}
                       max={10}
-                      required
                       value={editRoomCapacity}
                       onChange={(e) => setEditRoomCapacity(Number(e.target.value))}
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white font-mono font-bold focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Capacity Display Text</label>
-                    <input
-                      id="edit-room-capacity-text-input"
-                      type="text"
-                      value={editRoomCapacityText}
-                      onChange={(e) => setEditRoomCapacityText(e.target.value)}
-                      placeholder="e.g. Capacity 4 people"
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Room Specifications Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Bed Configuration</label>
-                    <input
-                      type="text"
-                      value={editRoomBedSize}
-                      onChange={(e) => setEditRoomBedSize(e.target.value)}
-                      placeholder="e.g. Double + Double Bed"
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Window Direction / Facing</label>
-                    <input
-                      type="text"
-                      value={editRoomWindows}
-                      onChange={(e) => setEditRoomWindows(e.target.value)}
-                      placeholder="e.g. West & South Facing"
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Toilet / Washroom Type</label>
-                    <select
-                      value={editRoomToilet}
-                      onChange={(e) => setEditRoomToilet(e.target.value)}
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white focus:outline-none font-medium text-slate-800"
-                    >
-                      <option value="Private High Commode Toilet">Private High Commode Toilet</option>
-                      <option value="Private Pan Toilet">Private Pan Toilet</option>
-                      <option value="Common Pan Toilet">Common Pan Toilet</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Extra Facilities / Tag</label>
-                    <input
-                      type="text"
-                      value={editRoomExtra}
-                      onChange={(e) => setEditRoomExtra(e.target.value)}
-                      placeholder="e.g. Cloth Rack & All Facilities, Sofa & Balcony"
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Starting Price Tag / Banner</label>
-                    <input
-                      type="text"
-                      value={editRoomStartingPriceBanner}
-                      onChange={(e) => setEditRoomStartingPriceBanner(e.target.value)}
-                      placeholder="e.g. Standard Rate, Family Special"
-                      className="w-full text-xs border border-slate-250 rounded-xl p-2.5 bg-white focus:outline-none"
+                      className="w-full text-xs border border-slate-200 rounded-xl p-2 bg-white font-mono"
                     />
                   </div>
                 </div>
@@ -2490,15 +2226,15 @@ export const StaffView: React.FC = () => {
 
               {/* Status Selector Grid */}
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider block font-mono">
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block font-mono">
                   Select Tracker Status
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
                   {[
-                    { id: 'available', name: 'Available (Ready)', color: 'border-emerald-200 hover:bg-emerald-50 text-emerald-800 bg-emerald-50/20', dotColor: 'bg-emerald-500', desc: 'Ready for check-in' },
-                    { id: 'occupied', name: 'Occupied', color: 'border-rose-200 hover:bg-rose-50 text-rose-800 bg-rose-50/20', dotColor: 'bg-rose-500', desc: 'Guests inside' },
-                    { id: 'cleaning', name: 'Cleaning (Duty)', color: 'border-amber-200 hover:bg-amber-50 text-amber-800 bg-amber-50/20', dotColor: 'bg-amber-400', desc: 'Room service / clean' },
-                    { id: 'maintenance', name: 'Maintenance', color: 'border-slate-200 hover:bg-slate-50 text-slate-850 bg-slate-50/20', dotColor: 'bg-slate-400', desc: 'Engineering repairs' }
+                    { id: 'available', name: 'Available (Ready)', color: 'border-emerald-200 hover:bg-emerald-50 text-emerald-800 bg-emerald-50/20', dotColor: 'bg-emerald-500', desc: 'Ready for passenger check-in' },
+                    { id: 'occupied', name: 'Occupied', color: 'border-rose-200 hover:bg-rose-50 text-rose-800 bg-rose-50/20', dotColor: 'bg-rose-500', desc: 'Currently checked-in guests inside' },
+                    { id: 'cleaning', name: 'Cleaning (Duty)', color: 'border-amber-200 hover:bg-amber-50 text-amber-800 bg-amber-50/20', dotColor: 'bg-amber-400', desc: 'Room duty / vacuum & stock' },
+                    { id: 'maintenance', name: 'Maintenance', color: 'border-slate-200 hover:bg-slate-50 text-slate-850 bg-slate-50/20', dotColor: 'bg-slate-400', desc: 'Engineering repairs / offline' }
                   ].map((opt) => {
                     const isSelected = editRoomStatus === opt.id;
                     return (
@@ -2507,15 +2243,15 @@ export const StaffView: React.FC = () => {
                         id={`status-selector-btn-${opt.id}`}
                         type="button"
                         onClick={() => setEditRoomStatus(opt.id as RoomStatus)}
-                        className={`text-left p-2.5 rounded-xl border transition-all text-xs flex flex-col justify-between h-[68px] ${
+                        className={`text-left p-3 rounded-xl border transition-all text-xs flex flex-col justify-between h-[75px] ${
                           isSelected 
-                            ? 'ring-2 ring-teal-600 bg-teal-50/40 border-teal-600 scale-[0.98]' 
+                            ? 'ring-2 ring-teal-600 bg-teal-50/30 border-teal-600 scale-[0.98]' 
                             : `${opt.color}`
                         }`}
                       >
                         <div className="flex items-center gap-1.5 font-bold">
                           <span className={`w-2 h-2 rounded-full ${opt.dotColor}`} />
-                          <span className="truncate">{opt.name}</span>
+                          <span>{opt.name}</span>
                         </div>
                         <p className="text-[9px] text-slate-400 font-normal leading-tight mt-1">{opt.desc}</p>
                       </button>
@@ -2529,17 +2265,17 @@ export const StaffView: React.FC = () => {
                 <div className="flex items-center gap-1.5 border-b border-amber-100 pb-2">
                   <ShieldCheck className="w-4 h-4 text-amber-600" />
                   <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider font-mono">
-                    Chamber Media &amp; Guest Presentation
+                    HR Manager Content Control
                   </span>
                 </div>
 
                 {/* 1. Description Textarea */}
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-bold text-slate-600 uppercase block font-mono">
-                    Full Chamber Description (Guest View)
+                    Room Description (Guest View)
                   </label>
                   <textarea
-                    rows={3}
+                    rows={4}
                     value={editRoomDescription}
                     onChange={(e) => setEditRoomDescription(e.target.value)}
                     placeholder="Enter description for guest view..."
@@ -2606,7 +2342,7 @@ export const StaffView: React.FC = () => {
                       />
                       <label
                         htmlFor="hr-modal-photo-upload"
-                        className="flex items-center justify-center gap-2 px-3 py-2.5 bg-teal-50 hover:bg-teal-100/80 border-2 border-dashed border-teal-300 hover:border-teal-500 rounded-xl cursor-pointer transition text-teal-900 text-xs font-bold group shadow-2xs"
+                        className="flex items-center justify-center gap-2 px-3 py-3 bg-teal-50 hover:bg-teal-100/80 border-2 border-dashed border-teal-300 hover:border-teal-500 rounded-xl cursor-pointer transition text-teal-900 text-xs font-bold group shadow-2xs"
                       >
                         {isUploadingPhoto ? (
                           <>
@@ -2736,14 +2472,14 @@ export const StaffView: React.FC = () => {
 
               {/* Informative text */}
               <div className="text-[10px] text-slate-400 leading-normal bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <p className="font-semibold text-slate-500 mb-0.5">💡 Room Customization &amp; Tracker</p>
-                Editing the room details or status instantly updates the live operational grid. To persist the modified rate and configuration, please click <span className="font-bold text-teal-600">Apply &amp; Save Settings</span> below.
+                <p className="font-semibold text-slate-500 mb-0.5">💡 Room Customization & Tracker</p>
+                Editing the room details or status instantly updates the live operational grid. To persist the modified rate and configuration, please click <span className="font-bold text-teal-600">Apply & Save Settings</span> below.
               </div>
 
             </div>
 
             {/* Footer */}
-            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-2.5 shrink-0">
+            <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex items-center justify-between gap-2.5">
               <button
                 type="button"
                 onClick={async () => {
@@ -2797,16 +2533,9 @@ export const StaffView: React.FC = () => {
 
                     await editRoomDetails(roomId, {
                       number: editRoomNumber,
-                      title: editRoomTitle,
                       price: finalPrice,
                       type: editRoomType,
                       capacity: editRoomCapacity,
-                      capacityText: editRoomCapacityText,
-                      bedSize: editRoomBedSize,
-                      windows: editRoomWindows,
-                      toilet: editRoomToilet,
-                      extra: editRoomExtra,
-                      startingPriceBanner: editRoomStartingPriceBanner,
                       status: editRoomStatus,
                       description: editRoomDescription,
                       amenities: editRoomAmenities,
@@ -2816,10 +2545,11 @@ export const StaffView: React.FC = () => {
                   }}
                   className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
                 >
-                  Apply &amp; Save Settings
+                  Apply & Save Settings
                 </button>
               </div>
             </div>
+
           </div>
         </div>
       )}

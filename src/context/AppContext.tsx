@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, GuestLogoSettings } from '../types';
+import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -116,27 +116,9 @@ interface AppContextType {
   recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
   masterStaffPasscode: string;
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
-  addStaffMember: (staffData: {
-    name: string;
-    email: string;
-    phone?: string;
-    role?: UserRole;
-    staffSecretKey?: string;
-    hrApproved?: boolean;
-  }) => Promise<{ success: boolean; error?: string }>;
-  // Guest View Logo & Branding Management
-  guestLogoSettings: GuestLogoSettings;
-  updateGuestLogoSettings: (settings: Partial<GuestLogoSettings>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-export const DEFAULT_LOGO_SETTINGS: GuestLogoSettings = {
-  showLogo: true,
-  logoType: 'emblem',
-  customLogoUrl: '',
-  logoText: 'ISLAMIA GUEST HOUSE'
-};
 
 const ADMIN_EMAIL_WHITELIST = [
   'islamiaguesthouse@gmail.com',
@@ -152,12 +134,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     name: 'Mr. Sajjad (Admin)',
     role: 'admin',
     hrApproved: true,
-    emailVerified: true,
-    isOnline: true,
-    lastLoginAt: new Date().toISOString(),
-    lastActiveAt: new Date().toISOString(),
-    loginMethod: 'passcode',
-    staffSecretKey: 'ADMIN2026'
+    emailVerified: true
   },
   {
     uid: 'local-admin-1',
@@ -165,12 +142,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     name: 'Sakar Chowdhury (Admin)',
     role: 'admin',
     hrApproved: true,
-    emailVerified: true,
-    isOnline: true,
-    lastLoginAt: new Date().toISOString(),
-    lastActiveAt: new Date().toISOString(),
-    loginMethod: 'passcode',
-    staffSecretKey: 'ADMIN2026'
+    emailVerified: true
   },
   {
     uid: 'local-admin-2',
@@ -178,11 +150,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     name: 'HR Manager',
     role: 'admin',
     hrApproved: true,
-    emailVerified: true,
-    isOnline: false,
-    lastLoginAt: new Date(Date.now() - 3600000).toISOString(),
-    lastActiveAt: new Date(Date.now() - 3600000).toISOString(),
-    loginMethod: 'passcode'
+    emailVerified: true
   },
   {
     uid: 'local-admin-3',
@@ -190,9 +158,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     name: 'Islamia Admin Executive',
     role: 'admin',
     hrApproved: true,
-    emailVerified: true,
-    isOnline: false,
-    loginMethod: 'passcode'
+    emailVerified: true
   },
   {
     uid: 'local-staff-1',
@@ -201,11 +167,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     role: 'staff',
     staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: true,
-    emailVerified: true,
-    isOnline: true,
-    lastLoginAt: new Date().toISOString(),
-    lastActiveAt: new Date().toISOString(),
-    loginMethod: 'passcode'
+    emailVerified: true
   },
   {
     uid: 'local-staff-2',
@@ -214,40 +176,16 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     role: 'staff',
     staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: false,
-    emailVerified: true,
-    isOnline: false,
-    lastLoginAt: new Date(Date.now() - 86400000).toISOString(),
-    loginMethod: 'passcode'
+    emailVerified: true
   }
 ];
 
-export const getDeletedUserEmails = (): Set<string> => {
-  try {
-    const raw = localStorage.getItem('hotel_deleted_user_emails');
-    if (raw) {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        return new Set(arr.map((e: string) => e.toLowerCase()));
-      }
-    }
-  } catch (e) {}
-  return new Set<string>();
-};
-
-export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], activeUser?: UserProfile | null): UserProfile[] => {
+export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[]): UserProfile[] => {
   const map = new Map<string, UserProfile>();
-  const deletedSet = getDeletedUserEmails();
-
-  DEFAULT_SYSTEM_USERS.forEach(u => {
-    const emailLower = u.email.toLowerCase();
-    if (!deletedSet.has(emailLower)) {
-      map.set(emailLower, { ...u });
-    }
-  });
-
+  DEFAULT_SYSTEM_USERS.forEach(u => map.set(u.email.toLowerCase(), u));
   (fetchedList || []).forEach(u => {
     const emailLower = u.email ? u.email.toLowerCase() : '';
-    if (emailLower && !deletedSet.has(emailLower)) {
+    if (emailLower) {
       const existing = map.get(emailLower);
       if (existing) {
         map.set(emailLower, { ...existing, ...u });
@@ -256,31 +194,6 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
       }
     }
   });
-
-  // Always mark the currently active user as online
-  if (activeUser?.email) {
-    const activeEmailLower = activeUser.email.toLowerCase();
-    const existing = map.get(activeEmailLower);
-    if (existing) {
-      map.set(activeEmailLower, {
-        ...existing,
-        isOnline: true,
-        lastActiveAt: new Date().toISOString(),
-        lastLoginAt: existing.lastLoginAt || new Date().toISOString()
-      });
-    }
-  }
-
-  // If in admin mode or authorized, ensure islamiaguesthouse@gmail.com (Mr. Sajjad) is live online
-  const sajjad = map.get('islamiaguesthouse@gmail.com');
-  if (sajjad) {
-    sajjad.name = 'Mr. Sajjad (Admin)';
-    sajjad.role = 'admin';
-    sajjad.hrApproved = true;
-    sajjad.isOnline = true;
-    sajjad.lastActiveAt = sajjad.lastActiveAt || new Date().toISOString();
-  }
-
   return Array.from(map.values());
 };
 
@@ -391,17 +304,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  // Website Guest View Logo & Branding State
-  const [guestLogoSettings, setGuestLogoSettings] = useState<GuestLogoSettings>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_guest_logo_settings');
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {}
-    return DEFAULT_LOGO_SETTINGS;
-  });
-
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeToast, setActiveToast] = useState<ToastInfo | null>(null);
@@ -443,10 +345,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 1. Validate Connection to Firestore (Skill Requirement)
       const testConnection = async () => {
         try {
-          await getDoc(doc(db, 'test', 'connection'));
+          await getDocFromServer(doc(db, 'test', 'connection'));
         } catch (error) {
           // Graceful fallback when offline or server check is delayed
-          console.warn("Firestore connection check in offline/cache mode.");
+          console.log("Firestore status: Operating in offline/cached mode until backend reconnected.");
         }
       };
       testConnection().catch(() => {});
@@ -619,32 +521,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleFirestoreError(error, OperationType.GET, 'feedbacks');
       });
 
-      // 4. Realtime settings collection listener for guest view logo and branding
-      const unsubSettings = onSnapshot(doc(db, 'settings', 'guest_logo'), (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data() as any;
-          const syncedSettings: GuestLogoSettings = {
-            showLogo: data.showLogo ?? true,
-            logoType: data.logoType || 'emblem',
-            customLogoUrl: data.customLogoUrl || '',
-            logoText: data.logoText || 'ISLAMIA GUEST HOUSE',
-            updatedAt: data.updatedAt,
-            updatedBy: data.updatedBy
-          };
-          setGuestLogoSettings(syncedSettings);
-          try {
-            localStorage.setItem('hotel_guest_logo_settings', JSON.stringify(syncedSettings));
-          } catch (e) {}
-        }
-      }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'settings/guest_logo');
-      });
-
       return () => {
         unsubscribeAuth();
         unsubRooms();
         unsubFeedbacks();
-        unsubSettings();
       };
     } else {
       // Offline Local Storage Sandbox Fallback
@@ -869,7 +749,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const data = docSnap.data() as UserProfile;
           usersList.push({ uid: docSnap.id, ...data });
         });
-        const merged = mergeWithDefaultRegisteredUsers(usersList, currentUser);
+        const merged = mergeWithDefaultRegisteredUsers(usersList);
         setRegisteredUsers(merged);
         try {
           localStorage.setItem('hotel_registered_users', JSON.stringify(merged));
@@ -939,7 +819,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const stored = localStorage.getItem('hotel_registered_users');
       if (stored) {
         try {
-          setRegisteredUsers(mergeWithDefaultRegisteredUsers(JSON.parse(stored), currentUser));
+          setRegisteredUsers(mergeWithDefaultRegisteredUsers(JSON.parse(stored)));
         } catch (err) {}
       }
       const storedMaster = localStorage.getItem('master_staff_passcode');
@@ -955,7 +835,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('storage', handleStorageOrCustom);
       window.removeEventListener('hotel_presence_updated', handleStorageOrCustom);
     };
-  }, [currentUser]);
+  }, []);
 
   // Local storage offline caching helper
   useEffect(() => {
@@ -1077,16 +957,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteStaffAccount = async (email: string, uid?: string) => {
     const emailLower = email.trim().toLowerCase();
     
-    // Add to deleted blacklist in localStorage so it never resurrects
-    try {
-      const existingDeleted = Array.from(getDeletedUserEmails());
-      if (!existingDeleted.includes(emailLower)) {
-        existingDeleted.push(emailLower);
-        localStorage.setItem('hotel_deleted_user_emails', JSON.stringify(existingDeleted));
-      }
-    } catch (e) {}
-
-    // 1. Update local state immediately
     setRegisteredUsers(prev => {
       const updated = prev.filter(u => u.email.toLowerCase() !== emailLower);
       try {
@@ -1096,11 +966,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    // 2. Delete from Firestore if active
     if (isFirebaseActive && db) {
       try {
         const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
-        const targetUid = uid || targetUser?.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const targetUid = uid || targetUser?.uid;
         if (targetUid) {
           await deleteDoc(doc(db, 'users', targetUid));
         }
@@ -1125,65 +994,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }, { merge: true });
       } catch (e) {}
     }
-  };
-
-  const addStaffMember = async (staffData: {
-    name: string;
-    email: string;
-    phone?: string;
-    role?: UserRole;
-    staffSecretKey?: string;
-    hrApproved?: boolean;
-  }): Promise<{ success: boolean; error?: string }> => {
-    const emailLower = staffData.email.trim().toLowerCase();
-    if (!emailLower) {
-      return { success: false, error: 'Email address is required.' };
-    }
-    if (!staffData.name.trim()) {
-      return { success: false, error: 'Staff name is required.' };
-    }
-
-    const now = new Date().toISOString();
-    const userUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}-${Date.now().toString().slice(-4)}`;
-    const newProfile: UserProfile = {
-      uid: userUid,
-      email: emailLower,
-      name: staffData.name.trim(),
-      role: staffData.role || 'staff',
-      phone: staffData.phone?.trim() || '',
-      staffSecretKey: staffData.staffSecretKey?.trim() || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
-      hrApproved: staffData.hrApproved !== undefined ? staffData.hrApproved : true,
-      emailVerified: true,
-      isOnline: false,
-      registeredAt: now,
-      lastLoginAt: now,
-      lastActiveAt: now,
-      loginMethod: 'passcode'
-    };
-
-    setRegisteredUsers(prev => {
-      const next = [...prev.filter(u => u.email.toLowerCase() !== emailLower), newProfile];
-      try {
-        localStorage.setItem('hotel_registered_users', JSON.stringify(next));
-        window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: newProfile }));
-      } catch (e) {}
-      return next;
-    });
-
-    if (isFirebaseActive && db) {
-      try {
-        await setDoc(doc(db, 'users', userUid), sanitizeFirestoreData(newProfile));
-      } catch (e) {
-        console.warn("Notice saving new staff user to Firestore (using local fallback):", e);
-      }
-    }
-
-    showToast({
-      type: 'success',
-      message: `🎉 Staff member "${newProfile.name}" (${newProfile.email}) added to HR registry successfully!`
-    });
-
-    return { success: true };
   };
 
   // Auth Functions
@@ -1364,24 +1174,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               });
               return { success: true, otpCode: 'Resent_Verification' };
             } else {
+              const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
               let profile: UserProfile;
-              try {
-                const userSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
-                if (userSnap.exists()) {
-                  profile = userSnap.data() as UserProfile;
-                } else {
-                  const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || 'guest';
-                  const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || 'Guest User';
-                  profile = {
-                    uid: userCredential.user.uid,
-                    email: emailLower,
-                    name: pendingName,
-                    role: pendingRole
-                  };
-                  await setDoc(doc(db, 'users', profile.uid), profile);
-                }
-              } catch (docErr) {
-                console.warn("Could not fetch user document online, using fallback:", docErr);
+              if (userSnap.exists()) {
+                profile = userSnap.data() as UserProfile;
+              } else {
                 const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || 'guest';
                 const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || 'Guest User';
                 profile = {
@@ -1390,6 +1187,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   name: pendingName,
                   role: pendingRole
                 };
+                await setDoc(doc(db, 'users', profile.uid), profile);
               }
               setCurrentUser(profile);
               setCurrentRole(profile.role);
@@ -1509,24 +1307,11 @@ Islamia Guest House Dhanmondi System`;
               return { success: false, error: 'Your email address is not verified yet. Please check your Gmail inbox and click the verification link from Firebase, then click verify again.' };
             }
             
+            const userSnap = await getDocFromServer(doc(db, 'users', userCredential.user.uid));
             let profile: UserProfile;
-            try {
-              const userSnap = await getDoc(doc(db, 'users', userCredential.user.uid));
-              if (userSnap.exists()) {
-                profile = userSnap.data() as UserProfile;
-              } else {
-                const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || role || 'guest';
-                const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || name || 'Guest User';
-                profile = {
-                  uid: userCredential.user.uid,
-                  email: emailLower,
-                  name: pendingName,
-                  role: pendingRole
-                };
-                await setDoc(doc(db, 'users', profile.uid), profile);
-              }
-            } catch (docErr) {
-              console.warn("Could not fetch user document online in verifyOtp, using fallback:", docErr);
+            if (userSnap.exists()) {
+              profile = userSnap.data() as UserProfile;
+            } else {
               const pendingRole = (localStorage.getItem(`pending_role_${emailLower}`) as UserRole) || role || 'guest';
               const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || name || 'Guest User';
               profile = {
@@ -1535,6 +1320,7 @@ Islamia Guest House Dhanmondi System`;
                 name: pendingName,
                 role: pendingRole
               };
+              await setDoc(doc(db, 'users', profile.uid), profile);
             }
             setCurrentUser(profile);
             setCurrentRole(profile.role);
@@ -1784,20 +1570,12 @@ Islamia Guest House Dhanmondi System`;
       id: newId,
       number: roomData.number || newId,
       type: roomData.type || 'single',
-      title: roomData.title || (roomData.type ? `${roomData.type.charAt(0).toUpperCase() + roomData.type.slice(1)} Room` : 'Guest Room'),
       price: roomData.price || 1500,
       status: roomData.status || 'available',
       capacity: roomData.capacity || 2,
-      capacityText: roomData.capacityText || (roomData.capacity === 1 ? '1 Person' : `${roomData.capacity || 2} Persons`),
-      bedSize: roomData.bedSize || 'Standard Bed',
-      windows: roomData.windows || 'East Facing',
-      toilet: roomData.toilet || 'Private High Commode Toilet',
-      extra: roomData.extra || 'Cloth Rack',
-      startingPriceBanner: roomData.startingPriceBanner || '',
-      description: roomData.description || `${roomData.title || roomData.type} at Islamia Guest House`,
+      description: roomData.description || `${roomData.type ? roomData.type.toUpperCase() : 'Guest'} Room at Islamia Guest House`,
       image: roomData.image || (roomData as any).imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
-      images: roomData.images && roomData.images.length > 0 ? roomData.images : (roomData.image ? [roomData.image] : []),
-      amenities: roomData.amenities || ['Free WiFi', 'TV', '24/7 Electricity', 'Private Toilet']
+      amenities: roomData.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
     };
 
     // Optimistically update local state & localStorage immediately
@@ -1908,7 +1686,7 @@ Location:
 House No: 55/C/1, Road No: 9/A, Dhanmondi-1209, Dhaka
 (Opposite Ibne Sina 9/A, Behind Meena Bazar)
 
-Hotline & bKash Payment: 01832-841818
+Hotline & bKash: 01832-841818
 Call: 01909-806960
 WhatsApp: 01799-148408
 Thank you for choosing Islamia Guest House!`;
@@ -1989,7 +1767,7 @@ House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209, Dhaka, Bangladesh
 Landmarks: Opposite Ibne Sina 9/A, Behind Meena Bazar, Adjacent to Northern Medical College Building
 
 For any support or questions, please reach us on:
-- bKash Payment / Hotline: 01832-841818
+- bKash/Hotline: 01832-841818
 - Phone Call: 01909-806960
 - WhatsApp: 01799-148408
 
@@ -2296,41 +2074,6 @@ Islamia Guest House, Dhanmondi`;
     }
   };
 
-  const updateGuestLogoSettings = async (settings: Partial<GuestLogoSettings>) => {
-    const updated: GuestLogoSettings = {
-      ...guestLogoSettings,
-      ...settings,
-      updatedAt: new Date().toISOString(),
-      updatedBy: currentUser?.name || currentUser?.email || 'Admin'
-    };
-
-    setGuestLogoSettings(updated);
-    try {
-      localStorage.setItem('hotel_guest_logo_settings', JSON.stringify(updated));
-    } catch (e) {}
-
-    if (isFirebaseActive && db) {
-      const settingPath = 'settings/guest_logo';
-      try {
-        await setDoc(doc(db, 'settings', 'guest_logo'), sanitizeFirestoreData({
-          id: 'guest_logo',
-          ...updated
-        }));
-        showToast({
-          message: updated.showLogo ? "✅ Guest view logo updated & enabled!" : "🔒 Guest view logo removed / hidden.",
-          type: 'success'
-        });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, settingPath);
-      }
-    } else {
-      showToast({
-        message: updated.showLogo ? "✅ Guest view logo updated & enabled!" : "🔒 Guest view logo removed / hidden.",
-        type: 'success'
-      });
-    }
-  };
-
   return (
     <AppContext.Provider value={{
       rooms,
@@ -2382,10 +2125,7 @@ Islamia Guest House, Dhanmondi`;
       deleteStaffAccount,
       recordStaffSignIn,
       masterStaffPasscode,
-      updateMasterStaffPasscode,
-      addStaffMember,
-      guestLogoSettings,
-      updateGuestLogoSettings
+      updateMasterStaffPasscode
     }}>
       {children}
     </AppContext.Provider>

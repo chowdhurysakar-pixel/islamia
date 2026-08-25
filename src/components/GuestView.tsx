@@ -55,8 +55,7 @@ export const GuestView: React.FC = () => {
     deleteFeedback,
     triggerSmsConfirmation,
     getBookingSmsText,
-    showToast,
-    guestLogoSettings
+    showToast
   } = useApp();
 
   // Instant Text confirmation states
@@ -562,10 +561,10 @@ export const GuestView: React.FC = () => {
               href="tel:+8801832841818"
               id="top-bkash-header-badge"
               className="inline-flex items-center gap-1.5 bg-[#f6f4ee] hover:bg-[#ece8dc] text-[#0e2b33] px-2.5 py-1 rounded border border-[#e5dfd3] text-[10.5px] font-bold tracking-tight shadow-2xs transition active:scale-95 cursor-pointer"
-              title="Official bKash Payment & Hotline: 01832-841818"
+              title="Official bKash Merchant & Hotline: 01832-841818"
             >
               <BkashLogo className="w-3.5 h-3.5 shrink-0 rounded-xs" />
-              <span>bKash Payment: <span className="font-mono text-slate-900">01832-841818</span></span>
+              <span>bKash: <span className="font-mono text-slate-900">01832-841818</span></span>
             </a>
             {currentUser ? (
               <div className="flex items-center gap-1.5 bg-[#e8e0d2] px-2.5 py-1 rounded-lg border border-[#af8a52]/30 text-[#0e2b33]">
@@ -649,26 +648,12 @@ export const GuestView: React.FC = () => {
             }} 
             className="flex items-center gap-2.5 group cursor-pointer"
           >
-            {guestLogoSettings?.showLogo && (
-              guestLogoSettings.customLogoUrl ? (
-                <img 
-                  src={guestLogoSettings.customLogoUrl} 
-                  alt={guestLogoSettings.logoText || "Islamia Guest House"} 
-                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-md object-contain border border-[#af8a52]/40 shadow-xs group-hover:scale-105 transition bg-white"
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
-              ) : (
-                <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition">
-                  ◆
-                </span>
-              )
-            )}
+            <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition">
+              ◆
+            </span>
             <div className="flex flex-col">
               <span className="font-serif text-base sm:text-xl text-[#0e2b33] font-bold tracking-tight leading-tight">
-                {guestLogoSettings?.logoText || "ISLAMIA GUEST HOUSE"}
+                ISLAMIA GUEST HOUSE
               </span>
               <span className="text-[9px] tracking-[0.25em] text-[#af8a52] font-semibold uppercase">
                 DHANMONDI, DHAKA
@@ -2192,7 +2177,7 @@ export const GuestView: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
-                        bKash Payment (Merchant / Personal)
+                        bKash (Merchant / Personal)
                       </p>
                       <p className="text-sm font-mono font-bold text-slate-100">01832-841818</p>
                     </div>
@@ -2276,22 +2261,8 @@ export const GuestView: React.FC = () => {
           <div className="flex flex-col md:flex-row justify-between items-start gap-8 pb-8 border-b border-white/10">
             <div>
               <div className="font-serif text-xl text-[#af8a52] font-semibold tracking-wide mb-2 flex items-center gap-2">
-                {guestLogoSettings?.showLogo && (
-                  guestLogoSettings.customLogoUrl ? (
-                    <img 
-                      src={guestLogoSettings.customLogoUrl} 
-                      alt={guestLogoSettings.logoText || "Logo"} 
-                      className="w-6 h-6 rounded object-contain border border-[#d7bd8a]/40 bg-white"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <span className="text-[#af8a52]">◆</span>
-                  )
-                )}
-                <span>{guestLogoSettings?.logoText || "ISLAMIA GUEST HOUSE"}</span>
+                <span className="text-[#af8a52]">◆</span>
+                <span>ISLAMIA GUEST HOUSE</span>
               </div>
               <p className="text-xs text-[#efe8d8]/60 max-w-sm leading-relaxed">
                 Dhanmondi Road 9/A. Homely luxury, family-friendly security, and peaceful accommodations.
