@@ -5,7 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Room, RoomType, RoomStatus } from '../types';
-import { OFFICIAL_ROOM_TYPES, RoomTypePreset } from '../data/roomTypePresets';
 import { 
   X, 
   Save, 
@@ -25,8 +24,7 @@ import {
   FileText, 
   Image as ImageIcon,
   Sliders,
-  Type,
-  Layers
+  Type
 } from 'lucide-react';
 
 interface EditRoomModalProps {
@@ -342,51 +340,6 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
         {/* Modal Body Form */}
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1 text-slate-800">
           
-          {/* Quick Apply from 6 Official Room Types */}
-          <div className="bg-[#0e2b33]/5 border border-[#af8a52]/30 rounded-2xl p-4 space-y-2.5">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Layers className="w-4 h-4 text-[#af8a52]" />
-                <span className="text-xs font-bold text-[#0e2b33]">Load Specifications from 6 Official Room Types</span>
-              </div>
-              <span className="text-[10.5px] text-slate-500 font-medium">Click to auto-populate specifications</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-              {OFFICIAL_ROOM_TYPES.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => {
-                    setTitle(preset.name);
-                    setType(preset.roomType);
-                    setPrice(preset.defaultPrice);
-                    setCapacity(preset.capacity);
-                    setCapacityText(preset.capacityText);
-                    setBedSize(preset.bedSize);
-                    setWindows(preset.windows);
-                    setToilet(preset.toilet);
-                    setExtra(preset.extra);
-                    if (preset.startingPriceBanner) {
-                      setStartingPriceBanner(preset.startingPriceBanner);
-                    }
-                    setAmenities([...preset.amenities]);
-                    setDescription(preset.description);
-                    if (showToast) {
-                      showToast({
-                        type: 'info',
-                        message: `Loaded template: ${preset.name}`
-                      });
-                    }
-                  }}
-                  className="p-2 bg-white hover:bg-amber-50/60 border border-slate-200 hover:border-[#af8a52] rounded-xl text-left transition text-[10px] cursor-pointer group shadow-2xs"
-                >
-                  <div className="font-bold text-slate-800 group-hover:text-[#af8a52] truncate">{preset.name}</div>
-                  <div className="text-slate-400 font-mono">৳{preset.defaultPrice}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Section 1: Title, Category & Pricing */}
           <div className="space-y-3">
             <div className="text-xs font-mono font-bold text-[#0e2b33] uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-1.5">

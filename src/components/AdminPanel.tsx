@@ -6,7 +6,6 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from '../types';
-import { OFFICIAL_ROOM_TYPES, RoomTypePreset } from '../data/roomTypePresets';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { 
@@ -16,7 +15,7 @@ import {
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
   ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
   Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare,
-  BedDouble, Compass, Bath, Shirt, Tag, Wind, Tv, Wifi, Sliders, Layers
+  Image as ImageIcon, ToggleLeft, ToggleRight, Sliders, Globe, Palette, Layers
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -95,7 +94,9 @@ export const AdminPanel: React.FC = () => {
     masterStaffPasscode,
     updateMasterStaffPasscode,
     currentUser,
-    currentRole
+    currentRole,
+    guestLogoSettings,
+    updateGuestLogoSettings
   } = useApp();
 
   // Admin Active Tab
@@ -178,70 +179,14 @@ export const AdminPanel: React.FC = () => {
     return new Date().toISOString().split('T')[0];
   });
 
-  // Chamber Creation / Editing State with 6 Official Room Types
+  // Chamber Creation / Editing State
   const [isAddRoomOpen, setIsAddRoomOpen] = useState<boolean>(false);
-  const [selectedPresetId, setSelectedPresetId] = useState<string>('double-deluxe');
-  const [newRoomTitle, setNewRoomTitle] = useState<string>('Double Deluxe');
   const [newRoomNo, setNewRoomNo] = useState<string>('');
-  const [newRoomType, setNewRoomType] = useState<RoomType>('deluxe');
-  const [newRoomPrice, setNewRoomPrice] = useState<number>(2500);
-  const [newRoomCapacity, setNewRoomCapacity] = useState<number>(4);
-  const [newRoomCapacityText, setNewRoomCapacityText] = useState<string>('4 Adults');
-  const [newRoomBedSize, setNewRoomBedSize] = useState<string>('Double + Double');
-  const [newRoomWindows, setNewRoomWindows] = useState<string>('West & South Facing');
-  const [newRoomToilet, setNewRoomToilet] = useState<string>('Private Toilet (High Commode)');
-  const [newRoomExtra, setNewRoomExtra] = useState<string>('Cloth Rack');
-  const [newRoomStartingPriceBanner, setNewRoomStartingPriceBanner] = useState<string>('');
-  const [newRoomAmenities, setNewRoomAmenities] = useState<string[]>([
-    'TV', 'Free WiFi', 'Common Refrigeration', 'Tea Table', '24/7 Electricity', 'Stand Lamp', 'Sofa', 'AC/Non-AC'
-  ]);
-  const [newRoomDesc, setNewRoomDesc] = useState<string>('Double Deluxe room with spacious layout featuring two double beds, dual aspect windows (West & South), and complete luxury amenities for up to 4 adults.');
-  const [newRoomImg, setNewRoomImg] = useState<string>('https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800&q=80');
-  const [customAmenityInput, setCustomAmenityInput] = useState<string>('');
-
-  const applyRoomPreset = (preset: RoomTypePreset) => {
-    setSelectedPresetId(preset.id);
-    setNewRoomTitle(preset.name);
-    setNewRoomType(preset.roomType);
-    setNewRoomPrice(preset.defaultPrice);
-    setNewRoomCapacity(preset.capacity);
-    setNewRoomCapacityText(preset.capacityText);
-    setNewRoomBedSize(preset.bedSize);
-    setNewRoomWindows(preset.windows);
-    setNewRoomToilet(preset.toilet);
-    setNewRoomExtra(preset.extra);
-    setNewRoomStartingPriceBanner(preset.startingPriceBanner || '');
-    setNewRoomAmenities([...preset.amenities]);
-    setNewRoomDesc(preset.description);
-    setNewRoomImg(preset.defaultImage);
-  };
-
-  const handleOpenAddRoom = (presetId?: string) => {
-    const numericIds = rooms.map(r => Number(r.number) || Number(r.id) || 0).filter(n => !isNaN(n));
-    const maxVal = numericIds.length > 0 ? Math.max(...numericIds) : 100;
-    const nextNo = (maxVal >= 100 ? maxVal + 1 : 104).toString();
-    setNewRoomNo(nextNo);
-
-    const preset = OFFICIAL_ROOM_TYPES.find(p => p.id === presetId) || OFFICIAL_ROOM_TYPES[0];
-    applyRoomPreset(preset);
-    setIsAddRoomOpen(true);
-  };
-
-  const toggleNewRoomAmenity = (amenityName: string) => {
-    if (newRoomAmenities.includes(amenityName)) {
-      setNewRoomAmenities(newRoomAmenities.filter(a => a !== amenityName));
-    } else {
-      setNewRoomAmenities([...newRoomAmenities, amenityName]);
-    }
-  };
-
-  const addCustomNewRoomAmenity = () => {
-    const trimmed = customAmenityInput.trim();
-    if (trimmed && !newRoomAmenities.includes(trimmed)) {
-      setNewRoomAmenities([...newRoomAmenities, trimmed]);
-      setCustomAmenityInput('');
-    }
-  };
+  const [newRoomType, setNewRoomType] = useState<RoomType>('single');
+  const [newRoomPrice, setNewRoomPrice] = useState<number>(1500);
+  const [newRoomCapacity, setNewRoomCapacity] = useState<number>(2);
+  const [newRoomDesc, setNewRoomDesc] = useState<string>('');
+  const [newRoomImg, setNewRoomImg] = useState<string>('');
 
   // Editing price modal / state
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
@@ -256,6 +201,72 @@ export const AdminPanel: React.FC = () => {
     return localStorage.getItem('property_address') || 'House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209';
   });
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
+
+  // Guest View Logo & Branding Management States
+  const [logoShowToggle, setLogoShowToggle] = useState<boolean>(() => guestLogoSettings?.showLogo ?? true);
+  const [logoTypeChoice, setLogoTypeChoice] = useState<'emblem' | 'image'>(() => guestLogoSettings?.logoType || 'emblem');
+  const [logoUrlInput, setLogoUrlInput] = useState<string>(() => guestLogoSettings?.customLogoUrl || '');
+  const [logoTextInput, setLogoTextInput] = useState<string>(() => guestLogoSettings?.logoText || 'ISLAMIA GUEST HOUSE');
+  const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
+  const [isSavingLogo, setIsSavingLogo] = useState<boolean>(false);
+
+  // Sync state when context settings update from Firestore/Local
+  React.useEffect(() => {
+    if (guestLogoSettings) {
+      setLogoShowToggle(guestLogoSettings.showLogo ?? true);
+      setLogoTypeChoice(guestLogoSettings.logoType || 'emblem');
+      setLogoUrlInput(guestLogoSettings.customLogoUrl || '');
+      setLogoTextInput(guestLogoSettings.logoText || 'ISLAMIA GUEST HOUSE');
+    }
+  }, [guestLogoSettings]);
+
+  const handleLogoFileUpload = async (file: File) => {
+    try {
+      setIsUploadingLogo(true);
+      const dataUrl = await processUploadedImage(file);
+      setLogoUrlInput(dataUrl);
+      setLogoTypeChoice('image');
+      showToast({
+        type: 'info',
+        message: '📷 Custom logo photo loaded into preview. Click "Save & Publish to Live Guest View" to persist.'
+      });
+    } catch (e: any) {
+      showToast({
+        type: 'warning',
+        message: e?.message || 'Failed to upload logo image.'
+      });
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleSaveLogoSettings = async () => {
+    setIsSavingLogo(true);
+    try {
+      await updateGuestLogoSettings({
+        showLogo: logoShowToggle,
+        logoType: logoTypeChoice,
+        customLogoUrl: logoTypeChoice === 'image' ? logoUrlInput : '',
+        logoText: logoTextInput.trim() || 'ISLAMIA GUEST HOUSE'
+      });
+    } catch (e: any) {
+      showToast({
+        type: 'warning',
+        message: 'Could not save logo settings.'
+      });
+    } finally {
+      setIsSavingLogo(false);
+    }
+  };
+
+  const handleToggleLogoVisibilityQuick = async (newValue: boolean) => {
+    setLogoShowToggle(newValue);
+    try {
+      await updateGuestLogoSettings({
+        showLogo: newValue
+      });
+    } catch (e) {}
+  };
 
   // Staff Deletion Modal & Async Action States
   const [userPendingDeletion, setUserPendingDeletion] = useState<UserProfile | null>(null);
@@ -644,26 +655,22 @@ export const AdminPanel: React.FC = () => {
 
     await addRoom({
       number: trimmedNo,
-      title: newRoomTitle,
       type: newRoomType,
       price: parsedPrice,
       status: 'available',
       capacity: parsedCapacity,
-      capacityText: newRoomCapacityText,
-      bedSize: newRoomBedSize,
-      windows: newRoomWindows,
-      toilet: newRoomToilet,
-      extra: newRoomExtra,
-      startingPriceBanner: newRoomStartingPriceBanner.trim() || undefined,
-      description: newRoomDesc || `${newRoomTitle} at Islamia Guest House Dhanmondi`,
+      description: newRoomDesc || `${newRoomType.toUpperCase()} Room at Islamia Guest House Dhanmondi`,
       image: newRoomImg || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
-      amenities: newRoomAmenities.length > 0 ? newRoomAmenities : ['Free WiFi', '24/7 Electricity', 'Tea Table']
+      amenities: ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Clean Toiletries']
     });
 
     setIsAddRoomOpen(false);
+    setNewRoomNo('');
+    setNewRoomDesc('');
+    setNewRoomImg('');
     showToast({
       type: 'success',
-      message: `🏨 New Room #${trimmedNo} (${newRoomTitle}) added to inventory!`
+      message: `🏨 New Room #${trimmedNo} added to inventory!`
     });
   };
 
@@ -1692,14 +1699,14 @@ export const AdminPanel: React.FC = () => {
       {activeTab === 'chambers' && (
         <div className="space-y-6 animate-fadeIn">
           {/* Room Control Bar */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
                   <Building className="w-4 h-4 text-teal-600" />
                   <span>Room Inventory &amp; Tariff Management</span>
                 </h3>
-                <p className="text-xs text-slate-400">Add new rooms across 6 official room types, update nightly pricing (৳), and manage room statuses.</p>
+                <p className="text-xs text-slate-400">Add new rooms, update nightly pricing (৳), and change room maintenance statuses.</p>
               </div>
 
               <div className="flex items-center gap-3 w-full sm:w-auto">
@@ -1715,48 +1722,12 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <button
-                  type="button"
-                  onClick={() => handleOpenAddRoom()}
+                  onClick={() => setIsAddRoomOpen(true)}
                   className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-2 cursor-pointer shrink-0 shadow-sm"
                 >
                   <Plus className="w-4 h-4 text-teal-400" />
                   <span>Add Room</span>
                 </button>
-              </div>
-            </div>
-
-            {/* Quick 6 Room Type Templates */}
-            <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3.5 space-y-2.5">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-teal-600" />
-                  <span className="text-xs font-bold text-slate-800">6 Official Room Types &amp; Specifications</span>
-                </div>
-                <span className="text-[11px] text-slate-500 font-medium">Click any room type below to quickly add a room</span>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                {OFFICIAL_ROOM_TYPES.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => handleOpenAddRoom(preset.id)}
-                    className="p-2.5 bg-white hover:bg-teal-50/60 border border-slate-200 hover:border-teal-400 rounded-xl text-left transition group shadow-2xs cursor-pointer flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-1 mb-1">
-                        <span className="text-[11px] font-bold text-slate-850 group-hover:text-teal-700 leading-tight">
-                          {preset.name}
-                        </span>
-                        <Plus className="w-3 h-3 text-slate-400 group-hover:text-teal-600 shrink-0" />
-                      </div>
-                      <p className="text-[9.5px] text-slate-500 line-clamp-1 mb-1">{preset.bedSize}</p>
-                    </div>
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[9.5px]">
-                      <span className="font-mono font-bold text-teal-700">৳{preset.defaultPrice.toLocaleString()}</span>
-                      <span className="text-slate-400">{preset.capacityText}</span>
-                    </div>
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -1766,7 +1737,7 @@ export const AdminPanel: React.FC = () => {
                 <thead className="bg-slate-50 text-slate-500 font-mono uppercase text-[10px] tracking-wider border-b border-slate-200/60">
                   <tr>
                     <th className="p-3">Room #</th>
-                    <th className="p-3">Category / Room Type</th>
+                    <th className="p-3">Category</th>
                     <th className="p-3">Nightly Tariff (৳)</th>
                     <th className="p-3">Capacity</th>
                     <th className="p-3">Current Status</th>
@@ -1780,14 +1751,9 @@ export const AdminPanel: React.FC = () => {
                         #{room.number}
                       </td>
                       <td className="p-3">
-                        <div>
-                          <span className="font-bold text-slate-800">
-                            {room.title || `${room.type.charAt(0).toUpperCase() + room.type.slice(1)} Room`}
-                          </span>
-                          {room.bedSize && (
-                            <span className="block text-[10px] text-slate-400 font-mono">{room.bedSize}</span>
-                          )}
-                        </div>
+                        <span className="font-semibold text-slate-800 capitalize">
+                          {room.type} Room
+                        </span>
                       </td>
                       <td className="p-3 font-mono font-bold text-teal-700">
                         {editingRoomId === room.id ? (
@@ -2358,6 +2324,352 @@ export const AdminPanel: React.FC = () => {
       {/* TAB 6: SYSTEM SETTINGS & PROPERTY AUDIT */}
       {activeTab === 'settings' && (
         <div className="space-y-6 animate-fadeIn">
+          {/* FEATURE: WEBSITE GUEST VIEW LOGO & BRANDING MANAGEMENT */}
+          <div id="admin-guest-logo-settings-card" className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
+                    <ImageIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
+                      <span>Website Guest View Logo &amp; Branding</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        logoShowToggle 
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}>
+                        {logoShowToggle ? '● Logo Active on Website' : '○ Logo Hidden'}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Add, remove, or customize the brand emblem and logo image displayed to visitors on the guest portal.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Instant Quick Visibility Switch */}
+              <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                <span className="text-xs font-semibold text-slate-700">
+                  {logoShowToggle ? 'Logo Visible' : 'Logo Removed'}
+                </span>
+                <button
+                  id="admin-toggle-guest-logo-btn"
+                  type="button"
+                  onClick={() => handleToggleLogoVisibilityQuick(!logoShowToggle)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    logoShowToggle ? 'bg-amber-600' : 'bg-slate-300'
+                  }`}
+                  title={logoShowToggle ? 'Click to Remove Logo from Guest View' : 'Click to Add/Show Logo in Guest View'}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      logoShowToggle ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: Logo Configuration Controls */}
+              <div className="lg:col-span-7 space-y-5">
+                {/* 1. Logo Display Toggle Banner */}
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  logoShowToggle 
+                    ? 'bg-amber-50/50 border-amber-200/80 text-amber-950' 
+                    : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold flex items-center gap-1.5">
+                        {logoShowToggle ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4 text-amber-600" />
+                            <span>Logo is currently enabled for guest visitors</span>
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-4 h-4 text-slate-500" />
+                            <span>Logo is currently removed / hidden</span>
+                          </>
+                        )}
+                      </h4>
+                      <p className="text-[11px] text-slate-600 leading-relaxed">
+                        {logoShowToggle
+                          ? 'Guests will see the selected emblem or custom logo photo in the navigation bar and footer.'
+                          : 'Guests will only see the text brand name without any icon or image logo in the header and footer.'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleLogoVisibilityQuick(!logoShowToggle)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
+                        logoShowToggle 
+                          ? 'bg-white border border-amber-300 text-amber-800 hover:bg-amber-100' 
+                          : 'bg-slate-900 text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      {logoShowToggle ? 'Remove Logo' : 'Add Logo'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Logo Style / Type Selector */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Select Logo Type / Asset
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setLogoTypeChoice('emblem')}
+                      className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between gap-2 ${
+                        logoTypeChoice === 'emblem'
+                          ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-400/20'
+                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="w-7 h-7 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-xs">
+                          ◆
+                        </span>
+                        {logoTypeChoice === 'emblem' && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">Selected</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-850">Classic Gold Crest</div>
+                        <div className="text-[10px] text-slate-500">Luxury Islamia signature emblem</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setLogoTypeChoice('image')}
+                      className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between gap-2 ${
+                        logoTypeChoice === 'image'
+                          ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-400/20'
+                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center shadow-xs">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                        {logoTypeChoice === 'image' && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">Selected</span>
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-850">Custom Image Photo</div>
+                        <div className="text-[10px] text-slate-500">Upload PNG, SVG, or WebP logo</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. Custom Image Upload & URL input (Active when 'image' is chosen) */}
+                {logoTypeChoice === 'image' && (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 animate-fadeIn">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                        Upload Custom Logo File
+                      </label>
+                      <div className="flex flex-col sm:flex-row items-center gap-3">
+                        <label className="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-300 hover:border-amber-400 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 cursor-pointer shadow-xs transition hover:bg-amber-50">
+                          {isUploadingLogo ? (
+                            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                          ) : (
+                            <Upload className="w-4 h-4 text-amber-600" />
+                          )}
+                          <span>{isUploadingLogo ? 'Processing image...' : 'Choose Logo File (PNG, SVG, JPG)'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleLogoFileUpload(file);
+                            }}
+                          />
+                        </label>
+                        {logoUrlInput && (
+                          <button
+                            type="button"
+                            onClick={() => setLogoUrlInput('')}
+                            className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 cursor-pointer"
+                          >
+                            Clear Photo
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1.5">
+                        Recommended: Square or horizontal transparent PNG / SVG icon (approx 200×200px).
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">
+                        Or Enter Direct Image URL
+                      </label>
+                      <input
+                        type="url"
+                        value={logoUrlInput}
+                        onChange={(e) => setLogoUrlInput(e.target.value)}
+                        placeholder="https://example.com/assets/logo.png"
+                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Brand Name Text Customizer */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Guest House Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={logoTextInput}
+                    onChange={(e) => setLogoTextInput(e.target.value)}
+                    placeholder="ISLAMIA GUEST HOUSE"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-serif font-bold tracking-wide text-[#0e2b33] focus:outline-none focus:border-amber-500"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    This brand title is rendered next to the logo in both navigation headers and footers.
+                  </p>
+                </div>
+
+                {/* 5. Save & Publish Button */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
+                  <button
+                    id="admin-save-guest-logo-btn"
+                    type="button"
+                    disabled={isSavingLogo}
+                    onClick={handleSaveLogoSettings}
+                    className="w-full sm:w-auto px-6 py-3 bg-[#af8a52] hover:bg-[#8c6736] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                  >
+                    {isSavingLogo ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    ) : (
+                      <Check className="w-4 h-4 text-white" />
+                    )}
+                    <span>{isSavingLogo ? 'Publishing Changes...' : 'Save & Publish to Live Guest View'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoShowToggle(true);
+                      setLogoTypeChoice('emblem');
+                      setLogoUrlInput('');
+                      setLogoTextInput('ISLAMIA GUEST HOUSE');
+                    }}
+                    className="w-full sm:w-auto px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+                  >
+                    Reset to Default Logo
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Live Guest View Preview Showcase */}
+              <div className="lg:col-span-5 flex flex-col justify-between bg-slate-900 rounded-2xl p-5 text-white border border-slate-800 space-y-4">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold tracking-widest text-amber-400 uppercase flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Live Guest View Preview</span>
+                    </span>
+                    <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded text-slate-300">
+                      Real-time
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Live simulation of the navigation bar and footer as viewed by guests.
+                  </p>
+                </div>
+
+                {/* 1. Simulated Guest Navbar (Light Background) */}
+                <div className="space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Header Navbar (Light)
+                  </div>
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between text-slate-900">
+                    <div className="flex items-center gap-2.5">
+                      {logoShowToggle && (
+                        logoTypeChoice === 'image' && logoUrlInput ? (
+                          <img
+                            src={logoUrlInput}
+                            alt="Preview Logo"
+                            className="w-8 h-8 rounded-md object-contain border border-[#af8a52]/40 bg-white shadow-xs"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <span className="w-7 h-7 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-xs font-bold shadow-xs">
+                            ◆
+                          </span>
+                        )
+                      )}
+                      <div className="flex flex-col">
+                        <span className="font-serif text-xs font-bold text-[#0e2b33] tracking-tight leading-tight">
+                          {logoTextInput || 'ISLAMIA GUEST HOUSE'}
+                        </span>
+                        <span className="text-[7.5px] tracking-[0.2em] text-[#af8a52] font-semibold uppercase">
+                          DHANMONDI, DHAKA
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase">
+                      <span className="hidden sm:inline">Rooms • Philosophy • Reviews</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Simulated Guest Footer (Luxury Dark Background) */}
+                <div className="space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Footer Brand Block (Dark)
+                  </div>
+                  <div className="bg-[#081b21] p-3.5 rounded-xl border border-[#0e2b33] shadow-inner text-[#f8f4ec]">
+                    <div className="font-serif text-xs text-[#af8a52] font-semibold tracking-wide mb-1 flex items-center gap-2">
+                      {logoShowToggle && (
+                        logoTypeChoice === 'image' && logoUrlInput ? (
+                          <img
+                            src={logoUrlInput}
+                            alt="Footer Logo"
+                            className="w-5 h-5 rounded object-contain border border-[#d7bd8a]/40 bg-white"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <span className="text-[#af8a52] text-xs">◆</span>
+                        )
+                      )}
+                      <span>{logoTextInput || 'ISLAMIA GUEST HOUSE'}</span>
+                    </div>
+                    <p className="text-[9px] text-[#efe8d8]/60 leading-relaxed">
+                      Dhanmondi Road 9/A. Homely luxury and security.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Information Status Footer */}
+                <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-400">
+                  <span>Persistence: Firestore + Offline Cache</span>
+                  <span className="text-amber-400 font-semibold">
+                    {logoShowToggle ? '✓ Logo Active' : '✕ Logo Hidden'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Hotel Business Settings */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
@@ -2686,404 +2998,155 @@ export const AdminPanel: React.FC = () => {
         </div>
       )}
 
-      {/* Add Room Modal Dialog with 6 Official Room Types */}
+      {/* Add Room Modal Dialog */}
       {isAddRoomOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
-              <div>
-                <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
-                  <Building className="w-4 h-4 text-teal-600" />
-                  <span>Add New Room (6 Official Room Types)</span>
-                </h3>
-                <p className="text-[11px] text-slate-400 mt-0.5">
-                  Select an official room template or customize specifications and amenities.
-                </p>
-              </div>
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
+                <Building className="w-4 h-4 text-teal-600" />
+                <span>Add New Guest House Room</span>
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsAddRoomOpen(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition cursor-pointer"
+                className="text-slate-400 hover:text-slate-600"
               >
                 ✕
               </button>
             </div>
 
-            {/* Scrollable Form Body */}
-            <form onSubmit={handleAddRoomSubmit} className="overflow-y-auto p-6 space-y-5 text-xs flex-1">
-              {/* Preset Selector Grid */}
-              <div className="space-y-2">
-                <label className="block font-bold text-slate-700">
-                  Step 1: Choose from 6 Official Room Types
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  {OFFICIAL_ROOM_TYPES.map((preset) => {
-                    const isSelected = selectedPresetId === preset.id;
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => applyRoomPreset(preset)}
-                        className={`p-3 rounded-2xl border text-left transition relative cursor-pointer flex flex-col justify-between ${
-                          isSelected
-                            ? 'bg-teal-50/80 border-teal-500 ring-2 ring-teal-500/20 shadow-sm'
-                            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
-                        }`}
-                      >
-                        {isSelected && (
-                          <div className="absolute top-2.5 right-2.5 w-4 h-4 rounded-full bg-teal-600 text-white flex items-center justify-center text-[10px]">
-                            ✓
-                          </div>
-                        )}
-                        <div>
-                          <div className="font-bold text-slate-850 text-xs pr-5">
-                            {preset.name}
-                          </div>
-                          <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                            {preset.bedSize}
-                          </div>
-                          <div className="text-[9.5px] text-teal-700 font-medium mt-1">
-                            {preset.windows}
-                          </div>
-                        </div>
-
-                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between">
-                          <span className="font-mono font-bold text-teal-700 text-xs">
-                            ৳{preset.defaultPrice.toLocaleString()}
-                          </span>
-                          <span className="text-[9.5px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-md font-medium">
-                            {preset.capacityText}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Step 2: Room Specifications */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <label className="block font-bold text-slate-700">
-                  Step 2: Room Specifications &amp; Pricing
-                </label>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Room Number *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={newRoomNo}
-                      onChange={(e) => setNewRoomNo(e.target.value)}
-                      placeholder="e.g. 104"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono font-bold text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Room Title / Category Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={newRoomTitle}
-                      onChange={(e) => setNewRoomTitle(e.target.value)}
-                      placeholder="e.g. Double Deluxe"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Base Type Category *
-                    </label>
-                    <select
-                      value={newRoomType}
-                      onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold"
-                    >
-                      <option value="deluxe">Deluxe (Double Deluxe / Triple Room)</option>
-                      <option value="suite">Suite (Family Room)</option>
-                      <option value="double">Double (Executive Single / Standard Double)</option>
-                      <option value="single">Single (Single Economy)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Nightly Tariff (৳ BDT) *
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      required
-                      value={newRoomPrice || ''}
-                      onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
-                      placeholder="e.g. 2500"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold text-teal-700"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Guest Capacity (Count) *
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      required
-                      value={newRoomCapacity}
-                      onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Capacity Label
-                    </label>
-                    <input
-                      type="text"
-                      value={newRoomCapacityText}
-                      onChange={(e) => setNewRoomCapacityText(e.target.value)}
-                      placeholder="e.g. 4 Adults / 2 Adults + 2 Child"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Bed Setup &amp; Size
-                    </label>
-                    <input
-                      type="text"
-                      value={newRoomBedSize}
-                      onChange={(e) => setNewRoomBedSize(e.target.value)}
-                      placeholder="e.g. Double + Double, Queen Size, King Size, Single (3'/7')"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Window Orientation &amp; View
-                    </label>
-                    <input
-                      type="text"
-                      value={newRoomWindows}
-                      onChange={(e) => setNewRoomWindows(e.target.value)}
-                      placeholder="e.g. West & South Facing / East & North Facing"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Toilet / Washroom Type
-                    </label>
-                    <select
-                      value={newRoomToilet}
-                      onChange={(e) => setNewRoomToilet(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
-                    >
-                      <option value="Private Toilet (High Commode)">Private Toilet (High Commode)</option>
-                      <option value="Private Toilet (Pan)">Private Toilet (Pan)</option>
-                      <option value="Common Toilet (Pan)">Common Toilet (Pan)</option>
-                      <option value="Attached Bath">Attached Bath</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Extra Features / Fittings
-                    </label>
-                    <input
-                      type="text"
-                      value={newRoomExtra}
-                      onChange={(e) => setNewRoomExtra(e.target.value)}
-                      placeholder="e.g. Cloth Rack, Balcony"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-600 mb-1">
-                      Promo / Price Banner (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={newRoomStartingPriceBanner}
-                      onChange={(e) => setNewRoomStartingPriceBanner(e.target.value)}
-                      placeholder="e.g. Starts from 700/- (*T&C Apply)"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-medium"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 3: Amenities Selection */}
-              <div className="space-y-2.5 pt-2 border-t border-slate-100">
-                <label className="block font-bold text-slate-700">
-                  Step 3: Room Amenities &amp; Inclusions
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    'TV',
-                    'Free WiFi',
-                    'Common Refrigeration',
-                    'Tea Table',
-                    '24/7 Electricity',
-                    'Stand Lamp',
-                    'Sofa',
-                    'Balcony',
-                    'AC/Non-AC',
-                    'Attached Bath',
-                    'Cloth Rack'
-                  ].map((amenity) => {
-                    const isChecked = newRoomAmenities.includes(amenity);
-                    return (
-                      <button
-                        key={amenity}
-                        type="button"
-                        onClick={() => toggleNewRoomAmenity(amenity)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                          isChecked
-                            ? 'bg-teal-600 text-white shadow-2xs'
-                            : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        }`}
-                      >
-                        {isChecked && <Check className="w-3 h-3 text-white" />}
-                        <span>{amenity}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
+            <form onSubmit={handleAddRoomSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-600 mb-1">Room Number *</label>
                   <input
                     type="text"
-                    value={customAmenityInput}
-                    onChange={(e) => setCustomAmenityInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addCustomNewRoomAmenity();
+                    required
+                    value={newRoomNo}
+                    onChange={(e) => setNewRoomNo(e.target.value)}
+                    placeholder="e.g. 501"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono font-bold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-600 mb-1">Category *</label>
+                  <select
+                    value={newRoomType}
+                    onChange={(e) => setNewRoomType(e.target.value as RoomType)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold"
+                  >
+                    <option value="single">Standard Single</option>
+                    <option value="double">Deluxe Double</option>
+                    <option value="deluxe">Executive Premium</option>
+                    <option value="suite">Family Suite</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-600 mb-1">Nightly Tariff (৳ BDT) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={newRoomPrice || ''}
+                    onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
+                    placeholder="e.g. 2500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold text-teal-700"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-600 mb-1">Guest Capacity *</label>
+                  <input
+                    type="number"
+                    required
+                    value={newRoomCapacity}
+                    onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-600 mb-1">Room Photo (From Computer)</label>
+                <div className="flex gap-2 items-center bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
+                  <input
+                    type="file"
+                    id="admin-new-room-photo-upload"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        try {
+                          const dataUrl = await processUploadedImage(file);
+                          setNewRoomImg(dataUrl);
+                          showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
+                        } catch (err) {
+                          showToast({ type: 'error', message: 'Failed to process image.' });
+                        }
                       }
                     }}
-                    placeholder="Add custom amenity (press Enter)..."
-                    className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
                   />
-                  <button
-                    type="button"
-                    onClick={addCustomNewRoomAmenity}
-                    className="px-3 py-1.5 bg-slate-800 text-white font-bold rounded-xl text-xs hover:bg-slate-700 transition cursor-pointer"
+                  <label
+                    htmlFor="admin-new-room-photo-upload"
+                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-2xs"
                   >
-                    + Add
-                  </button>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload Photo</span>
+                  </label>
+                  {newRoomImg ? (
+                    <div className="flex items-center gap-2">
+                      <img 
+                        src={newRoomImg} 
+                        alt="Preview" 
+                        className="w-8 h-8 rounded-md object-cover border border-slate-300" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setNewRoomImg('')}
+                        className="text-rose-600 hover:text-rose-800 text-[10px] font-bold cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">No file chosen (default photo will be used)</span>
+                  )}
                 </div>
               </div>
 
-              {/* Step 4: Photo & Description */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <label className="block font-bold text-slate-700">
-                  Step 4: Room Photo &amp; Description
-                </label>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">
-                    Room Photo
-                  </label>
-                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center bg-slate-50 border border-slate-200 p-3 rounded-2xl">
-                    <input
-                      type="file"
-                      id="admin-new-room-photo-upload"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          try {
-                            const dataUrl = await processUploadedImage(file);
-                            setNewRoomImg(dataUrl);
-                            showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
-                          } catch (err) {
-                            showToast({ type: 'error', message: 'Failed to process image.' });
-                          }
-                        }
-                      }}
-                    />
-                    <label
-                      htmlFor="admin-new-room-photo-upload"
-                      className="px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-2xs"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Upload from Computer</span>
-                    </label>
-
-                    {newRoomImg ? (
-                      <div className="flex items-center gap-3">
-                        <img 
-                          src={newRoomImg} 
-                          alt="Preview" 
-                          className="w-12 h-10 rounded-lg object-cover border border-slate-300 shadow-xs" 
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setNewRoomImg('')}
-                          className="text-rose-600 hover:text-rose-800 text-[11px] font-bold cursor-pointer underline"
-                        >
-                          Remove Photo
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400 italic">
-                        Official room type photo will be used automatically.
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">
-                    Room Overview / Description
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={newRoomDesc}
-                    onChange={(e) => setNewRoomDesc(e.target.value)}
-                    placeholder="Provide highlights of room comforts, bed details, and facing..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-600 mb-1">Description / Amenities</label>
+                <textarea
+                  rows={2}
+                  value={newRoomDesc}
+                  onChange={(e) => setNewRoomDesc(e.target.value)}
+                  placeholder="e.g. AC, Attached Bath, High-speed Wi-Fi, Balcony..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
+                />
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-3 border-t border-slate-100">
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsAddRoomOpen(false)}
-                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition cursor-pointer"
+                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-semibold rounded-xl"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-3 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-2xl transition shadow-sm cursor-pointer"
+                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition"
                 >
-                  Create &amp; Add Room #{newRoomNo || 'New'}
+                  Create Room
                 </button>
               </div>
             </form>

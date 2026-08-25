@@ -1696,16 +1696,8 @@ Islamia Guest House Dhanmondi System`;
       price: roomData.price || 1500,
       status: roomData.status || 'available',
       capacity: roomData.capacity || 2,
-      title: roomData.title,
-      capacityText: roomData.capacityText,
-      bedSize: roomData.bedSize,
-      windows: roomData.windows,
-      toilet: roomData.toilet,
-      extra: roomData.extra,
-      startingPriceBanner: roomData.startingPriceBanner,
-      description: roomData.description || `${roomData.title || roomData.type?.toUpperCase() || 'Guest'} Room at Islamia Guest House`,
+      description: roomData.description || `${roomData.type ? roomData.type.toUpperCase() : 'Guest'} Room at Islamia Guest House`,
       image: roomData.image || (roomData as any).imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
-      images: roomData.images && roomData.images.length > 0 ? roomData.images : (roomData.image ? [roomData.image] : undefined),
       amenities: roomData.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
     };
 
