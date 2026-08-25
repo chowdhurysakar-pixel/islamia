@@ -34,7 +34,8 @@ service cloud.firestore {
         (request.auth.token.email in ["islamiaguesthouse@gmail.com", "admin@islamiaguesthouse.com", "chowdhurysakar@gmail.com", "hr.manager@islamiaguesthouse.com"] ||
          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
           (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "staff" ||
-           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")));
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")) ||
+         (exists(/databases/$(database)/documents/staff_profiles/$(request.auth.uid))));
     }
 
     function isAdmin() {
@@ -47,6 +48,15 @@ service cloud.firestore {
     // --- Connection Test Collection ---
     match /test/{testId} {
       allow read: if true;
+    }
+
+    // --- Staff Profiles & Live Presence Collection (FIXED & ADDED) ---
+    match /staff_profiles/{staffId} {
+      // Allow any logged in user to write/update their own live status upon sign-in
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isSignedIn() && (request.auth.uid == staffId || isStaff());
+      allow delete: if isSignedIn() && (isStaff() || isAdmin());
     }
 
     // --- Rooms Collection ---
