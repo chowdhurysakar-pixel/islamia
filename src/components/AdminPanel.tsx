@@ -1216,21 +1216,23 @@ export const AdminPanel: React.FC = () => {
         {/* Metric 4: Staff HR Approvals */}
         <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm hover:shadow-md transition space-y-2">
           <div className="flex justify-between items-center text-slate-400">
-            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Staff Approvals</span>
+            <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">Staff &amp; Live Presence</span>
             <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
               <UserCheck className="w-4 h-4" />
             </div>
           </div>
           <div className="text-xl font-bold font-mono text-slate-850 flex items-center gap-2">
-            <span>{metrics.staffAccountsCount} Staff</span>
+            <span>{registeredUsers.filter(u => isUserOnline(u)).length} Online</span>
+            <span className="text-xs text-slate-400 font-normal">({metrics.staffAccountsCount} total)</span>
             {metrics.pendingStaffApprovals > 0 && (
               <span className="px-2 py-0.5 bg-rose-100 text-rose-700 font-sans font-bold text-[10px] rounded-full animate-pulse">
                 {metrics.pendingStaffApprovals} Pending
               </span>
             )}
           </div>
-          <p className="text-[11px] text-slate-500">
-            Master Key: <span className="font-mono font-bold text-slate-700">{masterStaffPasscode}</span>
+          <p className="text-[11px] text-slate-500 flex items-center justify-between">
+            <span>Master Passcode: <strong className="font-mono text-slate-700">{masterStaffPasscode}</strong></span>
+            <button onClick={() => setActiveTab('staff')} className="text-teal-700 font-semibold hover:underline cursor-pointer">View Staff →</button>
           </p>
         </div>
 
@@ -1417,6 +1419,87 @@ export const AdminPanel: React.FC = () => {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Live Staff On-Duty Realtime Quick Monitor */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span>Front Desk Staff Live Presence &amp; Login Monitor</span>
+                  <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200/60">
+                    {registeredUsers.filter(u => isUserOnline(u)).length} Online Now
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">Real-time status of staff signed in across all reception devices and consoles.</p>
+              </div>
+              <button
+                onClick={() => setActiveTab('staff')}
+                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Open Staff &amp; HR Panel</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {registeredUsers.map((u, idx) => {
+                const online = isUserOnline(u);
+                return (
+                  <div 
+                    key={u.uid || idx} 
+                    className={`p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 ${
+                      online 
+                        ? 'bg-emerald-50/50 border-emerald-200 shadow-xs' 
+                        : 'bg-slate-50 border-slate-200/70 opacity-75'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="relative shrink-0">
+                        <div className={`w-9 h-9 rounded-full ${u.role === 'admin' ? 'bg-purple-900 text-purple-100' : 'bg-slate-800 text-white'} font-bold flex items-center justify-center text-xs font-mono uppercase shadow-xs`}>
+                          {u.name.slice(0, 1)}
+                        </div>
+                        <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+                          online ? 'bg-emerald-500' : 'bg-slate-300'
+                        }`}></span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-xs truncate flex items-center gap-1">
+                          <span>{u.name}</span>
+                          {u.role === 'admin' && <Shield className="w-3 h-3 text-purple-600 shrink-0" />}
+                        </div>
+                        <div className="text-[11px] font-mono text-slate-500 truncate">{u.email}</div>
+                        <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
+                          {online ? (
+                            <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                              <span>Active Live</span>
+                            </span>
+                          ) : (
+                            <span>Offline</span>
+                          )}
+                          {u.lastActiveAt && (
+                            <span>• {new Date(u.lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 text-right">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase ${
+                        online ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                      }`}>
+                        {online ? 'ONLINE' : 'OFFLINE'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
