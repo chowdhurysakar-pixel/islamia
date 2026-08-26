@@ -177,43 +177,15 @@ export const INITIAL_BOOKINGS: Booking[] = [
     id: 'B001',
     roomId: '101',
     userId: 'mock-user-1',
-    guestName: 'Md. Rafiqul Islam',
-    guestEmail: 'rafiqul.islam@example.com',
-    guestPhone: '01832-841818',
+    guestName: 'Robert Sterling',
+    guestEmail: 'robert.sterling@example.com',
+    guestPhone: '+1 (555) 321-9876',
     checkIn: '2026-08-01',
     checkOut: '2026-08-07',
     totalAmount: 15000,
     status: 'checked-in',
     notes: 'Medical visit to Ibne Sina Hospital.',
     createdAt: '2026-07-15T14:32:00Z'
-  },
-  {
-    id: 'B002',
-    roomId: '102',
-    userId: 'mock-user-2',
-    guestName: 'Farhana Chowdhury',
-    guestEmail: 'farhana.chowdhury@example.com',
-    guestPhone: '01712-345678',
-    checkIn: '2026-08-10',
-    checkOut: '2026-08-14',
-    totalAmount: 10000,
-    status: 'checked-out',
-    notes: 'Family visit in Dhanmondi.',
-    createdAt: '2026-07-20T10:15:00Z'
-  },
-  {
-    id: 'B003',
-    roomId: '302',
-    userId: 'mock-user-3',
-    guestName: 'Tanvir Ahmed',
-    guestEmail: 'tanvir.ahmed@example.com',
-    guestPhone: '01909-806960',
-    checkIn: '2026-08-15',
-    checkOut: '2026-08-18',
-    totalAmount: 8400,
-    status: 'confirmed',
-    notes: 'Executive corporate guest.',
-    createdAt: '2026-07-22T12:00:00Z'
   }
 ];
 
