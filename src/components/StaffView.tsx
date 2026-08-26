@@ -8,6 +8,7 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, ServiceRequest, RoomType, RoomStatus, BookingStatus, ServiceRequestStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
+import { OfficialRoomPresets } from './OfficialRoomPresets';
 import { 
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
@@ -867,147 +868,32 @@ export const StaffView: React.FC = () => {
             </button>
           </div>
 
-          {/* Quick Room Creator Form */}
+          {/* Official Room Presets (1-Click Save for HR) */}
           {isAddingRoom && (
-            <form 
-              onSubmit={handleAddRoomSubmit}
-              className="bg-slate-50 p-5 rounded-2xl border border-slate-200 grid grid-cols-2 md:grid-cols-4 gap-3 animate-fadeIn"
-            >
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Suite Number</label>
-                <input
-                  type="text"
-                  placeholder="e.g. 502"
-                  required
-                  value={newRoomNo}
-                  onChange={(e) => setNewRoomNo(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Room Type</label>
-                <select
-                  value={newRoomType}
-                  onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white font-semibold text-slate-700"
-                >
-                  <option value="single">Single Room</option>
-                  <option value="double">Double Bed deluxe</option>
-                  <option value="deluxe">Executive Suite</option>
-                  <option value="suite">VIP Suite</option>
-                </select>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Night Price (৳ BDT)</label>
-                <input
-                  type="number"
-                  min="0"
-                  required
-                  value={newRoomPrice || ''}
-                  onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
-                  placeholder="e.g. 2500"
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white font-mono font-bold text-teal-700"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Max Cap</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="6"
-                  required
-                  value={newRoomCapacity}
-                  onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
-                />
-              </div>
-
-              <div className="col-span-2 space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between">
-                  <span>Room Photo (From Computer)</span>
-                  {newRoomImage && <span className="text-emerald-600 font-semibold">✓ Photo attached</span>}
-                </label>
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="file"
-                    id="quick-room-photo-upload"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        try {
-                          const dataUrl = await processUploadedImage(file);
-                          setNewRoomImage(dataUrl);
-                          showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
-                        } catch (err) {
-                          showToast({ type: 'error', message: 'Failed to upload photo.' });
-                        }
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="quick-room-photo-upload"
-                    className="px-3 py-1.5 bg-white border border-slate-300 hover:border-teal-500 text-slate-700 text-xs font-semibold rounded-lg cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-2xs"
-                  >
-                    <Upload className="w-3.5 h-3.5 text-teal-600" />
-                    <span>Upload Photo</span>
-                  </label>
-                  {newRoomImage ? (
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={newRoomImage} 
-                        alt="Preview" 
-                        className="w-7 h-7 rounded-md object-cover border border-slate-200" 
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setNewRoomImage('')}
-                        className="text-rose-600 hover:text-rose-800 text-[10px] font-bold cursor-pointer"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-[10px] text-slate-400 italic">No photo attached</span>
-                  )}
+            <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-4 animate-fadeIn">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <div>
+                  <h4 className="text-xs font-bold font-mono uppercase text-[#0e2b33] tracking-wider">
+                    ⚡ HR Instant Room Creator (6 Official Types)
+                  </h4>
+                  <p className="text-[11px] text-slate-500">
+                    Save any of the 6 official hotel room types with all details in 1-click.
+                  </p>
                 </div>
-              </div>
-
-              <div className="col-span-2 space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Highlights</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Balcony overlooking Dhanmondi lake..."
-                  value={newRoomDescription}
-                  onChange={(e) => setNewRoomDescription(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white"
-                />
-              </div>
-
-              <div className="col-span-2 flex items-end justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsAddingRoom(false)}
-                  className="px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs text-slate-600 hover:bg-white"
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200 transition cursor-pointer"
                 >
-                  Cancel
-                </button>
-                <button
-                  id="save-room-btn"
-                  type="submit"
-                  className="px-4 py-1.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-black cursor-pointer transition"
-                >
-                  Save Room
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+
+              <OfficialRoomPresets
+                showToast={showToast}
+                onSuccess={() => setIsAddingRoom(false)}
+              />
+            </div>
           )}
 
           {/* Visual Interactive Map List */}
@@ -1513,22 +1399,32 @@ export const StaffView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setGuestHistoryPhoneSearch('+1 (555) 321-9876');
-                  setSelectedHistoryGuestPhone('+1 (555) 321-9876');
+                  setGuestHistoryPhoneSearch('01832-841818');
+                  setSelectedHistoryGuestPhone('01832-841818');
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
               >
-                +1 (555) 321-9876
+                01832-841818
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setGuestHistoryPhoneSearch('+1 (555) 789-1234');
-                  setSelectedHistoryGuestPhone('+1 (555) 789-1234');
+                  setGuestHistoryPhoneSearch('01712-345678');
+                  setSelectedHistoryGuestPhone('01712-345678');
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
               >
-                +1 (555) 789-1234
+                01712-345678
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGuestHistoryPhoneSearch('01909-806960');
+                  setSelectedHistoryGuestPhone('01909-806960');
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
+              >
+                01909-806960
               </button>
             </div>
           </div>
@@ -1542,7 +1438,7 @@ export const StaffView: React.FC = () => {
               <input
                 id="hr-history-phone-search-input"
                 type="text"
-                placeholder="Enter guest contact/phone number (e.g. 01712xxxxxx or +1)..."
+                placeholder="Enter guest contact/phone number (e.g. 01832-841818, 01712-345678)..."
                 value={guestHistoryPhoneSearch}
                 onChange={(e) => setGuestHistoryPhoneSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -1722,7 +1618,7 @@ export const StaffView: React.FC = () => {
                     No past stay records found for contact number: <span className="text-white font-mono font-bold">"{selectedHistoryGuestPhone}"</span>
                   </p>
                   <p className="text-[10px] text-slate-500 font-normal">
-                    Check if the phone matches exactly, or trace check-ins by searching '01712' or '555'.
+                    Check if the phone matches exactly, or trace check-ins by searching '01832' or '01712'.
                   </p>
                 </div>
               )}

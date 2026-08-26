@@ -8,14 +8,14 @@ import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
+import { OfficialRoomPresets } from './OfficialRoomPresets';
 import { 
   Building, Shield, ShieldCheck, Users, CheckCircle2, AlertCircle, Key, 
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
   Printer, Receipt, Settings, DollarSign, UserCheck, UserX, Lock, 
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
   ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
-  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare,
-  Image as ImageIcon, ToggleLeft, ToggleRight, Sliders, Globe, Palette, Layers
+  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -95,8 +95,9 @@ export const AdminPanel: React.FC = () => {
     updateMasterStaffPasscode,
     currentUser,
     currentRole,
-    guestLogoSettings,
-    updateGuestLogoSettings
+    brandLogo,
+    updateBrandLogo,
+    removeBrandLogo
   } = useApp();
 
   // Admin Active Tab
@@ -113,6 +114,76 @@ export const AdminPanel: React.FC = () => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
+
+  // Logo Upload State & Handlers (Strictly direct file upload, no URL/link inputs)
+  const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const [isDraggingLogo, setIsDraggingLogo] = useState<boolean>(false);
+
+  const processAndSaveLogo = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setLogoUploadError('Please select a valid image file (PNG, JPG, SVG, WebP).');
+      showToast({ type: 'warning', message: 'Please select a valid image file.' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setLogoUploadError('Logo file exceeds 5MB limit. Please choose a smaller image.');
+      showToast({ type: 'warning', message: 'Logo file size should be under 5MB.' });
+      return;
+    }
+
+    try {
+      setIsUploadingLogo(true);
+      setLogoUploadError(null);
+      const dataUrl = await processUploadedImage(file);
+      await updateBrandLogo(dataUrl);
+      showToast({
+        type: 'success',
+        message: '✅ Guest house brand logo uploaded and applied successfully!'
+      });
+    } catch (err: any) {
+      console.error("Logo upload failed:", err);
+      setLogoUploadError(err.message || 'Failed to process and upload image.');
+      showToast({
+        type: 'warning',
+        message: 'Could not process logo. Please try another image file.'
+      });
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processAndSaveLogo(file);
+      e.target.value = '';
+    }
+  };
+
+  const handleLogoDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingLogo(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await processAndSaveLogo(file);
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    try {
+      setIsUploadingLogo(true);
+      await removeBrandLogo();
+      showToast({
+        type: 'info',
+        message: '🗑️ Custom logo removed. Default brand emblem restored.'
+      });
+    } catch (err: any) {
+      console.error("Failed to remove logo:", err);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
 
   // Submit Password Change
   const handleChangePasswordSubmit = async (e: React.FormEvent) => {
@@ -202,176 +273,29 @@ export const AdminPanel: React.FC = () => {
   });
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
-  // Guest View Logo & Branding Management States
-  const [logoShowToggle, setLogoShowToggle] = useState<boolean>(() => guestLogoSettings?.showLogo ?? true);
-  const [logoTypeChoice, setLogoTypeChoice] = useState<'emblem' | 'image'>(() => guestLogoSettings?.logoType || 'emblem');
-  const [logoUrlInput, setLogoUrlInput] = useState<string>(() => guestLogoSettings?.customLogoUrl || '');
-  const [logoTextInput, setLogoTextInput] = useState<string>(() => guestLogoSettings?.logoText || 'ISLAMIA GUEST HOUSE');
-  const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
-  const [isSavingLogo, setIsSavingLogo] = useState<boolean>(false);
+  // Update staff HR Approval status with instant Firestore sync
+  const toggleStaffApproval = async (email: string) => {
+    const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!targetUser) return;
+    const nextApproved = !targetUser.hrApproved;
+    await updateStaffApproval(email, nextApproved, targetUser.uid);
+    showToast({
+      type: 'success',
+      message: nextApproved 
+        ? `✅ Staff account for ${targetUser.name} approved by HR/Admin!` 
+        : `⚠️ HR authorization revoked for ${targetUser.name}.`
+    });
+  };
 
-  // Sync state when context settings update from Firestore/Local
-  React.useEffect(() => {
-    if (guestLogoSettings) {
-      setLogoShowToggle(guestLogoSettings.showLogo ?? true);
-      setLogoTypeChoice(guestLogoSettings.logoType || 'emblem');
-      setLogoUrlInput(guestLogoSettings.customLogoUrl || '');
-      setLogoTextInput(guestLogoSettings.logoText || 'ISLAMIA GUEST HOUSE');
-    }
-  }, [guestLogoSettings]);
-
-  const handleLogoFileUpload = async (file: File) => {
-    try {
-      setIsUploadingLogo(true);
-      const dataUrl = await processUploadedImage(file);
-      setLogoUrlInput(dataUrl);
-      setLogoTypeChoice('image');
+  // Delete staff user profile with instant Firestore sync
+  const deleteStaffUser = async (email: string) => {
+    const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (window.confirm(`Are you sure you want to remove user account ${email}?`)) {
+      await deleteStaffAccount(email, targetUser?.uid);
       showToast({
         type: 'info',
-        message: '📷 Custom logo photo loaded into preview. Click "Save & Publish to Live Guest View" to persist.'
+        message: `User record for ${email} removed from system registry.`
       });
-    } catch (e: any) {
-      showToast({
-        type: 'warning',
-        message: e?.message || 'Failed to upload logo image.'
-      });
-    } finally {
-      setIsUploadingLogo(false);
-    }
-  };
-
-  const handleSaveLogoSettings = async () => {
-    setIsSavingLogo(true);
-    try {
-      await updateGuestLogoSettings({
-        showLogo: logoShowToggle,
-        logoType: logoTypeChoice,
-        customLogoUrl: logoTypeChoice === 'image' ? logoUrlInput : '',
-        logoText: logoTextInput.trim() || 'ISLAMIA GUEST HOUSE'
-      });
-    } catch (e: any) {
-      showToast({
-        type: 'warning',
-        message: 'Could not save logo settings.'
-      });
-    } finally {
-      setIsSavingLogo(false);
-    }
-  };
-
-  const handleToggleLogoVisibilityQuick = async (newValue: boolean) => {
-    setLogoShowToggle(newValue);
-    try {
-      await updateGuestLogoSettings({
-        showLogo: newValue
-      });
-    } catch (e) {}
-  };
-
-  // Staff Deletion Modal & Async Action States
-  const [userPendingDeletion, setUserPendingDeletion] = useState<UserProfile | null>(null);
-  const [actionLoadingEmail, setActionLoadingEmail] = useState<string | null>(null);
-
-  // Approve single staff / join request
-  const handleApproveStaff = async (user: UserProfile) => {
-    setActionLoadingEmail(user.email);
-    try {
-      await updateStaffApproval(user.email, true, user.uid);
-      showToast({
-        type: 'success',
-        message: `✅ Staff join request for ${user.name} approved! Front-desk access granted.`
-      });
-    } catch (e) {
-      showToast({
-        type: 'error',
-        message: `Could not approve account for ${user.name}.`
-      });
-    } finally {
-      setActionLoadingEmail(null);
-    }
-  };
-
-  // Revoke or place on pending
-  const handleRevokeStaff = async (user: UserProfile) => {
-    setActionLoadingEmail(user.email);
-    try {
-      await updateStaffApproval(user.email, false, user.uid);
-      showToast({
-        type: 'info',
-        message: `⚠️ Access authorization revoked for ${user.name}.`
-      });
-    } catch (e) {
-      showToast({
-        type: 'error',
-        message: `Could not update status for ${user.name}.`
-      });
-    } finally {
-      setActionLoadingEmail(null);
-    }
-  };
-
-  // Bulk Approve All Pending Join Requests
-  const handleApproveAllPending = async () => {
-    const pendingUsers = registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved);
-    if (pendingUsers.length === 0) return;
-    
-    setActionLoadingEmail('bulk-pending');
-    try {
-      for (const u of pendingUsers) {
-        await updateStaffApproval(u.email, true, u.uid);
-      }
-      showToast({
-        type: 'success',
-        message: `✅ Approved all ${pendingUsers.length} pending staff join request(s)!`
-      });
-    } catch (e) {
-      showToast({
-        type: 'error',
-        message: 'Failed to approve some accounts.'
-      });
-    } finally {
-      setActionLoadingEmail(null);
-    }
-  };
-
-  // Trigger staff user or join request deletion modal
-  const handleDeleteStaffUser = (user: UserProfile) => {
-    if (currentUser?.email && currentUser.email.toLowerCase() === user.email.toLowerCase()) {
-      showToast({
-        type: 'error',
-        message: 'Cannot delete your own currently active admin account.'
-      });
-      return;
-    }
-    if (user.email.toLowerCase() === 'islamiaguesthouse@gmail.com') {
-      showToast({
-        type: 'error',
-        message: 'Primary master administrator account cannot be deleted.'
-      });
-      return;
-    }
-    setUserPendingDeletion(user);
-  };
-
-  // Confirm delete staff account / join request
-  const handleConfirmDeleteStaff = async () => {
-    if (!userPendingDeletion) return;
-    const user = userPendingDeletion;
-    setActionLoadingEmail(user.email);
-    try {
-      await deleteStaffAccount(user.email, user.uid);
-      showToast({
-        type: 'info',
-        message: `🗑️ ${user.name} (${user.email}) has been permanently deleted from staff registry.`
-      });
-    } catch (e) {
-      showToast({
-        type: 'error',
-        message: `Failed to delete ${user.name}.`
-      });
-    } finally {
-      setActionLoadingEmail(null);
-      setUserPendingDeletion(null);
     }
   };
 
@@ -886,6 +810,13 @@ export const AdminPanel: React.FC = () => {
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-white flex items-center gap-3">
+              {brandLogo && (
+                <img 
+                  src={brandLogo} 
+                  alt="Islamia Logo" 
+                  className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-700 p-0.5 shadow-md shrink-0" 
+                />
+              )}
               <span>Executive Admin Control Center</span>
             </h1>
             <p className="text-xs text-slate-400 mt-1 flex items-center gap-2 font-sans">
@@ -1383,44 +1314,6 @@ export const AdminPanel: React.FC = () => {
 
           {/* Registered Staff Accounts & HR Approvals Table */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
-            {/* Action Banner for Pending Staff Join Requests */}
-            {registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length > 0 && (
-              <div className="bg-amber-500/10 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold shrink-0">
-                    <AlertCircle className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5 flex-wrap">
-                      <span>{registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length} Staff Join Request(s) Pending HR Review</span>
-                      <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[10px] font-mono font-bold uppercase">Action Required</span>
-                    </div>
-                    <p className="text-[11px] text-amber-800">
-                      Staff registrations await administrator approval before accessing front-desk checkout and room assignment consoles.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setStaffFilterTab('pending')}
-                    className="px-3 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-xl text-xs font-bold transition cursor-pointer"
-                  >
-                    Filter Pending ({registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length})
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLoadingEmail === 'bulk-pending'}
-                    onClick={handleApproveAllPending}
-                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
-                  >
-                    {actionLoadingEmail === 'bulk-pending' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                    <span>Approve All</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
@@ -1436,7 +1329,7 @@ export const AdminPanel: React.FC = () => {
                 <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs">
                   <button
                     onClick={() => setStaffFilterTab('all')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition ${
                       staffFilterTab === 'all' ? 'bg-white text-slate-850 shadow-sm' : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
@@ -1444,7 +1337,7 @@ export const AdminPanel: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setStaffFilterTab('online')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
                       staffFilterTab === 'online' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-emerald-700'
                     }`}
                   >
@@ -1453,8 +1346,8 @@ export const AdminPanel: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setStaffFilterTab('pending')}
-                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 cursor-pointer ${
-                      staffFilterTab === 'pending' ? 'bg-white text-amber-700 shadow-sm font-bold' : 'text-slate-500 hover:text-amber-700'
+                    className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
+                      staffFilterTab === 'pending' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500 hover:text-amber-700'
                     }`}
                   >
                     <span className="w-2 h-2 rounded-full bg-amber-500"></span>
@@ -1471,15 +1364,6 @@ export const AdminPanel: React.FC = () => {
                     placeholder="Search name, email, passcode..."
                     className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-teal-500"
                   />
-                  {staffSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setStaffSearch('')}
-                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
                 </div>
               </div>
             </div>
@@ -1508,13 +1392,8 @@ export const AdminPanel: React.FC = () => {
                   ) : (
                     filteredStaff.map((user, idx) => {
                       const userOnline = isUserOnline(user);
-                      const isPending = user.role === 'staff' && !user.hrApproved;
-                      const isPrimaryAdmin = user.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
-                      const isCurrentActiveUser = currentUser?.email && currentUser.email.toLowerCase() === user.email.toLowerCase();
-                      const isLoadingThis = actionLoadingEmail === user.email;
-
                       return (
-                      <tr key={user.uid || idx} className={`hover:bg-slate-50/80 transition ${isPending ? 'bg-amber-50/40' : ''}`}>
+                      <tr key={user.uid || idx} className="hover:bg-slate-50/80 transition">
                         {/* Profile Info */}
                         <td className="p-3 font-semibold text-slate-800">
                           <div className="flex items-center gap-3">
@@ -1531,9 +1410,6 @@ export const AdminPanel: React.FC = () => {
                                 <span>{user.name}</span>
                                 {user.role === 'admin' && (
                                   <Shield className="w-3.5 h-3.5 text-purple-600" />
-                                )}
-                                {isPending && (
-                                  <span className="px-1.5 py-0.2 bg-amber-200 text-amber-900 text-[9px] font-bold rounded">JOIN REQUEST</span>
                                 )}
                               </div>
                               <div className="font-mono text-[11px] text-slate-500">{user.email}</div>
@@ -1622,67 +1498,24 @@ export const AdminPanel: React.FC = () => {
                         </td>
 
                         {/* Actions */}
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {!user.hrApproved ? (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={isLoadingThis}
-                                  onClick={() => handleApproveStaff(user)}
-                                  className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
-                                  title="Approve staff join request and grant front-desk access"
-                                >
-                                  {isLoadingThis ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-slate-950" />
-                                  )}
-                                  <span>Approve</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isLoadingThis}
-                                  onClick={() => handleDeleteStaffUser(user)}
-                                  className="px-2.5 py-1.5 rounded-xl font-bold text-[11px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                                  title="Delete / Reject this staff join request"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  <span>Delete</span>
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                {user.role !== 'admin' && (
-                                  <button
-                                    type="button"
-                                    disabled={isLoadingThis}
-                                    onClick={() => handleRevokeStaff(user)}
-                                    className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                                    title="Revoke HR authorization and place back to pending review"
-                                  >
-                                    {isLoadingThis ? (
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                    ) : (
-                                      <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                                    )}
-                                    <span>Revoke</span>
-                                  </button>
-                                )}
-                                {!isPrimaryAdmin && !isCurrentActiveUser && (
-                                  <button
-                                    type="button"
-                                    disabled={isLoadingThis}
-                                    onClick={() => handleDeleteStaffUser(user)}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer disabled:opacity-50"
-                                    title="Permanently remove user record from system"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
-                              </>
-                            )}
-                          </div>
+                        <td className="p-3 text-right space-x-2">
+                          <button
+                            onClick={() => toggleStaffApproval(user.email)}
+                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer ${
+                              user.hrApproved
+                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
+                                : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold shadow-sm'
+                            }`}
+                          >
+                            {user.hrApproved ? 'Revoke Access' : 'Approve Staff'}
+                          </button>
+                          <button
+                            onClick={() => deleteStaffUser(user.email)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                            title="Remove User Record"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                       );
@@ -2324,347 +2157,186 @@ export const AdminPanel: React.FC = () => {
       {/* TAB 6: SYSTEM SETTINGS & PROPERTY AUDIT */}
       {activeTab === 'settings' && (
         <div className="space-y-6 animate-fadeIn">
-          {/* FEATURE: WEBSITE GUEST VIEW LOGO & BRANDING MANAGEMENT */}
-          <div id="admin-guest-logo-settings-card" className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+          {/* Guest House Brand Logo & Visual Identity (Direct File Upload) */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700">
-                    <ImageIcon className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700">
+                    <Sparkles className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-slate-850 flex items-center gap-2">
-                      <span>Website Guest View Logo &amp; Branding</span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        logoShowToggle 
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                          : 'bg-slate-100 text-slate-600 border border-slate-200'
-                      }`}>
-                        {logoShowToggle ? '● Logo Active on Website' : '○ Logo Hidden'}
-                      </span>
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Add, remove, or customize the brand emblem and logo image displayed to visitors on the guest portal.
-                    </p>
-                  </div>
+                  <h3 className="text-base font-bold text-slate-900 font-serif">
+                    Guest House Brand Logo &amp; Identity
+                  </h3>
                 </div>
+                <p className="text-xs text-slate-500 font-sans">
+                  Upload your official property logo from your computer. The uploaded logo automatically syncs across the top navigation bar, guest portal, invoices, and receipts.
+                </p>
               </div>
 
-              {/* Instant Quick Visibility Switch */}
-              <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-                <span className="text-xs font-semibold text-slate-700">
-                  {logoShowToggle ? 'Logo Visible' : 'Logo Removed'}
-                </span>
-                <button
-                  id="admin-toggle-guest-logo-btn"
-                  type="button"
-                  onClick={() => handleToggleLogoVisibilityQuick(!logoShowToggle)}
-                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    logoShowToggle ? 'bg-amber-600' : 'bg-slate-300'
-                  }`}
-                  title={logoShowToggle ? 'Click to Remove Logo from Guest View' : 'Click to Add/Show Logo in Guest View'}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      logoShowToggle ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {brandLogo ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold font-mono rounded-full">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>Custom Logo Active</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 text-slate-600 text-xs font-semibold font-mono rounded-full">
+                    <span>Default Emblem Active</span>
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* Left Column: Logo Configuration Controls */}
-              <div className="lg:col-span-7 space-y-5">
-                {/* 1. Logo Display Toggle Banner */}
-                <div className={`p-4 rounded-2xl border transition-all ${
-                  logoShowToggle 
-                    ? 'bg-amber-50/50 border-amber-200/80 text-amber-950' 
-                    : 'bg-slate-50 border-slate-200 text-slate-700'
-                }`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <h4 className="text-xs font-bold flex items-center gap-1.5">
-                        {logoShowToggle ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4 text-amber-600" />
-                            <span>Logo is currently enabled for guest visitors</span>
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="w-4 h-4 text-slate-500" />
-                            <span>Logo is currently removed / hidden</span>
-                          </>
-                        )}
-                      </h4>
-                      <p className="text-[11px] text-slate-600 leading-relaxed">
-                        {logoShowToggle
-                          ? 'Guests will see the selected emblem or custom logo photo in the navigation bar and footer.'
-                          : 'Guests will only see the text brand name without any icon or image logo in the header and footer.'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleLogoVisibilityQuick(!logoShowToggle)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shrink-0 ${
-                        logoShowToggle 
-                          ? 'bg-white border border-amber-300 text-amber-800 hover:bg-amber-100' 
-                          : 'bg-slate-900 text-white hover:bg-slate-800'
-                      }`}
-                    >
-                      {logoShowToggle ? 'Remove Logo' : 'Add Logo'}
-                    </button>
-                  </div>
-                </div>
+            {/* Error feedback if any */}
+            {logoUploadError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs flex items-center gap-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{logoUploadError}</span>
+              </div>
+            )}
 
-                {/* 2. Logo Style / Type Selector */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Select Logo Type / Asset
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setLogoTypeChoice('emblem')}
-                      className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between gap-2 ${
-                        logoTypeChoice === 'emblem'
-                          ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-400/20'
-                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="w-7 h-7 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-xs">
-                          ◆
-                        </span>
-                        {logoTypeChoice === 'emblem' && (
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">Selected</span>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-850">Classic Gold Crest</div>
-                        <div className="text-[10px] text-slate-500">Luxury Islamia signature emblem</div>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setLogoTypeChoice('image')}
-                      className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between gap-2 ${
-                        logoTypeChoice === 'image'
-                          ? 'bg-amber-50/80 border-amber-400 ring-2 ring-amber-400/20'
-                          : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="w-7 h-7 rounded-lg bg-slate-900 text-amber-400 flex items-center justify-center shadow-xs">
-                          <ImageIcon className="w-4 h-4" />
-                        </div>
-                        {logoTypeChoice === 'image' && (
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">Selected</span>
-                        )}
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-850">Custom Image Photo</div>
-                        <div className="text-[10px] text-slate-500">Upload PNG, SVG, or WebP logo</div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3. Custom Image Upload & URL input (Active when 'image' is chosen) */}
-                {logoTypeChoice === 'image' && (
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4 animate-fadeIn">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                        Upload Custom Logo File
-                      </label>
-                      <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <label className="w-full sm:w-auto px-4 py-2.5 bg-white border border-slate-300 hover:border-amber-400 rounded-xl text-xs font-bold text-slate-700 flex items-center justify-center gap-2 cursor-pointer shadow-xs transition hover:bg-amber-50">
-                          {isUploadingLogo ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
-                          ) : (
-                            <Upload className="w-4 h-4 text-amber-600" />
-                          )}
-                          <span>{isUploadingLogo ? 'Processing image...' : 'Choose Logo File (PNG, SVG, JPG)'}</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) handleLogoFileUpload(file);
-                            }}
-                          />
-                        </label>
-                        {logoUrlInput && (
-                          <button
-                            type="button"
-                            onClick={() => setLogoUrlInput('')}
-                            className="text-xs text-rose-600 hover:text-rose-700 font-semibold px-2 py-1 cursor-pointer"
-                          >
-                            Clear Photo
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1.5">
-                        Recommended: Square or horizontal transparent PNG / SVG icon (approx 200×200px).
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        Or Enter Direct Image URL
-                      </label>
-                      <input
-                        type="url"
-                        value={logoUrlInput}
-                        onChange={(e) => setLogoUrlInput(e.target.value)}
-                        placeholder="https://example.com/assets/logo.png"
-                        className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-amber-500 font-mono"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Brand Name Text Customizer */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Guest House Display Name
-                  </label>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+              {/* Left: Drag & Drop / Direct File Upload Area (Strictly File Upload Only) */}
+              <div className="lg:col-span-7 flex flex-col justify-between space-y-4">
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingLogo(true); }}
+                  onDragLeave={() => setIsDraggingLogo(false)}
+                  onDrop={handleLogoDrop}
+                  className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center transition-all flex flex-col items-center justify-center gap-3 ${
+                    isDraggingLogo 
+                      ? 'border-teal-500 bg-teal-50/70 scale-[1.01]' 
+                      : 'border-slate-300 hover:border-teal-500 bg-slate-50/70 hover:bg-slate-50'
+                  }`}
+                >
                   <input
-                    type="text"
-                    value={logoTextInput}
-                    onChange={(e) => setLogoTextInput(e.target.value)}
-                    placeholder="ISLAMIA GUEST HOUSE"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-serif font-bold tracking-wide text-[#0e2b33] focus:outline-none focus:border-amber-500"
+                    id="brand-logo-file-picker"
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                    onChange={handleLogoFileChange}
+                    className="hidden"
+                    disabled={isUploadingLogo}
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    This brand title is rendered next to the logo in both navigation headers and footers.
-                  </p>
-                </div>
 
-                {/* 5. Save & Publish Button */}
-                <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
-                  <button
-                    id="admin-save-guest-logo-btn"
-                    type="button"
-                    disabled={isSavingLogo}
-                    onClick={handleSaveLogoSettings}
-                    className="w-full sm:w-auto px-6 py-3 bg-[#af8a52] hover:bg-[#8c6736] text-white font-bold rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center justify-center gap-2"
-                  >
-                    {isSavingLogo ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-teal-600">
+                    {isUploadingLogo ? (
+                      <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
                     ) : (
-                      <Check className="w-4 h-4 text-white" />
+                      <Upload className="w-6 h-6 text-teal-600" />
                     )}
-                    <span>{isSavingLogo ? 'Publishing Changes...' : 'Save & Publish to Live Guest View'}</span>
-                  </button>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLogoShowToggle(true);
-                      setLogoTypeChoice('emblem');
-                      setLogoUrlInput('');
-                      setLogoTextInput('ISLAMIA GUEST HOUSE');
-                    }}
-                    className="w-full sm:w-auto px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
-                  >
-                    Reset to Default Logo
-                  </button>
+                  <div className="space-y-1 max-w-sm">
+                    <p className="text-sm font-bold text-slate-850">
+                      {isUploadingLogo ? 'Processing and saving logo...' : 'Choose a logo file from your device'}
+                    </p>
+                    <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                      Drag and drop your image file here, or click below to browse from your device. Direct file upload only.
+                    </p>
+                  </div>
+
+                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                    <label
+                      htmlFor="brand-logo-file-picker"
+                      className={`inline-flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs shadow-sm transition cursor-pointer ${
+                        isUploadingLogo ? 'opacity-60 pointer-events-none' : ''
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{brandLogo ? 'Choose New File to Replace' : 'Select Logo File to Upload'}</span>
+                    </label>
+
+                    {brandLogo && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        disabled={isUploadingLogo}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-xl text-xs transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Reset to Default Emblem</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="text-[11px] text-slate-400 font-mono pt-1">
+                    Supported formats: PNG, JPG, WebP, SVG • Max 5MB
+                  </div>
                 </div>
               </div>
 
-              {/* Right Column: Live Guest View Preview Showcase */}
-              <div className="lg:col-span-5 flex flex-col justify-between bg-slate-900 rounded-2xl p-5 text-white border border-slate-800 space-y-4">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold tracking-widest text-amber-400 uppercase flex items-center gap-1.5">
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Live Guest View Preview</span>
+              {/* Right: Live Real-Time Brand Display & Placement Preview */}
+              <div className="lg:col-span-5 bg-slate-900 text-white rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-4 shadow-sm border border-slate-800">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-teal-400">
+                      Live Brand Placement Preview
                     </span>
-                    <span className="text-[10px] font-mono bg-white/10 px-2 py-0.5 rounded text-slate-300">
-                      Real-time
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Header &amp; Invoices
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    Live simulation of the navigation bar and footer as viewed by guests.
-                  </p>
-                </div>
 
-                {/* 1. Simulated Guest Navbar (Light Background) */}
-                <div className="space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Header Navbar (Light)
-                  </div>
-                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between text-slate-900">
-                    <div className="flex items-center gap-2.5">
-                      {logoShowToggle && (
-                        logoTypeChoice === 'image' && logoUrlInput ? (
-                          <img
-                            src={logoUrlInput}
-                            alt="Preview Logo"
-                            className="w-8 h-8 rounded-md object-contain border border-[#af8a52]/40 bg-white shadow-xs"
-                            referrerPolicy="no-referrer"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <span className="w-7 h-7 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-xs font-bold shadow-xs">
-                            ◆
-                          </span>
-                        )
+                  {/* Preview 1: Header Context */}
+                  <div className="bg-white rounded-xl p-3 border border-slate-200 text-slate-900 shadow-sm space-y-1">
+                    <div className="text-[10px] font-mono font-bold text-slate-400 uppercase">
+                      Navigation Bar Appearance
+                    </div>
+                    <div className="flex items-center gap-2.5 pt-1">
+                      {brandLogo ? (
+                        <img
+                          src={brandLogo}
+                          alt="Brand Logo Preview"
+                          className="w-9 h-9 rounded-lg object-contain bg-white border border-slate-200 p-0.5 shadow-sm shrink-0"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm shrink-0">
+                          I
+                        </div>
                       )}
                       <div className="flex flex-col">
-                        <span className="font-serif text-xs font-bold text-[#0e2b33] tracking-tight leading-tight">
-                          {logoTextInput || 'ISLAMIA GUEST HOUSE'}
+                        <span className="font-serif text-sm font-bold text-slate-900 leading-tight">
+                          Islamia Guest House
                         </span>
-                        <span className="text-[7.5px] tracking-[0.2em] text-[#af8a52] font-semibold uppercase">
-                          DHANMONDI, DHAKA
+                        <span className="text-[9px] uppercase tracking-widest text-teal-600 font-mono font-bold">
+                          Dhanmondi, Dhaka
                         </span>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="flex items-center gap-1 text-[9px] text-slate-400 font-bold uppercase">
-                      <span className="hidden sm:inline">Rooms • Philosophy • Reviews</span>
+                  {/* Preview 2: Printed Invoice / Receipt Context */}
+                  <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800 space-y-1.5">
+                    <div className="text-[10px] font-mono font-bold text-slate-400 uppercase">
+                      Thermal &amp; A4 Invoice Header
                     </div>
-                  </div>
-                </div>
-
-                {/* 2. Simulated Guest Footer (Luxury Dark Background) */}
-                <div className="space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Footer Brand Block (Dark)
-                  </div>
-                  <div className="bg-[#081b21] p-3.5 rounded-xl border border-[#0e2b33] shadow-inner text-[#f8f4ec]">
-                    <div className="font-serif text-xs text-[#af8a52] font-semibold tracking-wide mb-1 flex items-center gap-2">
-                      {logoShowToggle && (
-                        logoTypeChoice === 'image' && logoUrlInput ? (
-                          <img
-                            src={logoUrlInput}
-                            alt="Footer Logo"
-                            className="w-5 h-5 rounded object-contain border border-[#d7bd8a]/40 bg-white"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <span className="text-[#af8a52] text-xs">◆</span>
-                        )
+                    <div className="flex items-center gap-3 pt-1">
+                      {brandLogo ? (
+                        <img
+                          src={brandLogo}
+                          alt="Invoice Logo Preview"
+                          className="w-8 h-8 rounded object-contain bg-white border border-slate-300 p-0.5 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-xs font-serif shrink-0 border border-teal-500/30">
+                          IGH
+                        </div>
                       )}
-                      <span>{logoTextInput || 'ISLAMIA GUEST HOUSE'}</span>
+                      <div>
+                        <div className="text-xs font-serif font-bold text-slate-200">
+                          Official Guest Folio
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          Auto-stamped on printed receipts
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-[9px] text-[#efe8d8]/60 leading-relaxed">
-                      Dhanmondi Road 9/A. Homely luxury and security.
-                    </p>
                   </div>
                 </div>
 
-                {/* Information Status Footer */}
-                <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[10px] text-slate-400">
-                  <span>Persistence: Firestore + Offline Cache</span>
-                  <span className="text-amber-400 font-semibold">
-                    {logoShowToggle ? '✓ Logo Active' : '✕ Logo Hidden'}
-                  </span>
+                <div className="pt-2 text-[11px] text-slate-400 flex items-center gap-1.5 border-t border-slate-800/80">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>Instant synchronization: Updates apply live across all modules.</span>
                 </div>
               </div>
             </div>
@@ -3000,156 +2672,31 @@ export const AdminPanel: React.FC = () => {
 
       {/* Add Room Modal Dialog */}
       {isAddRoomOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white rounded-3xl border border-slate-200 max-w-lg w-full p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-3xl border border-slate-200 max-w-4xl w-full p-6 shadow-2xl space-y-4 my-8 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-              <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
-                <Building className="w-4 h-4 text-teal-600" />
-                <span>Add New Guest House Room</span>
-              </h3>
+              <div>
+                <h3 className="text-sm font-bold text-slate-850 flex items-center gap-2">
+                  <Building className="w-4 h-4 text-teal-600" />
+                  <span>HR Add Room (6 Official Presets)</span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Save any of the 6 official hotel chamber types to inventory with a single click.
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsAddRoomOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleAddRoomSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Room Number *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newRoomNo}
-                    onChange={(e) => setNewRoomNo(e.target.value)}
-                    placeholder="e.g. 501"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-teal-500 font-mono font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Category *</label>
-                  <select
-                    value={newRoomType}
-                    onChange={(e) => setNewRoomType(e.target.value as RoomType)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-semibold"
-                  >
-                    <option value="single">Standard Single</option>
-                    <option value="double">Deluxe Double</option>
-                    <option value="deluxe">Executive Premium</option>
-                    <option value="suite">Family Suite</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Nightly Tariff (৳ BDT) *</label>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={newRoomPrice || ''}
-                    onChange={(e) => setNewRoomPrice(e.target.value === '' ? 0 : Number(e.target.value))}
-                    placeholder="e.g. 2500"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold text-teal-700"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-600 mb-1">Guest Capacity *</label>
-                  <input
-                    type="number"
-                    required
-                    value={newRoomCapacity}
-                    onChange={(e) => setNewRoomCapacity(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none font-mono font-bold"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-600 mb-1">Room Photo (From Computer)</label>
-                <div className="flex gap-2 items-center bg-slate-50 border border-slate-200 p-2.5 rounded-xl">
-                  <input
-                    type="file"
-                    id="admin-new-room-photo-upload"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        try {
-                          const dataUrl = await processUploadedImage(file);
-                          setNewRoomImg(dataUrl);
-                          showToast({ type: 'success', message: '📸 Room photo uploaded from computer!' });
-                        } catch (err) {
-                          showToast({ type: 'error', message: 'Failed to process image.' });
-                        }
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor="admin-new-room-photo-upload"
-                    className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1.5 transition shrink-0 shadow-2xs"
-                  >
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Photo</span>
-                  </label>
-                  {newRoomImg ? (
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={newRoomImg} 
-                        alt="Preview" 
-                        className="w-8 h-8 rounded-md object-cover border border-slate-300" 
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80';
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setNewRoomImg('')}
-                        className="text-rose-600 hover:text-rose-800 text-[10px] font-bold cursor-pointer"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-400 italic">No file chosen (default photo will be used)</span>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-600 mb-1">Description / Amenities</label>
-                <textarea
-                  rows={2}
-                  value={newRoomDesc}
-                  onChange={(e) => setNewRoomDesc(e.target.value)}
-                  placeholder="e.g. AC, Attached Bath, High-speed Wi-Fi, Balcony..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddRoomOpen(false)}
-                  className="flex-1 py-2.5 bg-slate-100 text-slate-700 font-semibold rounded-xl"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl transition"
-                >
-                  Create Room
-                </button>
-              </div>
-            </form>
+            <OfficialRoomPresets
+              showToast={showToast}
+              onSuccess={() => setIsAddRoomOpen(false)}
+            />
           </div>
         </div>
       )}
@@ -3161,75 +2708,6 @@ export const AdminPanel: React.FC = () => {
           rooms={rooms}
           onClose={() => setSelectedInvoiceBooking(null)}
         />
-      )}
-
-      {/* Delete Staff / Join Request Modal */}
-      {userPendingDeletion && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
-            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-              <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
-                <Trash2 className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm">
-                  {userPendingDeletion.hrApproved ? 'Delete Staff Account' : 'Delete Staff Join Request'}
-                </h3>
-                <p className="text-xs text-slate-500">Confirm permanent removal from system registry</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Name:</span>
-                <span className="font-bold text-slate-900">{userPendingDeletion.name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Email:</span>
-                <span className="font-mono text-slate-800 font-medium">{userPendingDeletion.email}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Role &amp; Status:</span>
-                <span className="font-semibold text-slate-800">
-                  {userPendingDeletion.role.toUpperCase()} • {userPendingDeletion.hrApproved ? 'HR Authorized' : 'Pending Join Request'}
-                </span>
-              </div>
-              {userPendingDeletion.phone && (
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Phone:</span>
-                  <span className="font-mono text-slate-800">{userPendingDeletion.phone}</span>
-                </div>
-              )}
-            </div>
-
-            <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200/80 rounded-xl p-3">
-              ⚠️ This action will immediately remove this user account from the Islamia Guest House system and reject any active access.
-            </p>
-
-            <div className="flex items-center justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => setUserPendingDeletion(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={actionLoadingEmail === userPendingDeletion.email}
-                onClick={handleConfirmDeleteStaff}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
-              >
-                {actionLoadingEmail === userPendingDeletion.email ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Trash2 className="w-3.5 h-3.5" />
-                )}
-                <span>Confirm &amp; Delete</span>
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

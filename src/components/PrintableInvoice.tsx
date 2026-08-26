@@ -35,7 +35,7 @@ type PaperFormat = 'standard' | 'thermal-80' | 'thermal-58';
 type FontSize = 'xs' | 'sm' | 'base';
 
 export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: initialBooking, rooms, onClose, autoPrint = false }) => {
-  const { bookings, triggerSmsConfirmation } = useApp();
+  const { bookings, triggerSmsConfirmation, brandLogo } = useApp();
   const [booking, setBooking] = useState<Booking>(initialBooking);
 
   // Sync state if initialBooking changes from prop
@@ -275,6 +275,15 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                   
                   {/* Header Store Label */}
                   <div className="text-center space-y-1">
+                    {brandLogo && (
+                      <div className="flex justify-center pb-1">
+                        <img 
+                          src={brandLogo} 
+                          alt="Logo" 
+                          className="h-10 max-w-[120px] object-contain mx-auto" 
+                        />
+                      </div>
+                    )}
                     <h2 className={`font-black tracking-tight text-slate-950 ${
                       invoiceStyle === 'modern' ? 'text-base font-serif border-b border-double border-slate-900 pb-1' :
                       invoiceStyle === 'minimal' ? 'text-xs uppercase font-mono' :
@@ -310,7 +319,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                           {phoneBkash && (
                             <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-800 font-mono">
                               <BkashLogo className="w-3.5 h-3.5 shadow-sm" />
-                              <span>{phoneBkash}</span>
+                              <span>bKash Payment: {phoneBkash}</span>
                             </div>
                           )}
                           {phoneCall && (
@@ -586,7 +595,14 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                   {/* Top brand header */}
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-slate-200 pb-8">
                     <div className="space-y-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3">
+                        {brandLogo && (
+                          <img 
+                            src={brandLogo} 
+                            alt="Logo" 
+                            className="h-12 w-auto max-w-[140px] object-contain rounded border border-slate-200 p-0.5 bg-white shadow-xs" 
+                          />
+                        )}
                         <span className={`font-black tracking-tight text-slate-900 ${
                           invoiceStyle === 'modern' ? 'font-serif text-3xl text-teal-800' :
                           invoiceStyle === 'minimal' ? 'font-mono text-xl uppercase' :
@@ -619,7 +635,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                             {phoneBkash && (
                               <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-slate-800">
                                 <BkashLogo className="w-4 h-4 shadow-xs" />
-                                <span>{phoneBkash} (bKash)</span>
+                                <span>bKash Payment: {phoneBkash}</span>
                               </div>
                             )}
                             {phoneCall && (

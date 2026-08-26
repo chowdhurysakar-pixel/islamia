@@ -171,28 +171,21 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
           </span>
         </div>
 
-        {/* Pricing Overlay Badge */}
-        <div className="absolute bottom-3 left-3 bg-[#0e2b33]/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg text-xs font-mono font-bold border border-[#af8a52]/30 flex items-center gap-1.5 shadow-sm">
-          {room.startingPriceBanner ? (
-            <div className="text-amber-300 font-bold flex items-center gap-1">
-              <Tag className="w-3.5 h-3.5 text-amber-400" />
-              <span>{room.startingPriceBanner}</span>
-            </div>
-          ) : (
-            <div>
-              <span className="text-emerald-300 text-sm font-bold">৳{room.price.toLocaleString()}</span>
-              <span className="text-[10px] opacity-75 font-sans font-normal ml-1">/ night</span>
-            </div>
-          )}
+        {/* Bottom Left Promo / Value Badge on Image */}
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5 z-10">
+          <div className="bg-[#101b1e]/90 backdrop-blur-md text-[#f5d061] border border-[#eab308]/70 px-3 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 shadow-sm">
+            <Tag className="w-3.5 h-3.5 text-[#facc15]" />
+            <span>{room.promoTag || room.startingPriceBanner || (room.price ? `৳${room.price}/night` : 'Special Rate')}</span>
+          </div>
         </div>
       </div>
 
       {/* Room Details Column */}
-      <div className="p-5 flex-1 flex flex-col space-y-4">
+      <div className="p-5 flex-1 flex flex-col space-y-3.5 bg-white">
         
         {/* Title & Capacity */}
         <div>
-          <div className="flex justify-between items-start gap-2 mb-1">
+          <div className="flex justify-between items-start gap-2 mb-1.5">
             <h3 className="font-serif text-lg font-bold text-[#0e2b33] leading-snug">
               {roomTitle}
             </h3>
@@ -213,14 +206,14 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
             )}
           </div>
 
-          <div className="inline-flex items-center gap-1.5 text-[#0e2b33] bg-[#efe8d8]/80 border border-[#0e2b33]/10 px-2.5 py-1 rounded-md text-xs font-mono font-semibold">
+          <div className="inline-flex items-center gap-1.5 text-[#5e4b2d] bg-[#fbf7ee] border border-[#e6dcce] px-3 py-1 rounded-lg text-xs font-mono font-semibold">
             <Users className="w-3.5 h-3.5 text-[#af8a52]" />
-            <span>Capacity: <strong>{room.capacityText || `${room.capacity} Adults`}</strong></span>
+            <span>Capacity: <strong>{room.capacityText || `Capacity ${room.capacity} people`}</strong></span>
           </div>
         </div>
 
         {/* Specification Details Grid */}
-        <div className="bg-[#0e2b33]/5 rounded-xl p-3 border border-[#0e2b33]/10 text-xs space-y-2 font-sans">
+        <div className="bg-[#fbf9f4] rounded-xl p-3 border border-[#0e2b33]/12 text-xs space-y-2 font-sans">
           {room.bedSize && (
             <div className="flex items-center justify-between text-slate-700">
               <span className="text-[11px] font-semibold text-[#0e2b33]/80 flex items-center gap-1.5">
@@ -262,25 +255,24 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
           )}
         </div>
 
-        {/* Clear Pricing Banner for Single Economy or Price Details */}
-        {room.startingPriceBanner && (
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 text-center">
-            <span className="text-xs font-mono font-bold text-amber-900 block">
-              🏷️ Promo Rate: {room.startingPriceBanner}
-            </span>
-          </div>
-        )}
+        {/* Promo Rate Banner Box */}
+        <div className="bg-[#fff9ed] border border-[#f5d996] rounded-xl p-2.5 text-center flex items-center justify-center gap-1.5">
+          <Tag className="w-3.5 h-3.5 text-[#b07d19]" />
+          <span className="text-xs font-mono font-bold text-[#8a5b10]">
+            Promo Rate: {room.promoTag || room.startingPriceBanner || (room.price ? `৳${room.price.toLocaleString()}/night` : 'Special Rate')}
+          </span>
+        </div>
 
         {/* Room Amenities Badges */}
-        <div className="mt-auto pt-2">
+        <div className="mt-auto pt-1">
           <p className="text-[10px] font-mono font-bold text-[#0e2b33]/60 uppercase tracking-wider mb-2">
-            Amenities:
+            AMENITIES:
           </p>
           <div className="flex flex-wrap gap-1.5">
             {room.amenities.map((amenity, idx) => (
               <span 
                 key={idx}
-                className="inline-flex items-center gap-1 text-[10px] font-medium text-[#0e2b33] bg-[#efe8d8]/60 border border-[#0e2b33]/10 px-2 py-1 rounded-md shadow-2xs"
+                className="inline-flex items-center gap-1 text-[10px] font-medium text-[#0e2b33] bg-white border border-[#0e2b33]/15 px-2.5 py-1 rounded-lg shadow-2xs"
               >
                 {getAmenityIcon(amenity)}
                 <span>{amenity}</span>
@@ -290,7 +282,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
         </div>
 
         {/* Action Button / Staff Controls */}
-        <div className="pt-3 border-t border-[#0e2b33]/10 flex flex-col gap-2">
+        <div className="pt-2 border-t border-[#0e2b33]/10 flex flex-col gap-2">
           {isStaffMode ? (
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center">
@@ -329,9 +321,9 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
               id={`book-room-${room.id}-btn`}
               onClick={() => onBookClick && onBookClick(room)}
               disabled={room.status !== 'available'}
-              className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold tracking-wide transition-all ${
+              className={`w-full py-2.5 px-4 rounded-xl text-xs font-bold tracking-wide transition-all cursor-pointer ${
                 room.status === 'available'
-                  ? 'bg-[#af8a52] hover:bg-[#c29b5f] text-slate-950 shadow-sm active:scale-[0.98] border border-[#f5e5c8]/40'
+                  ? 'bg-[#b7915b] hover:bg-[#a67f49] text-[#19140b] shadow-sm active:scale-[0.98] border border-[#d5bc90]/50'
                   : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200/50'
               }`}
             >

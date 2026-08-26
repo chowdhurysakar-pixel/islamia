@@ -24,6 +24,7 @@ export interface Room {
   toilet?: string;
   extra?: string;
   startingPriceBanner?: string;
+  promoTag?: string;
   amenities: string[];
   image: string;
   description: string;
@@ -115,11 +116,8 @@ export interface Feedback {
   createdAt: string;
 }
 
-export interface GuestLogoSettings {
-  showLogo: boolean;
-  logoType: 'emblem' | 'image';
-  customLogoUrl?: string;
-  logoText?: string;
+export interface BrandingSetting {
+  logo: string; // Base64 data URL of uploaded image
   updatedAt?: string;
   updatedBy?: string;
 }

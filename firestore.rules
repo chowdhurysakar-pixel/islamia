@@ -158,10 +158,16 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
     }
 
-    // --- Settings & Brand Configuration Collection ---
+    // --- Settings & Branding Collection ---
     match /settings/{settingId} {
-      allow get, list: if true; // Publicly readable for guest branding and logo display
-      allow create, update, delete: if isSignedIn() && isValidId(settingId) && isStaff();
+      allow get, list: if true; // Publicly readable for dynamic brand logo and property configurations
+      
+      allow create, update: if isSignedIn() && isValidId(settingId) && (
+        isStaff() ||
+        request.auth.token.email in ["islamiaguesthouse@gmail.com", "admin@islamiaguesthouse.com", "chowdhurysakar@gmail.com", "hr.manager@islamiaguesthouse.com"]
+      );
+
+      allow delete: if isSignedIn() && isValidId(settingId) && isAdmin();
     }
   }
 }

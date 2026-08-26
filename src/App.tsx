@@ -149,7 +149,7 @@ const ToastNotification: React.FC = () => {
 };
 
 const MainLayout: React.FC = () => {
-  const { currentRole, isLoading, currentUser, logout, opMode, activeGuestsCount } = useApp();
+  const { currentRole, isLoading, currentUser, logout, opMode, activeGuestsCount, brandLogo } = useApp();
 
   if (isLoading) {
     return (
@@ -235,9 +235,18 @@ const MainLayout: React.FC = () => {
 
         <footer className="border-t border-slate-200/80 bg-white/80 py-6">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-xs text-slate-500 font-medium">
-              &copy; 2026 Islamia Guest House Dhanmondi. Secure Front Desk &amp; billing manager.
-            </p>
+            <div className="flex items-center gap-2.5">
+              {brandLogo && (
+                <img 
+                  src={brandLogo} 
+                  alt="Islamia Guest House Logo" 
+                  className="w-6 h-6 rounded object-contain bg-white border border-slate-200 p-0.5 shadow-2xs shrink-0" 
+                />
+              )}
+              <p className="text-xs text-slate-500 font-medium">
+                &copy; 2026 Islamia Guest House Dhanmondi. Secure Front Desk &amp; billing manager.
+              </p>
+            </div>
             <div className="text-xs text-slate-400 font-mono">
               <span>Dedicated to Islamia Guest House</span>
             </div>

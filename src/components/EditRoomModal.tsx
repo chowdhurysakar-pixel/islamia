@@ -522,15 +522,28 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                  <Shirt className="w-3.5 h-3.5 text-[#af8a52]" />
-                  <span>Extra Spec Tag</span>
-                </label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                    <Shirt className="w-3.5 h-3.5 text-[#af8a52]" />
+                    <span>Extra Spec Tag</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setExtra('Cloth Rack')}
+                    className={`text-[10px] px-2 py-0.5 rounded-md border font-mono font-semibold transition ${
+                      extra === 'Cloth Rack'
+                        ? 'bg-[#0e2b33] text-white border-[#0e2b33]'
+                        : 'bg-[#fbf7ee] hover:bg-[#efe8d8] text-[#5e4b2d] border-[#e6dcce]'
+                    }`}
+                  >
+                    + Cloth Rack
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={extra}
                   onChange={(e) => setExtra(e.target.value)}
-                  placeholder="Cloth Rack, Dressing Table..."
+                  placeholder="Cloth Rack"
                   className="w-full text-xs font-medium border border-slate-300 focus:border-[#af8a52] rounded-xl px-3 py-2 bg-slate-50"
                 />
               </div>

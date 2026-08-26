@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, GuestLogoSettings } from '../types';
+import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -116,19 +116,13 @@ interface AppContextType {
   recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
   masterStaffPasscode: string;
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
-  // Guest View Logo & Branding Management
-  guestLogoSettings: GuestLogoSettings;
-  updateGuestLogoSettings: (settings: Partial<GuestLogoSettings>) => Promise<void>;
+  // Brand Logo (Custom uploaded from device)
+  brandLogo: string;
+  updateBrandLogo: (logoDataUrl: string) => Promise<void>;
+  removeBrandLogo: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
-
-export const DEFAULT_LOGO_SETTINGS: GuestLogoSettings = {
-  showLogo: true,
-  logoType: 'emblem',
-  customLogoUrl: '',
-  logoText: 'ISLAMIA GUEST HOUSE'
-};
 
 const ADMIN_EMAIL_WHITELIST = [
   'islamiaguesthouse@gmail.com',
@@ -213,33 +207,12 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
   }
 ];
 
-export const getDeletedUserEmails = (): Set<string> => {
-  try {
-    const raw = localStorage.getItem('hotel_deleted_user_emails');
-    if (raw) {
-      const arr = JSON.parse(raw);
-      if (Array.isArray(arr)) {
-        return new Set(arr.map((e: string) => e.toLowerCase()));
-      }
-    }
-  } catch (e) {}
-  return new Set<string>();
-};
-
 export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], activeUser?: UserProfile | null): UserProfile[] => {
   const map = new Map<string, UserProfile>();
-  const deletedSet = getDeletedUserEmails();
-
-  DEFAULT_SYSTEM_USERS.forEach(u => {
-    const emailLower = u.email.toLowerCase();
-    if (!deletedSet.has(emailLower)) {
-      map.set(emailLower, { ...u });
-    }
-  });
-
+  DEFAULT_SYSTEM_USERS.forEach(u => map.set(u.email.toLowerCase(), { ...u }));
   (fetchedList || []).forEach(u => {
     const emailLower = u.email ? u.email.toLowerCase() : '';
-    if (emailLower && !deletedSet.has(emailLower)) {
+    if (emailLower) {
       const existing = map.get(emailLower);
       if (existing) {
         map.set(emailLower, { ...existing, ...u });
@@ -374,6 +347,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem('master_staff_passcode') || 'ISLAMIA-STAFF-2026';
   });
 
+  // Guest House Custom Brand Logo (Uploaded from admin settings)
+  const [brandLogo, setBrandLogo] = useState<string>(() => {
+    try {
+      return localStorage.getItem('hotel_brand_logo') || '';
+    } catch (e) {
+      return '';
+    }
+  });
+
   const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>(() => {
     try {
       const stored = localStorage.getItem('hotel_registered_users');
@@ -381,17 +363,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (e) {
       return DEFAULT_SYSTEM_USERS;
     }
-  });
-
-  // Website Guest View Logo & Branding State
-  const [guestLogoSettings, setGuestLogoSettings] = useState<GuestLogoSettings>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_guest_logo_settings');
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {}
-    return DEFAULT_LOGO_SETTINGS;
   });
 
   const [isFirebaseActive, setIsFirebaseActive] = useState<boolean>(false);
@@ -611,32 +582,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleFirestoreError(error, OperationType.GET, 'feedbacks');
       });
 
-      // 4. Realtime settings collection listener for guest view logo and branding
-      const unsubSettings = onSnapshot(doc(db, 'settings', 'guest_logo'), (docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data() as any;
-          const syncedSettings: GuestLogoSettings = {
-            showLogo: data.showLogo ?? true,
-            logoType: data.logoType || 'emblem',
-            customLogoUrl: data.customLogoUrl || '',
-            logoText: data.logoText || 'ISLAMIA GUEST HOUSE',
-            updatedAt: data.updatedAt,
-            updatedBy: data.updatedBy
-          };
-          setGuestLogoSettings(syncedSettings);
-          try {
-            localStorage.setItem('hotel_guest_logo_settings', JSON.stringify(syncedSettings));
-          } catch (e) {}
+      // Realtime branding & uploaded logo sync
+      const unsubBranding = onSnapshot(doc(db, 'settings', 'branding'), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (typeof data.logo === 'string') {
+            setBrandLogo(data.logo);
+            try {
+              localStorage.setItem('hotel_brand_logo', data.logo);
+            } catch (e) {}
+          }
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'settings/guest_logo');
+        console.warn("Branding settings snapshot listener:", error);
       });
 
       return () => {
         unsubscribeAuth();
         unsubRooms();
         unsubFeedbacks();
-        unsubSettings();
+        unsubBranding();
       };
     } else {
       // Offline Local Storage Sandbox Fallback
@@ -650,14 +615,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const storedUser = localStorage.getItem('hotel_current_user');
 
       if (storedRooms) {
-        setRooms(JSON.parse(storedRooms));
+        try {
+          const parsed = JSON.parse(storedRooms);
+          const normalized = Array.isArray(parsed) ? parsed.map((r: Room) => {
+            if (!r.extra || r.extra.includes('Balcony') || r.extra.includes('Facilities') || r.extra.includes('Option') || r.extra.includes('Sofa')) {
+              return { ...r, extra: 'Cloth Rack' };
+            }
+            return r;
+          }) : INITIAL_ROOMS;
+          setRooms(normalized);
+          localStorage.setItem('hotel_rooms', JSON.stringify(normalized));
+        } catch (e) {
+          setRooms(INITIAL_ROOMS);
+        }
       } else {
         localStorage.setItem('hotel_rooms', JSON.stringify(INITIAL_ROOMS));
         setRooms(INITIAL_ROOMS);
       }
 
       if (storedBookings) {
-        setBookings(JSON.parse(storedBookings));
+        try {
+          const parsedB = JSON.parse(storedBookings);
+          const normalizedB = Array.isArray(parsedB) ? parsedB.map((b: Booking) => {
+            if (b.guestPhone && b.guestPhone.includes('555')) {
+              return { ...b, guestPhone: '01832-841818', guestName: b.guestName === 'Robert Sterling' ? 'Md. Rafiqul Islam' : b.guestName };
+            }
+            return b;
+          }) : INITIAL_BOOKINGS;
+          setBookings(normalizedB);
+          localStorage.setItem('hotel_bookings', JSON.stringify(normalizedB));
+        } catch (e) {
+          setBookings(INITIAL_BOOKINGS);
+        }
       } else {
         localStorage.setItem('hotel_bookings', JSON.stringify(INITIAL_BOOKINGS));
         setBookings(INITIAL_BOOKINGS);
@@ -1069,16 +1058,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteStaffAccount = async (email: string, uid?: string) => {
     const emailLower = email.trim().toLowerCase();
     
-    // Add to deleted blacklist in localStorage so it never resurrects
-    try {
-      const existingDeleted = Array.from(getDeletedUserEmails());
-      if (!existingDeleted.includes(emailLower)) {
-        existingDeleted.push(emailLower);
-        localStorage.setItem('hotel_deleted_user_emails', JSON.stringify(existingDeleted));
-      }
-    } catch (e) {}
-
-    // 1. Update local state immediately
     setRegisteredUsers(prev => {
       const updated = prev.filter(u => u.email.toLowerCase() !== emailLower);
       try {
@@ -1088,11 +1067,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    // 2. Delete from Firestore if active
     if (isFirebaseActive && db) {
       try {
         const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
-        const targetUid = uid || targetUser?.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const targetUid = uid || targetUser?.uid;
         if (targetUid) {
           await deleteDoc(doc(db, 'users', targetUid));
         }
@@ -1687,22 +1665,32 @@ Islamia Guest House Dhanmondi System`;
   const addRoom = async (roomData: Omit<Room, 'id'>) => {
     const numericIds = rooms.map(r => Number(r.id) || Number(r.number) || 0);
     const maxVal = numericIds.length > 0 ? Math.max(...numericIds) : 100;
-    const newId = (maxVal >= 100 ? maxVal + 1 : 101).toString();
+    const generatedId = (maxVal >= 100 ? maxVal + 1 : 101).toString();
+    const finalId = roomData.number ? roomData.number.trim() : generatedId;
 
     const newRoom: Room = {
-      id: newId,
-      number: roomData.number || newId,
+      ...roomData,
+      id: finalId,
+      number: roomData.number || finalId,
       type: roomData.type || 'single',
       price: roomData.price || 1500,
       status: roomData.status || 'available',
       capacity: roomData.capacity || 2,
+      title: roomData.title,
+      capacityText: roomData.capacityText,
+      bedSize: roomData.bedSize,
+      windows: roomData.windows,
+      toilet: roomData.toilet,
+      extra: roomData.extra || 'Cloth Rack',
+      promoTag: roomData.promoTag,
+      startingPriceBanner: roomData.startingPriceBanner,
       description: roomData.description || `${roomData.type ? roomData.type.toUpperCase() : 'Guest'} Room at Islamia Guest House`,
       image: roomData.image || (roomData as any).imageUrl || 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=800',
       amenities: roomData.amenities || ['Free High-Speed Wi-Fi', 'Air Conditioning', 'Flat-screen TV', 'Attached Bath']
     };
 
     // Optimistically update local state & localStorage immediately
-    const updatedRooms = [...rooms.filter(r => r.id !== newId), newRoom].sort((a, b) => Number(a.number) - Number(b.number));
+    const updatedRooms = [...rooms.filter(r => r.id !== finalId && r.number !== finalId), newRoom].sort((a, b) => Number(a.number) - Number(b.number));
     setRooms(updatedRooms);
     try {
       localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
@@ -1712,7 +1700,7 @@ Islamia Guest House Dhanmondi System`;
 
     if (isFirebaseActive && db) {
       try {
-        await setDoc(doc(db, 'rooms', newId), sanitizeFirestoreData(newRoom));
+        await setDoc(doc(db, 'rooms', finalId), sanitizeFirestoreData(newRoom));
       } catch (error) {
         console.warn("Notice saving new room to Firestore (using local fallback):", error);
       }
@@ -1809,7 +1797,7 @@ Location:
 House No: 55/C/1, Road No: 9/A, Dhanmondi-1209, Dhaka
 (Opposite Ibne Sina 9/A, Behind Meena Bazar)
 
-Hotline & bKash: 01832-841818
+Hotline & bKash Payment: 01832-841818
 Call: 01909-806960
 WhatsApp: 01799-148408
 Thank you for choosing Islamia Guest House!`;
@@ -1890,7 +1878,7 @@ House No: 55/C/1, Road No: 9/A, Dhanmondi - 1209, Dhaka, Bangladesh
 Landmarks: Opposite Ibne Sina 9/A, Behind Meena Bazar, Adjacent to Northern Medical College Building
 
 For any support or questions, please reach us on:
-- bKash/Hotline: 01832-841818
+- bKash Payment / Hotline: 01832-841818
 - Phone Call: 01909-806960
 - WhatsApp: 01799-148408
 
@@ -2197,38 +2185,45 @@ Islamia Guest House, Dhanmondi`;
     }
   };
 
-  const updateGuestLogoSettings = async (settings: Partial<GuestLogoSettings>) => {
-    const updated: GuestLogoSettings = {
-      ...guestLogoSettings,
-      ...settings,
-      updatedAt: new Date().toISOString(),
-      updatedBy: currentUser?.name || currentUser?.email || 'Admin'
-    };
-
-    setGuestLogoSettings(updated);
+  const updateBrandLogo = async (logoDataUrl: string): Promise<void> => {
+    setBrandLogo(logoDataUrl);
     try {
-      localStorage.setItem('hotel_guest_logo_settings', JSON.stringify(updated));
-    } catch (e) {}
+      localStorage.setItem('hotel_brand_logo', logoDataUrl);
+    } catch (e) {
+      console.warn("Failed saving brand logo to localStorage:", e);
+    }
 
     if (isFirebaseActive && db) {
-      const settingPath = 'settings/guest_logo';
       try {
-        await setDoc(doc(db, 'settings', 'guest_logo'), sanitizeFirestoreData({
-          id: 'guest_logo',
-          ...updated
-        }));
-        showToast({
-          message: updated.showLogo ? "✅ Guest view logo updated & enabled!" : "🔒 Guest view logo removed / hidden.",
-          type: 'success'
-        });
+        await setDoc(doc(db, 'settings', 'branding'), sanitizeFirestoreData({
+          logo: logoDataUrl,
+          updatedAt: new Date().toISOString(),
+          updatedBy: currentUser?.email || 'admin'
+        }), { merge: true });
       } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, settingPath);
+        console.warn("Failed to persist brand logo to Firestore settings:", error);
       }
-    } else {
-      showToast({
-        message: updated.showLogo ? "✅ Guest view logo updated & enabled!" : "🔒 Guest view logo removed / hidden.",
-        type: 'success'
-      });
+    }
+  };
+
+  const removeBrandLogo = async (): Promise<void> => {
+    setBrandLogo('');
+    try {
+      localStorage.removeItem('hotel_brand_logo');
+    } catch (e) {
+      console.warn("Failed removing brand logo from localStorage:", e);
+    }
+
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, 'settings', 'branding'), sanitizeFirestoreData({
+          logo: '',
+          updatedAt: new Date().toISOString(),
+          updatedBy: currentUser?.email || 'admin'
+        }), { merge: true });
+      } catch (error) {
+        console.warn("Failed to reset brand logo in Firestore settings:", error);
+      }
     }
   };
 
@@ -2284,8 +2279,9 @@ Islamia Guest House, Dhanmondi`;
       recordStaffSignIn,
       masterStaffPasscode,
       updateMasterStaffPasscode,
-      guestLogoSettings,
-      updateGuestLogoSettings
+      brandLogo,
+      updateBrandLogo,
+      removeBrandLogo
     }}>
       {children}
     </AppContext.Provider>
