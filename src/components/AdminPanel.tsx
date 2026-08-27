@@ -364,11 +364,16 @@ export const AdminPanel: React.FC = () => {
       const online = isUserOnline(u);
       return online && !u.isOnline ? { ...u, isOnline: true } : u;
     }).filter(u => {
+      const isAdminUser = u.role === 'admin' || u.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
+      const effectivePasscode = isAdminUser
+        ? (u.staffSecretKey && u.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? u.staffSecretKey : 'ADMIN2026')
+        : (u.staffSecretKey || 'STAFF789');
+
       const matchesSearch = 
         u.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
         u.email.toLowerCase().includes(staffSearch.toLowerCase()) ||
         (u.phone && u.phone.includes(staffSearch)) ||
-        (u.staffSecretKey && u.staffSecretKey.toLowerCase().includes(staffSearch.toLowerCase()));
+        effectivePasscode.toLowerCase().includes(staffSearch.toLowerCase());
 
       if (!matchesSearch) return false;
 
@@ -1515,28 +1520,37 @@ export const AdminPanel: React.FC = () => {
 
                         {/* Auth Method / Passcode */}
                         <td className="p-3">
-                          <div className="space-y-1">
-                            {user.loginMethod === 'passcode' || user.staffSecretKey ? (
-                              <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60">
-                                <KeyRound className="w-3 h-3 text-teal-600" />
-                                <span>Passcode: {user.staffSecretKey || 'STAFF789'}</span>
-                              </div>
-                            ) : user.loginMethod === 'google' ? (
-                              <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold">
-                                Google SSO Verified
-                              </div>
-                            ) : (
-                              <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit font-mono">
-                                Password Login
-                              </div>
-                            )}
+                          {(() => {
+                            const isAdminUser = user.role === 'admin' || user.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
+                            const displayedPasscode = isAdminUser
+                              ? (user.staffSecretKey && user.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? user.staffSecretKey : 'ADMIN2026')
+                              : (user.staffSecretKey || 'STAFF789');
 
-                            {user.lastLoginAt && (
-                              <div className="text-[10px] text-slate-400">
-                                Signed in: {new Date(user.lastLoginAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(user.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            return (
+                              <div className="space-y-1">
+                                {user.loginMethod === 'passcode' || user.staffSecretKey || isAdminUser ? (
+                                  <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60 font-semibold">
+                                    <KeyRound className="w-3 h-3 text-teal-600" />
+                                    <span>Passcode: {displayedPasscode}</span>
+                                  </div>
+                                ) : user.loginMethod === 'google' ? (
+                                  <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold">
+                                    Google SSO Verified
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit font-mono">
+                                    Password Login
+                                  </div>
+                                )}
+
+                                {user.lastLoginAt && (
+                                  <div className="text-[10px] text-slate-400">
+                                    Signed in: {new Date(user.lastLoginAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(user.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Role */}
