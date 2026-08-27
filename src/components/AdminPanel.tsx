@@ -275,16 +275,32 @@ export const AdminPanel: React.FC = () => {
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
   // Update staff HR Approval status with instant Firestore sync
-  const toggleStaffApproval = async (email: string) => {
+  const toggleStaffApproval = async (email: string, explicitState?: boolean) => {
     const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!targetUser) return;
-    const nextApproved = !targetUser.hrApproved;
+    const nextApproved = explicitState !== undefined ? explicitState : !targetUser.hrApproved;
     await updateStaffApproval(email, nextApproved, targetUser.uid);
     showToast({
       type: 'success',
       message: nextApproved 
-        ? `✅ Staff account for ${targetUser.name} approved by HR/Admin!` 
+        ? `✅ Staff account for ${targetUser.name} (${email}) approved by HR/Admin!` 
         : `⚠️ HR authorization revoked for ${targetUser.name}.`
+    });
+  };
+
+  // 1-Click Approve All Pending Staff Members
+  const approveAllPendingStaff = async () => {
+    const pendingStaff = registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved);
+    if (pendingStaff.length === 0) {
+      showToast({ type: 'info', message: 'No staff accounts are currently pending HR approval.' });
+      return;
+    }
+    for (const staff of pendingStaff) {
+      await updateStaffApproval(staff.email, true, staff.uid);
+    }
+    showToast({
+      type: 'success',
+      message: `🎉 All ${pendingStaff.length} pending staff member(s) approved for Front Desk operations!`
     });
   };
 
@@ -1364,6 +1380,18 @@ export const AdminPanel: React.FC = () => {
 
               {/* Filter Tabs & Search */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                {registeredUsers.some(u => u.role === 'staff' && !u.hrApproved) && (
+                  <button
+                    id="admin-approve-all-pending-btn"
+                    onClick={approveAllPendingStaff}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+                    title="1-Click Approve all pending staff accounts for Front Desk operations"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Approve All Pending ({registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length})</span>
+                  </button>
+                )}
+
                 <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs">
                   <button
                     onClick={() => setStaffFilterTab('all')}
@@ -1536,26 +1564,39 @@ export const AdminPanel: React.FC = () => {
                         </td>
 
                         {/* Actions */}
-                        <td className="p-3 text-right space-x-2">
-                          <button
-                            id={`admin-toggle-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
-                            onClick={() => toggleStaffApproval(user.email)}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 ${
-                              user.hrApproved
-                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-                                : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold shadow-sm'
-                            }`}
-                          >
-                            {user.hrApproved ? 'Revoke Access' : 'Approve Staff'}
-                          </button>
-                          <button
-                            id={`admin-delete-staff-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
-                            onClick={() => deleteStaffUser(user.email)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer active:scale-90"
-                            title={`Permanently remove user record: ${user.name || user.email}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {user.hrApproved ? (
+                              <button
+                                id={`admin-revoke-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                                onClick={() => toggleStaffApproval(user.email, false)}
+                                className="px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 inline-flex items-center gap-1"
+                                title="Revoke staff authorization"
+                              >
+                                <ShieldAlert className="w-3.5 h-3.5" />
+                                <span>Revoke Access</span>
+                              </button>
+                            ) : (
+                              <button
+                                id={`admin-approve-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                                onClick={() => toggleStaffApproval(user.email, true)}
+                                className="px-3.5 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm inline-flex items-center gap-1.5"
+                                title="1-Click Approve staff work authorization"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approve Access</span>
+                              </button>
+                            )}
+
+                            <button
+                              id={`admin-delete-staff-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                              onClick={() => deleteStaffUser(user.email)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer active:scale-90"
+                              title={`Permanently remove user record: ${user.name || user.email}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       );
