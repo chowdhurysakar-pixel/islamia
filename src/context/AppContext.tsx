@@ -207,12 +207,48 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
   }
 ];
 
-export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], activeUser?: UserProfile | null): UserProfile[] => {
+export const getDeletedUserEmails = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem('hotel_deleted_users');
+    if (!raw) return new Set<string>();
+    const list = JSON.parse(raw);
+    if (Array.isArray(list)) {
+      return new Set(list.map((e: string) => String(e).trim().toLowerCase()));
+    }
+  } catch (e) {}
+  return new Set<string>();
+};
+
+export const addDeletedUserEmail = (email: string): void => {
+  try {
+    const set = getDeletedUserEmails();
+    set.add(email.trim().toLowerCase());
+    localStorage.setItem('hotel_deleted_users', JSON.stringify(Array.from(set)));
+  } catch (e) {}
+};
+
+export const removeDeletedUserEmail = (email: string): void => {
+  try {
+    const set = getDeletedUserEmails();
+    set.delete(email.trim().toLowerCase());
+    localStorage.setItem('hotel_deleted_users', JSON.stringify(Array.from(set)));
+  } catch (e) {}
+};
+
+export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], activeUser?: UserProfile | null, customDeletedEmails?: Set<string>): UserProfile[] => {
+  const deletedSet = customDeletedEmails || getDeletedUserEmails();
   const map = new Map<string, UserProfile>();
-  DEFAULT_SYSTEM_USERS.forEach(u => map.set(u.email.toLowerCase(), { ...u }));
+
+  DEFAULT_SYSTEM_USERS.forEach(u => {
+    const emailLower = u.email.toLowerCase();
+    if (!deletedSet.has(emailLower)) {
+      map.set(emailLower, { ...u });
+    }
+  });
+
   (fetchedList || []).forEach(u => {
     const emailLower = u.email ? u.email.toLowerCase() : '';
-    if (emailLower) {
+    if (emailLower && !deletedSet.has(emailLower)) {
       const existing = map.get(emailLower);
       if (existing) {
         map.set(emailLower, { ...existing, ...u });
@@ -222,23 +258,25 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     }
   });
 
-  // Always mark the currently active user as online
+  // Always mark the currently active user as online if not deleted
   if (activeUser?.email) {
     const activeEmailLower = activeUser.email.toLowerCase();
-    const existing = map.get(activeEmailLower);
-    if (existing) {
-      map.set(activeEmailLower, {
-        ...existing,
-        isOnline: true,
-        lastActiveAt: new Date().toISOString(),
-        lastLoginAt: existing.lastLoginAt || new Date().toISOString()
-      });
+    if (!deletedSet.has(activeEmailLower)) {
+      const existing = map.get(activeEmailLower);
+      if (existing) {
+        map.set(activeEmailLower, {
+          ...existing,
+          isOnline: true,
+          lastActiveAt: new Date().toISOString(),
+          lastLoginAt: existing.lastLoginAt || new Date().toISOString()
+        });
+      }
     }
   }
 
-  // If in admin mode or authorized, ensure islamiaguesthouse@gmail.com (Mr. Sajjad) is live online
+  // If in admin mode or authorized, ensure islamiaguesthouse@gmail.com (Mr. Sajjad) is live online ONLY IF NOT DELETED
   const sajjad = map.get('islamiaguesthouse@gmail.com');
-  if (sajjad) {
+  if (sajjad && !deletedSet.has('islamiaguesthouse@gmail.com')) {
     sajjad.name = 'Mr. Sajjad (Admin)';
     sajjad.role = 'admin';
     sajjad.hrApproved = true;
@@ -689,6 +727,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const storedRegistered = localStorage.getItem('hotel_registered_users');
       let registeredUsers: UserProfile[] = [];
+      const deletedSet = getDeletedUserEmails();
       if (storedRegistered) {
         try {
           registeredUsers = JSON.parse(storedRegistered);
@@ -728,15 +767,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       ];
 
-      // Merge and guarantee admin role for all official admin emails
+      // Merge and guarantee admin role for all official admin emails ONLY if not deleted
       defaultRegistered.forEach(defUser => {
-        const idx = registeredUsers.findIndex(u => u.email.toLowerCase() === defUser.email.toLowerCase());
+        const emailLower = defUser.email.toLowerCase();
+        if (deletedSet.has(emailLower)) return;
+        const idx = registeredUsers.findIndex(u => u.email.toLowerCase() === emailLower);
         if (idx >= 0) {
           registeredUsers[idx] = { ...registeredUsers[idx], ...defUser };
         } else {
           registeredUsers.push(defUser);
         }
       });
+      registeredUsers = registeredUsers.filter(u => !deletedSet.has(u.email.toLowerCase()));
       localStorage.setItem('hotel_registered_users', JSON.stringify(registeredUsers));
 
       if (storedUser) {
@@ -844,20 +886,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 4. Real-time Live Staff & HR Approvals sync from Firestore users collection
     let unsubUsers: (() => void) | null = null;
+    let unsubDeletedUsers: (() => void) | null = null;
     try {
       unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const usersList: UserProfile[] = [];
+        const deletedSet = getDeletedUserEmails();
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as UserProfile;
-          usersList.push({ uid: docSnap.id, ...data });
+          const userEmailLower = (data.email || '').trim().toLowerCase();
+          if (userEmailLower && !deletedSet.has(userEmailLower)) {
+            usersList.push({ uid: docSnap.id, ...data });
+          }
         });
-        const merged = mergeWithDefaultRegisteredUsers(usersList, currentUser);
+        const merged = mergeWithDefaultRegisteredUsers(usersList, currentUser, deletedSet);
         setRegisteredUsers(merged);
         try {
           localStorage.setItem('hotel_registered_users', JSON.stringify(merged));
         } catch (e) {}
       }, (error) => {
         console.warn("Users realtime snapshot notice:", error);
+      });
+
+      unsubDeletedUsers = onSnapshot(doc(db, 'settings', 'deleted_users'), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (Array.isArray(data?.emails)) {
+            const currentDeleted = getDeletedUserEmails();
+            let hasNew = false;
+            data.emails.forEach((em: string) => {
+              const clean = String(em).trim().toLowerCase();
+              if (clean && !currentDeleted.has(clean)) {
+                currentDeleted.add(clean);
+                hasNew = true;
+              }
+            });
+            if (hasNew) {
+              localStorage.setItem('hotel_deleted_users', JSON.stringify(Array.from(currentDeleted)));
+              setRegisteredUsers(prev => prev.filter(u => !currentDeleted.has(u.email.toLowerCase())));
+            }
+          }
+        }
+      }, (err) => {
+        console.warn("Deleted users listener notice:", err);
       });
     } catch (e) {
       console.warn("Could not attach users snapshot listener:", e);
@@ -868,6 +938,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (unsubArchived) unsubArchived();
       if (unsubRequests) unsubRequests();
       if (unsubUsers) unsubUsers();
+      if (unsubDeletedUsers) unsubDeletedUsers();
     };
   }, [currentUser, currentRole, opMode, isFirebaseActive]);
 
@@ -981,6 +1052,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     passcodeUsed?: string
   ) => {
     const emailLower = email.trim().toLowerCase();
+    removeDeletedUserEmail(emailLower);
     const now = new Date().toISOString();
     const isAdmin = isAdminEmail(emailLower) || role === 'admin';
     const finalRole: UserRole = isAdmin ? 'admin' : role;
@@ -1059,6 +1131,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteStaffAccount = async (email: string, uid?: string) => {
     const emailLower = email.trim().toLowerCase();
     
+    // 1. Mark in permanent deleted registry so default lists and snapshots never resurrect it
+    addDeletedUserEmail(emailLower);
+
+    // 2. Remove from active state & local storage
     setRegisteredUsers(prev => {
       const updated = prev.filter(u => u.email.toLowerCase() !== emailLower);
       try {
@@ -1068,13 +1144,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
+    // 3. If currently logged in as this user, sign out
+    if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
+      logout();
+    }
+
+    // 4. Delete all possible document IDs in Firestore and update Firestore deleted_users settings
     if (isFirebaseActive && db) {
       try {
         const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
-        const targetUid = uid || targetUser?.uid;
-        if (targetUid) {
-          await deleteDoc(doc(db, 'users', targetUid));
+        const candidateUids = new Set<string>();
+        if (uid) candidateUids.add(uid);
+        if (targetUser?.uid) candidateUids.add(targetUser.uid);
+        candidateUids.add(`staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
+        candidateUids.add(`user-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
+        if (emailLower === 'islamiaguesthouse@gmail.com') candidateUids.add('local-admin-0');
+        if (emailLower === 'chowdhurysakar@gmail.com') candidateUids.add('local-admin-1');
+        if (emailLower === 'hr.manager@islamiaguesthouse.com') candidateUids.add('local-admin-2');
+        if (emailLower === 'admin@islamiaguesthouse.com') candidateUids.add('local-admin-3');
+        if (emailLower === 'frontdesk.receptionist@islamiaguesthouse.com') candidateUids.add('local-staff-1');
+        if (emailLower === 'cleaning.supervisor@islamiaguesthouse.com') candidateUids.add('local-staff-2');
+
+        for (const docId of candidateUids) {
+          try {
+            await deleteDoc(doc(db, 'users', docId));
+          } catch (e) {}
         }
+
+        const currentDeleted = Array.from(getDeletedUserEmails());
+        await setDoc(doc(db, 'settings', 'deleted_users'), {
+          emails: currentDeleted,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
       } catch (e) {
         console.warn("Failed to delete user doc in Firestore:", e);
       }
@@ -2063,6 +2164,7 @@ Islamia Guest House, Dhanmondi`;
 
   const deleteBooking = async (bookingId: string) => {
     setBookings(prev => prev.filter(b => b.id !== bookingId));
+    setArchivedBookings(prev => prev.filter(b => b.id !== bookingId));
 
     if (isFirebaseActive && db) {
       try {

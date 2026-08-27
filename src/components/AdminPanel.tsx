@@ -82,6 +82,7 @@ export const AdminPanel: React.FC = () => {
     editRoomDetails,
     deleteRoom,
     updateBookingStatus,
+    deleteBooking,
     deleteFeedback,
     opMode,
     setOpMode,
@@ -290,12 +291,20 @@ export const AdminPanel: React.FC = () => {
   // Delete staff user profile with instant Firestore sync
   const deleteStaffUser = async (email: string) => {
     const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (window.confirm(`Are you sure you want to remove user account ${email}?`)) {
-      await deleteStaffAccount(email, targetUser?.uid);
-      showToast({
-        type: 'info',
-        message: `User record for ${email} removed from system registry.`
-      });
+    const userName = targetUser?.name || email;
+    if (window.confirm(`Are you sure you want to permanently delete "${userName}" (${email}) from the staff registry?`)) {
+      try {
+        await deleteStaffAccount(email, targetUser?.uid);
+        showToast({
+          type: 'info',
+          message: `🗑️ User record for ${userName} (${email}) permanently deleted.`
+        });
+      } catch (err: any) {
+        showToast({
+          type: 'error',
+          message: err?.message || 'Failed to remove user record.'
+        });
+      }
     }
   };
 
@@ -546,6 +555,26 @@ export const AdminPanel: React.FC = () => {
       return matchesRating && matchesSearch;
     });
   }, [feedbacks, reviewSearch, reviewRatingFilter]);
+
+  // Delete Guest Reservation handler
+  const handleDeleteBooking = async (b: Booking) => {
+    const guestName = b.guestName || 'Guest';
+    const roomInfo = b.roomNumber ? ` (Room #${b.roomNumber})` : '';
+    if (window.confirm(`Are you sure you want to permanently delete the reservation record for "${guestName}"${roomInfo}?`)) {
+      try {
+        await deleteBooking(b.id);
+        showToast({
+          type: 'info',
+          message: `🗑️ Reservation for ${guestName} deleted successfully.`
+        });
+      } catch (err: any) {
+        showToast({
+          type: 'error',
+          message: err?.message || 'Failed to delete reservation.'
+        });
+      }
+    }
+  };
 
   // Delete Guest Review handler
   const handleDeleteReview = async (review: { id: string; userName?: string }) => {
@@ -1500,8 +1529,9 @@ export const AdminPanel: React.FC = () => {
                         {/* Actions */}
                         <td className="p-3 text-right space-x-2">
                           <button
+                            id={`admin-toggle-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
                             onClick={() => toggleStaffApproval(user.email)}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 ${
                               user.hrApproved
                                 ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
                                 : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold shadow-sm'
@@ -1510,9 +1540,10 @@ export const AdminPanel: React.FC = () => {
                             {user.hrApproved ? 'Revoke Access' : 'Approve Staff'}
                           </button>
                           <button
+                            id={`admin-delete-staff-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
                             onClick={() => deleteStaffUser(user.email)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            title="Remove User Record"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer active:scale-90"
+                            title={`Permanently remove user record: ${user.name || user.email}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1878,13 +1909,27 @@ export const AdminPanel: React.FC = () => {
                           </select>
                         </td>
                         <td className="p-3 text-right">
-                          <button
-                            onClick={() => setSelectedInvoiceBooking(b)}
-                            className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold hover:bg-slate-800 transition flex items-center gap-1 ml-auto"
-                          >
-                            <Printer className="w-3.5 h-3.5 text-teal-400" />
-                            <span>Print Bill</span>
-                          </button>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              id={`admin-print-bill-${b.id}`}
+                              onClick={() => setSelectedInvoiceBooking(b)}
+                              className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold hover:bg-slate-800 transition flex items-center gap-1 cursor-pointer active:scale-95"
+                              title="Print / View Guest Bill & Invoice"
+                            >
+                              <Printer className="w-3.5 h-3.5 text-teal-400" />
+                              <span>Print Bill</span>
+                            </button>
+
+                            <button
+                              id={`admin-delete-guest-${b.id}`}
+                              onClick={() => handleDeleteBooking(b)}
+                              className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200/80 rounded-xl text-[11px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95"
+                              title={`Permanently delete reservation for ${b.guestName || 'Guest'}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
