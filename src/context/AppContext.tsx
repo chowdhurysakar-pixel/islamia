@@ -1047,7 +1047,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser, currentRole, isFirebaseActive]);
 
-  // Cross-Tab and Inter-Device Instant Eviction Listener
+  // Cross-Tab and Inter-Device Instant Eviction and Presence Broadcast Listener
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
     try {
@@ -1058,6 +1058,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (currentUser?.email && currentUser.email.toLowerCase() === targetEmail) {
             forceStaffEviction(event.data?.reason || 'Your staff access was revoked.');
           }
+        } else if (event.data?.type === 'USER_ONLINE' && event.data?.profile) {
+          const incomingProfile: UserProfile = event.data.profile;
+          setRegisteredUsers(prev => {
+            const next = [...prev];
+            const idx = next.findIndex(u => u.email.toLowerCase() === incomingProfile.email.toLowerCase());
+            if (idx >= 0) {
+              next[idx] = { 
+                ...next[idx], 
+                ...incomingProfile, 
+                isOnline: true, 
+                lastActiveAt: incomingProfile.lastActiveAt || new Date().toISOString() 
+              };
+            } else {
+              next.unshift({ ...incomingProfile, isOnline: true });
+            }
+            return next;
+          });
+        } else if (event.data?.type === 'PRESENCE_HEARTBEAT' && event.data?.email) {
+          const targetEmail = String(event.data.email).toLowerCase();
+          const targetActiveAt = event.data.lastActiveAt || new Date().toISOString();
+          setRegisteredUsers(prev => {
+            return prev.map(u => {
+              if (u.email.toLowerCase() === targetEmail) {
+                return { ...u, isOnline: true, lastActiveAt: targetActiveAt };
+              }
+              return u;
+            });
+          });
         }
       };
     } catch (e) {}
@@ -1095,6 +1123,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const now = new Date().toISOString();
+
+      // Local & Broadcast sync
+      try {
+        const channel = new BroadcastChannel('hotel_auth_sync');
+        channel.postMessage({ type: 'PRESENCE_HEARTBEAT', email: emailLower, lastActiveAt: now });
+        channel.close();
+      } catch (e) {}
+
       if (isFirebaseActive && db) {
         try {
           const payload = {
