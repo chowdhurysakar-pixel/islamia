@@ -27,15 +27,9 @@ import {
   updateDoc, 
   deleteDoc, 
   onSnapshot, 
-  getDocFromServer,
-  setLogLevel 
+  getDocFromServer 
 } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
-
-// Silence non-fatal transient connection retry notices
-try {
-  setLogLevel('error');
-} catch (e) {}
 
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -48,18 +42,11 @@ const firestoreDbId = (firebaseConfig.firestoreDatabaseId && firebaseConfig.fire
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
+    experimentalAutoDetectLongPolling: true,
     ignoreUndefinedProperties: true,
   }, firestoreDbId);
 } catch (e) {
-  try {
-    firestoreInstance = initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
-      ignoreUndefinedProperties: true,
-    }, firestoreDbId);
-  } catch (err) {
-    firestoreInstance = firestoreDbId ? getFirestore(app, firestoreDbId) : getFirestore(app);
-  }
+  firestoreInstance = firestoreDbId ? getFirestore(app, firestoreDbId) : getFirestore(app);
 }
 
 // Export database instance

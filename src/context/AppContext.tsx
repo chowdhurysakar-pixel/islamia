@@ -250,19 +250,10 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     const emailLower = u.email ? u.email.toLowerCase() : '';
     if (emailLower && !deletedSet.has(emailLower)) {
       const existing = map.get(emailLower);
-      const isAdmin = u.role === 'admin' || isAdminEmail(emailLower);
-      let staffSecretKey = u.staffSecretKey;
-      if (isAdmin && (!staffSecretKey || staffSecretKey === 'ISLAMIA-STAFF-2026')) {
-        staffSecretKey = 'ADMIN2026';
-      }
-      const sanitizedUser = {
-        ...u,
-        ...(staffSecretKey ? { staffSecretKey } : {})
-      };
       if (existing) {
-        map.set(emailLower, { ...existing, ...sanitizedUser });
+        map.set(emailLower, { ...existing, ...u });
       } else {
-        map.set(emailLower, sanitizedUser);
+        map.set(emailLower, u);
       }
     }
   });
@@ -272,12 +263,10 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     const activeEmailLower = activeUser.email.toLowerCase();
     if (!deletedSet.has(activeEmailLower)) {
       const existing = map.get(activeEmailLower);
-      const isActiveAdmin = activeUser.role === 'admin' || isAdminEmail(activeEmailLower);
       if (existing) {
         map.set(activeEmailLower, {
           ...existing,
           isOnline: true,
-          staffSecretKey: isActiveAdmin ? (existing.staffSecretKey && existing.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? existing.staffSecretKey : 'ADMIN2026') : existing.staffSecretKey,
           lastActiveAt: new Date().toISOString(),
           lastLoginAt: existing.lastLoginAt || new Date().toISOString()
         });
@@ -1047,7 +1036,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUser, currentRole, isFirebaseActive]);
 
-  // Cross-Tab and Inter-Device Instant Eviction and Presence Broadcast Listener
+  // Cross-Tab and Inter-Device Instant Eviction Listener
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
     try {
@@ -1058,34 +1047,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           if (currentUser?.email && currentUser.email.toLowerCase() === targetEmail) {
             forceStaffEviction(event.data?.reason || 'Your staff access was revoked.');
           }
-        } else if (event.data?.type === 'USER_ONLINE' && event.data?.profile) {
-          const incomingProfile: UserProfile = event.data.profile;
-          setRegisteredUsers(prev => {
-            const next = [...prev];
-            const idx = next.findIndex(u => u.email.toLowerCase() === incomingProfile.email.toLowerCase());
-            if (idx >= 0) {
-              next[idx] = { 
-                ...next[idx], 
-                ...incomingProfile, 
-                isOnline: true, 
-                lastActiveAt: incomingProfile.lastActiveAt || new Date().toISOString() 
-              };
-            } else {
-              next.unshift({ ...incomingProfile, isOnline: true });
-            }
-            return next;
-          });
-        } else if (event.data?.type === 'PRESENCE_HEARTBEAT' && event.data?.email) {
-          const targetEmail = String(event.data.email).toLowerCase();
-          const targetActiveAt = event.data.lastActiveAt || new Date().toISOString();
-          setRegisteredUsers(prev => {
-            return prev.map(u => {
-              if (u.email.toLowerCase() === targetEmail) {
-                return { ...u, isOnline: true, lastActiveAt: targetActiveAt };
-              }
-              return u;
-            });
-          });
         }
       };
     } catch (e) {}
@@ -1123,14 +1084,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const now = new Date().toISOString();
-
-      // Local & Broadcast sync
-      try {
-        const channel = new BroadcastChannel('hotel_auth_sync');
-        channel.postMessage({ type: 'PRESENCE_HEARTBEAT', email: emailLower, lastActiveAt: now });
-        channel.close();
-      } catch (e) {}
-
       if (isFirebaseActive && db) {
         try {
           const payload = {
@@ -1267,15 +1220,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
     const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : primaryUid);
 
-    const defaultPasscode = finalRole === 'admin' ? 'ADMIN2026' : (masterStaffPasscode || 'ISLAMIA-STAFF-2026');
-    const resolvedPasscode = passcodeUsed || defaultPasscode;
-
     const userProfile: UserProfile = {
       uid: userUid,
       email: emailLower,
       name: finalName,
       role: finalRole,
-      staffSecretKey: resolvedPasscode,
+      staffSecretKey: passcodeUsed || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
       hrApproved: true,
       emailVerified: true,
       isOnline: true,
@@ -1289,14 +1239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = [...prev];
       const idx = next.findIndex(u => u.email.toLowerCase() === emailLower);
       if (idx >= 0) {
-        next[idx] = { 
-          ...next[idx], 
-          ...userProfile, 
-          staffSecretKey: resolvedPasscode,
-          isOnline: true, 
-          lastLoginAt: now, 
-          lastActiveAt: now 
-        };
+        next[idx] = { ...next[idx], ...userProfile, isOnline: true, lastLoginAt: now, lastActiveAt: now };
       } else {
         next.unshift(userProfile);
       }
