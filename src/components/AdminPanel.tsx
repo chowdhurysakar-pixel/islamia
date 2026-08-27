@@ -323,21 +323,12 @@ export const AdminPanel: React.FC = () => {
 
   // Helper to determine real-time live online presence
   const isUserOnline = (u: UserProfile) => {
-    // Current user on this device is always active
+    if (u.isOnline) return true;
     if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
-    // Live online status synced from Firestore or local presence
-    if (u.isOnline === true) {
-      if (u.lastActiveAt) {
-        const diff = Date.now() - new Date(u.lastActiveAt).getTime();
-        if (diff < 15 * 60 * 1000) return true; // Active within last 15 minutes
-      } else {
-        return true;
-      }
-    }
-    // Recent activity within last 5 minutes
+    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com') return true;
     if (u.lastActiveAt) {
       const diff = Date.now() - new Date(u.lastActiveAt).getTime();
-      if (diff < 5 * 60 * 1000) return true;
+      if (diff < 10 * 60 * 1000) return true;
     }
     return false;
   };
