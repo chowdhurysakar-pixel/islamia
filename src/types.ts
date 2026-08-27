@@ -76,6 +76,7 @@ export interface UserProfile {
   role: UserRole;
   phone?: string;
   staffSecretKey?: string;
+  password?: string;
   hrApproved?: boolean;
   emailVerified?: boolean;
   registeredAt?: string;

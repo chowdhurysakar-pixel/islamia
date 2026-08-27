@@ -113,6 +113,7 @@ interface AppContextType {
   registeredUsers: UserProfile[];
   updateStaffApproval: (email: string, approved: boolean, uid?: string) => Promise<void>;
   deleteStaffAccount: (email: string, uid?: string) => Promise<void>;
+  updateStaffPassword: (email: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
   masterStaffPasscode: string;
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
@@ -235,8 +236,19 @@ export const removeDeletedUserEmail = (email: string): void => {
   } catch (e) {}
 };
 
+export const getStaffPasswordMap = (): Record<string, string> => {
+  try {
+    const raw = localStorage.getItem('hotel_staff_passwords');
+    if (!raw) return {};
+    return JSON.parse(raw);
+  } catch (e) {
+    return {};
+  }
+};
+
 export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], activeUser?: UserProfile | null, customDeletedEmails?: Set<string>): UserProfile[] => {
   const deletedSet = customDeletedEmails || getDeletedUserEmails();
+  const pwMap = getStaffPasswordMap();
   const map = new Map<string, UserProfile>();
 
   DEFAULT_SYSTEM_USERS.forEach(u => {
@@ -255,6 +267,14 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
       } else {
         map.set(emailLower, u);
       }
+    }
+  });
+
+  // Attach stored custom passwords if present
+  map.forEach((user, emailLower) => {
+    if (pwMap[emailLower]) {
+      user.password = pwMap[emailLower];
+      user.staffSecretKey = pwMap[emailLower];
     }
   });
 
@@ -1052,7 +1072,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     passcodeUsed?: string
   ) => {
     const emailLower = email.trim().toLowerCase();
-    removeDeletedUserEmail(emailLower);
+    if (getDeletedUserEmails().has(emailLower)) {
+      console.warn("Blocked recordStaffSignIn for deleted user:", emailLower);
+      return;
+    }
     const now = new Date().toISOString();
     const isAdmin = isAdminEmail(emailLower) || role === 'admin';
     const finalRole: UserRole = isAdmin ? 'admin' : role;
@@ -1134,6 +1157,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 1. Mark in permanent deleted registry so default lists and snapshots never resurrect it
     addDeletedUserEmail(emailLower);
 
+    // Remove from custom password store
+    try {
+      const pwMap = getStaffPasswordMap();
+      delete pwMap[emailLower];
+      localStorage.setItem('hotel_staff_passwords', JSON.stringify(pwMap));
+    } catch (e) {}
+
     // 2. Remove from active state & local storage
     setRegisteredUsers(prev => {
       const updated = prev.filter(u => u.email.toLowerCase() !== emailLower);
@@ -1146,7 +1176,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 3. If currently logged in as this user, sign out
     if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
-      logout();
+      await logout();
     }
 
     // 4. Delete all possible document IDs in Firestore and update Firestore deleted_users settings
@@ -1180,6 +1210,75 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Failed to delete user doc in Firestore:", e);
       }
     }
+  };
+
+  const updateStaffPassword = async (email: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
+    const emailLower = email.trim().toLowerCase();
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, error: 'Password must be at least 6 characters long.' };
+    }
+
+    if (getDeletedUserEmails().has(emailLower)) {
+      return { success: false, error: 'Cannot update password for a deleted staff account.' };
+    }
+
+    // 1. Update password store in localStorage
+    try {
+      const pwMap = getStaffPasswordMap();
+      pwMap[emailLower] = newPassword;
+      localStorage.setItem('hotel_staff_passwords', JSON.stringify(pwMap));
+    } catch (e) {}
+
+    // 2. Update registeredUsers in state and localStorage
+    setRegisteredUsers(prev => {
+      const updated = prev.map(u => {
+        if (u.email.toLowerCase() === emailLower) {
+          return { ...u, password: newPassword, staffSecretKey: newPassword };
+        }
+        return u;
+      });
+      try {
+        localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: { email: emailLower, passwordUpdated: true } }));
+      } catch (e) {}
+      return updated;
+    });
+
+    // 3. Update active session user if matching
+    if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
+      setCurrentUser(prev => prev ? { ...prev, password: newPassword, staffSecretKey: newPassword } : null);
+      try {
+        const cur = localStorage.getItem('hotel_current_user');
+        if (cur) {
+          const parsed = JSON.parse(cur);
+          parsed.password = newPassword;
+          parsed.staffSecretKey = newPassword;
+          localStorage.setItem('hotel_current_user', JSON.stringify(parsed));
+        }
+      } catch (e) {}
+    }
+
+    // 4. Update Firestore user document if active
+    if (isFirebaseActive && db) {
+      try {
+        const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
+        const targetUid = targetUser?.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        await setDoc(doc(db, 'users', targetUid), {
+          password: newPassword,
+          staffSecretKey: newPassword,
+          passwordUpdatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (e) {
+        console.warn("Failed to sync updated staff password to Firestore:", e);
+      }
+    }
+
+    showToast({
+      type: 'success',
+      message: `🔑 Password updated successfully for ${emailLower}.`
+    });
+
+    return { success: true };
   };
 
   const updateMasterStaffPasscode = async (passcode: string) => {
@@ -2379,6 +2478,7 @@ Islamia Guest House, Dhanmondi`;
       registeredUsers,
       updateStaffApproval,
       deleteStaffAccount,
+      updateStaffPassword,
       recordStaffSignIn,
       masterStaffPasscode,
       updateMasterStaffPasscode,
