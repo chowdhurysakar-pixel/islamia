@@ -1399,22 +1399,32 @@ export const StaffView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setGuestHistoryPhoneSearch('+1 (555) 321-9876');
-                  setSelectedHistoryGuestPhone('+1 (555) 321-9876');
+                  setGuestHistoryPhoneSearch('01832-841818');
+                  setSelectedHistoryGuestPhone('01832-841818');
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
               >
-                +1 (555) 321-9876
+                01832-841818
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setGuestHistoryPhoneSearch('+1 (555) 789-1234');
-                  setSelectedHistoryGuestPhone('+1 (555) 789-1234');
+                  setGuestHistoryPhoneSearch('01712-345678');
+                  setSelectedHistoryGuestPhone('01712-345678');
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition"
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
               >
-                +1 (555) 789-1234
+                01712-345678
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setGuestHistoryPhoneSearch('01909-806960');
+                  setSelectedHistoryGuestPhone('01909-806960');
+                }}
+                className="bg-slate-800 hover:bg-slate-700 text-teal-300 font-mono text-[9px] px-2 py-1 rounded-lg border border-slate-700 transition cursor-pointer"
+              >
+                01909-806960
               </button>
             </div>
           </div>
@@ -1428,7 +1438,7 @@ export const StaffView: React.FC = () => {
               <input
                 id="hr-history-phone-search-input"
                 type="text"
-                placeholder="Enter guest contact/phone number (e.g. 01712xxxxxx or +1)..."
+                placeholder="Enter guest contact/phone number (e.g. 01832-841818, 01712-345678)..."
                 value={guestHistoryPhoneSearch}
                 onChange={(e) => setGuestHistoryPhoneSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -1608,7 +1618,7 @@ export const StaffView: React.FC = () => {
                     No past stay records found for contact number: <span className="text-white font-mono font-bold">"{selectedHistoryGuestPhone}"</span>
                   </p>
                   <p className="text-[10px] text-slate-500 font-normal">
-                    Check if the phone matches exactly, or trace check-ins by searching '01712' or '555'.
+                    Check if the phone matches exactly, or trace check-ins by searching '01832' or '01712'.
                   </p>
                 </div>
               )}

@@ -408,8 +408,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           await getDocFromServer(doc(db, 'test', 'connection'));
         } catch (error) {
-          // Graceful fallback when offline or server check is delayed
-          console.log("Firestore status: Operating in offline/cached mode until backend reconnected.");
+          if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable') || error.message.includes('Could not reach Cloud Firestore'))) {
+            console.warn("Firestore status: Operating in offline/cached mode until backend reconnected.");
+          }
         }
       };
       testConnection().catch(() => {});
@@ -634,7 +635,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       if (storedBookings) {
-        setBookings(JSON.parse(storedBookings));
+        try {
+          const parsedB = JSON.parse(storedBookings);
+          const normalizedB = Array.isArray(parsedB) ? parsedB.map((b: Booking) => {
+            if (b.guestPhone && b.guestPhone.includes('555')) {
+              return { ...b, guestPhone: '01832-841818', guestName: b.guestName === 'Robert Sterling' ? 'Md. Rafiqul Islam' : b.guestName };
+            }
+            return b;
+          }) : INITIAL_BOOKINGS;
+          setBookings(normalizedB);
+          localStorage.setItem('hotel_bookings', JSON.stringify(normalizedB));
+        } catch (e) {
+          setBookings(INITIAL_BOOKINGS);
+        }
       } else {
         localStorage.setItem('hotel_bookings', JSON.stringify(INITIAL_BOOKINGS));
         setBookings(INITIAL_BOOKINGS);

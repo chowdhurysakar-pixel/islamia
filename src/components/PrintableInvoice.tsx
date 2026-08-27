@@ -4,7 +4,7 @@ import {
   Printer, X, Receipt, Sparkles, AlertCircle, 
   Check, Minimize, Eye, ToggleLeft, ToggleRight, 
   FileText, Calendar, User, Phone, MapPin, CreditCard,
-  Hash, ShieldCheck, HelpCircle, Info, Smartphone
+  Hash, ShieldCheck, HelpCircle, Info
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { BkashLogo } from './BkashLogo';
@@ -35,7 +35,7 @@ type PaperFormat = 'standard' | 'thermal-80' | 'thermal-58';
 type FontSize = 'xs' | 'sm' | 'base';
 
 export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: initialBooking, rooms, onClose, autoPrint = false }) => {
-  const { bookings, triggerSmsConfirmation, brandLogo } = useApp();
+  const { bookings, brandLogo } = useApp();
   const [booking, setBooking] = useState<Booking>(initialBooking);
 
   // Sync state if initialBooking changes from prop
@@ -222,16 +222,6 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              id="send-sms-invoice-btn"
-              onClick={() => triggerSmsConfirmation(booking)}
-              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-600/10 active:scale-[0.98] cursor-pointer"
-              title="Send instant SMS confirmation text with invoice summary to guest phone"
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>SMS Text</span>
-            </button>
-
             <button
               id="re-print-btn"
               onClick={() => window.print()}
