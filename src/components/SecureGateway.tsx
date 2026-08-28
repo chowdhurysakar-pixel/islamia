@@ -457,7 +457,7 @@ export const SecureGateway: React.FC = () => {
               role: role,
               phone: phone,
               emailVerified: false,
-              hrApproved: role !== 'staff',
+              hrApproved: true,
               staffSecretKey: effectivePasscode,
               registeredAt: new Date().toISOString()
             };
@@ -536,7 +536,7 @@ export const SecureGateway: React.FC = () => {
                 name: loggedInName,
                 role: loggedInRole,
                 emailVerified: true,
-                hrApproved: loggedInRole !== 'staff',
+                hrApproved: true,
                 staffSecretKey: effectivePasscode,
                 isOnline: true,
                 lastLoginAt: new Date().toISOString()
@@ -604,7 +604,7 @@ export const SecureGateway: React.FC = () => {
             role: role,
             password: password, // Store password for local sandbox verification
             emailVerified: true,
-            hrApproved: role !== 'staff',
+            hrApproved: true,
             staffSecretKey: effectivePasscode,
             isOnline: true,
             lastLoginAt: new Date().toISOString()

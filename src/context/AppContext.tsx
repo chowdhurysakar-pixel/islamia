@@ -725,7 +725,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             isOnline: true,
             lastActiveAt: now,
             lastLoginAt: now,
-            hrApproved: chosenRole !== 'staff',
+            hrApproved: true,
             emailVerified: true,
             loginMethod: fallbackMethod
           };
@@ -1156,7 +1156,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const usersList: UserProfile[] = [];
         const deletedSet = getDeletedUserEmails();
         let currentEmailFound = false;
-        let currentHrApproved = true;
+        let currentHrApproved: boolean | undefined = undefined;
 
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as UserProfile;
@@ -1168,18 +1168,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             currentEmailFound = true;
             if (data.hrApproved === false) {
               currentHrApproved = false;
+            } else if (data.hrApproved === true) {
+              currentHrApproved = true;
             }
           }
         });
 
-        // Eviction Guard: ONLY evict if explicitly in deleted registry OR HR revoked access
-        if (currentUser?.email) {
+        // Eviction Guard: ONLY evict if explicitly in deleted registry OR HR revoked access (and not during initial load)
+        if (currentUser?.email && !isLoading) {
           const myEmail = currentUser.email.toLowerCase();
           if (deletedSet.has(myEmail)) {
             forceStaffEviction('Your user account has been deleted by the administrator.');
             return;
           }
-          if ((currentUser.role === 'staff' || currentRole === 'staff') && currentEmailFound && !currentHrApproved) {
+          if ((currentUser.role === 'staff' || currentRole === 'staff') && currentEmailFound && currentHrApproved === false) {
             forceStaffEviction('Your staff HR access authorization has been revoked by the administrator.');
             return;
           }
@@ -1230,7 +1232,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (unsubUsers) unsubUsers();
       if (unsubDeletedUsers) unsubDeletedUsers();
     };
-  }, [currentUser, currentRole, opMode, isFirebaseActive]);
+  }, [currentUser, currentRole, opMode, isFirebaseActive, isLoading]);
 
   // Real-Time Active User Auth Guard: Instantly logs out if this user's document is deleted or HR status revoked
   useEffect(() => {
@@ -1252,7 +1254,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return;
         }
 
-        if (docSnap.exists()) {
+        if (docSnap.exists() && !isLoading) {
           const data = docSnap.data() as UserProfile;
           if ((currentUser.role === 'staff' || currentRole === 'staff') && data.hrApproved === false) {
             forceStaffEviction('Your staff HR access authorization has been revoked by the administrator.');
@@ -1266,7 +1268,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         unsubUserDoc();
       };
     }
-  }, [currentUser, currentRole, isFirebaseActive]);
+  }, [currentUser, currentRole, isFirebaseActive, isLoading]);
 
   // Cross-Tab and Inter-Device Instant Eviction and Presence Broadcast Listener
   useEffect(() => {
