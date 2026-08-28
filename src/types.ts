@@ -122,3 +122,17 @@ export interface BrandingSetting {
   updatedBy?: string;
 }
 
+export interface SEOSetting {
+  metaTitle: string;
+  metaDescription: string;
+  keywords: string;
+  canonicalUrl: string;
+  ogImageUrl: string;
+  hotelName: string;
+  address: string;
+  phone: string;
+  googleMapUrl: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+

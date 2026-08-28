@@ -9,6 +9,7 @@ import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from 
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { OfficialRoomPresets } from './OfficialRoomPresets';
+import { GoogleSearchManager } from './GoogleSearchManager';
 import { 
   Building, Shield, ShieldCheck, Users, CheckCircle2, AlertCircle, Key, 
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
@@ -2654,6 +2655,9 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Google Search & SEO Live Real-Time Management Panel */}
+          <GoogleSearchManager />
         </div>
       )}
 

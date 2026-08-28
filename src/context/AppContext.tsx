@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback } from '../types';
+import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, SEOSetting } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -120,6 +120,9 @@ interface AppContextType {
   brandLogo: string;
   updateBrandLogo: (logoDataUrl: string) => Promise<void>;
   removeBrandLogo: () => Promise<void>;
+  // Google Search & SEO Settings Management
+  seoSettings: SEOSetting;
+  updateSeoSettings: (newSettings: Partial<SEOSetting>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -323,7 +326,28 @@ const INITIAL_FEEDBACKS: Feedback[] = [
   }
 ];
 
+export const DEFAULT_SEO_SETTINGS: SEOSetting = {
+  metaTitle: "Islamia Guest House Dhanmondi - Premium Rooms & Suites in Dhaka",
+  metaDescription: "Book air-conditioned executive chambers & guest suites at Islamia Guest House, Road 9/A, Dhanmondi, Dhaka. Opposite Ibne Sina Hospital & behind Meena Bazar. 24/7 front desk & instant booking.",
+  keywords: "Islamia Guest House, Dhanmondi guest house, hotel Dhanmondi, Ibne Sina hospital room, Dhanmondi 9/A room, Dhaka guest house, room booking Dhanmondi",
+  canonicalUrl: "https://islamiaguesthouse.com/",
+  ogImageUrl: "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=1200",
+  hotelName: "Islamia Guest House Dhanmondi",
+  address: "House #39, Road #9/A, Dhanmondi R/A (Opposite Ibne Sina Hospital & behind Meena Bazar), Dhaka - 1209, Bangladesh",
+  phone: "+880 1711-542745",
+  googleMapUrl: "https://maps.google.com/?q=Islamia+Guest+House+Dhanmondi+Dhaka"
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [seoSettings, setSeoSettings] = useState<SEOSetting>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_seo_settings');
+      if (stored) {
+        return { ...DEFAULT_SEO_SETTINGS, ...JSON.parse(stored) };
+      }
+    } catch (e) {}
+    return DEFAULT_SEO_SETTINGS;
+  });
   const [rooms, setRooms] = useState<Room[]>(() => {
     try {
       const stored = localStorage.getItem('hotel_rooms');
@@ -760,11 +784,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Branding settings snapshot listener:", error);
       });
 
+      // Realtime Google Search & SEO Settings sync
+      const unsubSeo = onSnapshot(doc(db, 'settings', 'seo'), (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          setSeoSettings(prev => {
+            const merged = { ...prev, ...data };
+            try {
+              localStorage.setItem('hotel_seo_settings', JSON.stringify(merged));
+            } catch (e) {}
+            return merged;
+          });
+        }
+      }, (error) => {
+        console.warn("SEO settings snapshot notice:", error);
+      });
+
       return () => {
         unsubscribeAuth();
         unsubRooms();
         unsubFeedbacks();
         unsubBranding();
+        unsubSeo();
       };
     } else {
       // Offline Local Storage Sandbox Fallback
@@ -2729,6 +2770,129 @@ Islamia Guest House, Dhanmondi`;
     }
   };
 
+  // Synchronize document head & Google Search structured data (Schema.org JSON-LD) in real time
+  const updateHeadMeta = (seo: SEOSetting, feedbackList: Feedback[]) => {
+    if (typeof document === 'undefined') return;
+
+    const totalReviews = feedbackList.length;
+    const avgRating = totalReviews > 0
+      ? Number((feedbackList.reduce((acc, f) => acc + (f.rating || 5), 0) / totalReviews).toFixed(1))
+      : 4.8;
+
+    const ratingText = `★ ${avgRating}/5 (${totalReviews} reviews)`;
+    const fullTitle = seo.metaTitle ? `${seo.metaTitle} | ${ratingText}` : `Islamia Guest House | ${ratingText}`;
+
+    document.title = fullTitle;
+
+    const setMetaTag = (attrName: string, attrVal: string, content: string) => {
+      let el = document.querySelector(`meta[${attrName}="${attrVal}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attrName, attrVal);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    const liveDesc = `${seo.metaDescription || ''} Verified Rating: ${avgRating}★ (${totalReviews} guest reviews).`;
+
+    setMetaTag('name', 'title', fullTitle);
+    setMetaTag('name', 'description', liveDesc);
+    setMetaTag('name', 'keywords', seo.keywords || '');
+
+    setMetaTag('property', 'og:title', fullTitle);
+    setMetaTag('property', 'og:description', liveDesc);
+    setMetaTag('property', 'og:url', seo.canonicalUrl || 'https://islamiaguesthouse.com/');
+    setMetaTag('property', 'og:image', seo.ogImageUrl || '');
+    setMetaTag('property', 'og:site_name', seo.hotelName || 'Islamia Guest House');
+
+    let link = document.querySelector('link[rel="canonical"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.setAttribute('rel', 'canonical');
+      document.head.appendChild(link);
+    }
+    link.setAttribute('href', seo.canonicalUrl || 'https://islamiaguesthouse.com/');
+
+    // Update JSON-LD Schema for Google Rich Search Snippets
+    let script = document.getElementById('google-jsonld-schema') as HTMLScriptElement;
+    if (!script) {
+      script = document.createElement('script');
+      script.id = 'google-jsonld-schema';
+      script.type = 'application/ld+json';
+      document.head.appendChild(script);
+    }
+
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "LodgingBusiness",
+      "name": seo.hotelName,
+      "url": seo.canonicalUrl,
+      "description": seo.metaDescription,
+      "image": seo.ogImageUrl,
+      "telephone": seo.phone,
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "House #39, Road #9/A, Dhanmondi R/A",
+        "addressLocality": "Dhaka",
+        "postalCode": "1209",
+        "addressCountry": "BD"
+      },
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 23.7533,
+        "longitude": 90.3769
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": avgRating,
+        "reviewCount": totalReviews || 1,
+        "bestRating": "5",
+        "worstRating": "1"
+      },
+      "priceRange": "BDT 1,500 - BDT 6,000",
+      "hasMap": seo.googleMapUrl
+    };
+
+    script.textContent = JSON.stringify(jsonLd, null, 2);
+  };
+
+  useEffect(() => {
+    updateHeadMeta(seoSettings, feedbacks);
+  }, [seoSettings, feedbacks]);
+
+  const updateSeoSettings = async (newSettings: Partial<SEOSetting>): Promise<void> => {
+    const updated = {
+      ...seoSettings,
+      ...newSettings,
+      updatedAt: new Date().toISOString(),
+      updatedBy: currentUser?.email || 'admin'
+    };
+    setSeoSettings(updated);
+    try {
+      localStorage.setItem('hotel_seo_settings', JSON.stringify(updated));
+    } catch (e) {
+      console.warn("Failed saving SEO settings to localStorage:", e);
+    }
+
+    if (isFirebaseActive && db) {
+      try {
+        await setDoc(doc(db, 'settings', 'seo'), sanitizeFirestoreData(updated), { merge: true });
+        showToast({
+          message: '🚀 Google Search SEO metadata & Schema.org updated live!',
+          type: 'success'
+        });
+      } catch (error) {
+        console.warn("Failed to persist SEO settings to Firestore:", error);
+      }
+    } else {
+      showToast({
+        message: '🚀 Google Search SEO metadata updated locally!',
+        type: 'success'
+      });
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       rooms,
@@ -2783,7 +2947,9 @@ Islamia Guest House, Dhanmondi`;
       updateMasterStaffPasscode,
       brandLogo,
       updateBrandLogo,
-      removeBrandLogo
+      removeBrandLogo,
+      seoSettings,
+      updateSeoSettings
     }}>
       {children}
     </AppContext.Provider>
