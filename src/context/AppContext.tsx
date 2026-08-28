@@ -302,13 +302,34 @@ const isAdminEmail = (email?: string | null): boolean => {
   return ADMIN_EMAIL_WHITELIST.includes(email.trim().toLowerCase());
 };
 
+const INITIAL_FEEDBACKS: Feedback[] = [
+  {
+    id: 'F1',
+    userId: 'sample-user-1',
+    userName: 'Rahat Rahman',
+    userEmail: 'rahat@gmail.com',
+    rating: 5,
+    comment: 'Absolutely love the peace and quiet here! Ibne Sina is right across which was very convenient for us.',
+    createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
+  },
+  {
+    id: 'F2',
+    userId: 'sample-user-2',
+    userName: 'Sultana Begum',
+    userEmail: 'sultana@yahoo.com',
+    rating: 4,
+    comment: 'Clean rooms and excellent staff. Meena Bazar is very close. Recommended for families.',
+    createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
+  }
+];
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [rooms, setRooms] = useState<Room[]>(() => {
     try {
       const stored = localStorage.getItem('hotel_rooms');
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return INITIAL_ROOMS;
@@ -317,9 +338,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [bookings, setBookings] = useState<Booking[]>(() => {
     try {
       const stored = localStorage.getItem('hotel_bookings');
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return INITIAL_BOOKINGS;
@@ -328,7 +349,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [archivedBookings, setArchivedBookings] = useState<Booking[]>(() => {
     try {
       const stored = localStorage.getItem('hotel_archived_bookings');
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) return parsed;
       }
@@ -339,9 +360,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(() => {
     try {
       const stored = localStorage.getItem('hotel_services');
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
     return INITIAL_SERVICES;
@@ -350,31 +371,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [feedbacks, setFeedbacks] = useState<Feedback[]>(() => {
     try {
       const stored = localStorage.getItem('hotel_feedbacks');
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return [
-      {
-        id: 'F1',
-        userId: 'sample-user-1',
-        userName: 'Rahat Rahman',
-        userEmail: 'rahat@gmail.com',
-        rating: 5,
-        comment: 'Absolutely love the peace and quiet here! Ibne Sina is right across which was very convenient for us.',
-        createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
-      },
-      {
-        id: 'F2',
-        userId: 'sample-user-2',
-        userName: 'Sultana Begum',
-        userEmail: 'sultana@yahoo.com',
-        rating: 4,
-        comment: 'Clean rooms and excellent staff. Meena Bazar is very close. Recommended for families.',
-        createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
-      }
-    ];
+    return INITIAL_FEEDBACKS;
   });
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
@@ -481,6 +483,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const hasSeededRoomsRef = useRef(false);
   const hasSeededBookingsRef = useRef(false);
   const hasSeededServicesRef = useRef(false);
+  const hasSeededFeedbacksRef = useRef(false);
 
   // Instant Forced Eviction / Logout for Removed or Revoked Staff Accounts
   const forceStaffEviction = (reason: string = 'Your staff account access has been revoked or removed by the administrator.') => {
@@ -690,30 +693,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           snapshot.forEach((docSnap) => {
             roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
           });
-        }
-        setRooms(prev => {
-          const map = new Map<string, Room>();
-          prev.forEach(r => map.set(r.id, r));
-          roomsList.forEach(r => map.set(r.id, r));
-          const merged = Array.from(map.values()).sort((a, b) => Number(a.number) - Number(b.number));
-          if (merged.length === 0) {
-            try { localStorage.setItem('hotel_rooms', JSON.stringify(INITIAL_ROOMS)); } catch (e) {}
-            return INITIAL_ROOMS;
+          roomsList.sort((a, b) => Number(a.number) - Number(b.number));
+          setRooms(roomsList);
+          try { localStorage.setItem('hotel_rooms', JSON.stringify(roomsList)); } catch (e) {}
+        } else {
+          if (!hasSeededRoomsRef.current) {
+            hasSeededRoomsRef.current = true;
+            console.log("Firestore rooms collection is empty. Seeding initial rooms...");
+            INITIAL_ROOMS.forEach(async (room) => {
+              try {
+                await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
+              } catch (e) {
+                console.warn("Failed to seed initial room:", e);
+              }
+            });
+          } else {
+            setRooms([]);
+            try { localStorage.setItem('hotel_rooms', JSON.stringify([])); } catch (e) {}
           }
-          try { localStorage.setItem('hotel_rooms', JSON.stringify(merged)); } catch (e) {}
-          return merged;
-        });
-
-        if (snapshot.empty && !hasSeededRoomsRef.current) {
-          hasSeededRoomsRef.current = true;
-          console.log("Firestore rooms collection is empty. Seeding initial rooms...");
-          INITIAL_ROOMS.forEach(async (room) => {
-            try {
-              await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
-            } catch (e) {
-              console.warn("Failed to seed initial room:", e);
-            }
-          });
         }
       }, (error) => {
         console.warn("Rooms snapshot notice:", error);
@@ -721,13 +718,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
         const feedbacksList: Feedback[] = [];
-        snapshot.forEach((docSnap) => {
-          feedbacksList.push({ id: docSnap.id, ...docSnap.data() } as Feedback);
-        });
-        feedbacksList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        setFeedbacks(feedbacksList);
+        if (!snapshot.empty) {
+          hasSeededFeedbacksRef.current = true;
+          snapshot.forEach((docSnap) => {
+            feedbacksList.push({ id: docSnap.id, ...docSnap.data() } as Feedback);
+          });
+          feedbacksList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          setFeedbacks(feedbacksList);
+          try { localStorage.setItem('hotel_feedbacks', JSON.stringify(feedbacksList)); } catch (e) {}
+        } else {
+          if (!hasSeededFeedbacksRef.current) {
+            hasSeededFeedbacksRef.current = true;
+            INITIAL_FEEDBACKS.forEach(async (f) => {
+              try {
+                await setDoc(doc(db, 'feedbacks', f.id), sanitizeFirestoreData(f));
+              } catch (e) {
+                console.warn("Failed to seed initial feedback:", e);
+              }
+            });
+          } else {
+            setFeedbacks([]);
+            try { localStorage.setItem('hotel_feedbacks', JSON.stringify([])); } catch (e) {}
+          }
+        }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'feedbacks');
+        console.warn("Feedbacks snapshot notice:", error);
       });
 
       // Realtime branding & uploaded logo sync
@@ -946,27 +961,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         snapshot.forEach((docSnap) => {
           bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
         });
-      }
-      setBookings(prev => {
-        const map = new Map<string, Booking>();
-        prev.forEach(b => map.set(b.id, b));
-        bookingsList.forEach(b => map.set(b.id, b));
-        const merged = Array.from(map.values());
+        setBookings(bookingsList);
         try {
-          localStorage.setItem('hotel_bookings', JSON.stringify(merged));
+          localStorage.setItem('hotel_bookings', JSON.stringify(bookingsList));
         } catch (e) {}
-        return merged;
-      });
-
-      if (snapshot.empty && !hasSeededBookingsRef.current) {
-        hasSeededBookingsRef.current = true;
-        INITIAL_BOOKINGS.forEach(async (b) => {
+      } else {
+        if (!hasSeededBookingsRef.current) {
+          hasSeededBookingsRef.current = true;
+          INITIAL_BOOKINGS.forEach(async (b) => {
+            try {
+              await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
+            } catch (e) {
+              console.warn("Failed to seed initial booking:", e);
+            }
+          });
+        } else {
+          setBookings([]);
           try {
-            await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
-          } catch (e) {
-            console.warn("Failed to seed initial booking:", e);
-          }
-        });
+            localStorage.setItem('hotel_bookings', JSON.stringify([]));
+          } catch (e) {}
+        }
       }
     }, (error) => {
       console.warn("Bookings snapshot notice:", error);
@@ -978,29 +992,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       snapshot.forEach((docSnap) => {
         archivedList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
       });
-      setArchivedBookings(prev => {
-        const map = new Map<string, Booking>();
-        prev.forEach(b => map.set(b.id, b));
-        archivedList.forEach(b => map.set(b.id, b));
-        const merged = Array.from(map.values());
-        try {
-          localStorage.setItem('hotel_archived_bookings', JSON.stringify(merged));
-        } catch (e) {}
-        return merged;
-      });
+      setArchivedBookings(archivedList);
+      try {
+        localStorage.setItem('hotel_archived_bookings', JSON.stringify(archivedList));
+      } catch (e) {}
     }, (error) => {
       console.warn("Archived bookings snapshot warning:", error);
     });
 
     // 3. Staff/Admin gets all service requests in real time
     unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
+      const requestsList: ServiceRequest[] = [];
       if (!snapshot.empty) {
         hasSeededServicesRef.current = true;
-        const requestsList: ServiceRequest[] = [];
         snapshot.forEach((docSnap) => {
           requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
         });
         setServiceRequests(requestsList);
+        try {
+          localStorage.setItem('hotel_services', JSON.stringify(requestsList));
+        } catch (e) {}
       } else {
         if (!hasSeededServicesRef.current) {
           hasSeededServicesRef.current = true;
@@ -1013,10 +1024,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           });
         } else {
           setServiceRequests([]);
+          try {
+            localStorage.setItem('hotel_services', JSON.stringify([]));
+          } catch (e) {}
         }
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'serviceRequests');
+      console.warn("Service requests snapshot warning:", error);
     });
 
     // 4. Real-time Live Staff & HR Approvals sync from Firestore users collection
