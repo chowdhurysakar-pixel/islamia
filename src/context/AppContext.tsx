@@ -548,16 +548,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const forceStaffEviction = (reason: string = 'Your staff account access has been revoked or removed by the administrator.') => {
     const userEmail = currentUser?.email?.toLowerCase() || '';
 
-    // 1. Immediately reset memory state & drop roles to guest
+    // 1. Immediately reset memory state & redirect to staff login screen (SecureGateway)
     setCurrentUser(null);
-    setCurrentRoleState('guest');
-    setOpModeState('guest');
+    setCurrentRoleState('staff');
+    setOpModeState('receptionist');
 
     // 2. Clear stored credentials & sessions
     try {
       localStorage.removeItem('hotel_current_user');
-      localStorage.setItem('hotel_current_role', 'guest');
-      localStorage.setItem('hotel_op_mode', 'guest');
+      localStorage.setItem('hotel_current_role', 'staff');
+      localStorage.setItem('hotel_op_mode', 'receptionist');
       sessionStorage.removeItem('admin_authorized');
       localStorage.removeItem('pending_google_role');
     } catch (e) {}
@@ -725,7 +725,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             isOnline: true,
             lastActiveAt: now,
             lastLoginAt: now,
-            hrApproved: true,
+            hrApproved: chosenRole !== 'staff',
             emailVerified: true,
             loginMethod: fallbackMethod
           };
