@@ -851,7 +851,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       // Realtime branding & uploaded logo sync
-      const unsubBranding = onSnapshot(doc(db, 'settings', 'branding'), (snapshot) => {
+      const unsubBranding = onSnapshot(doc(db, 'settings', 'branding'), { includeMetadataChanges: true }, (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (typeof data.logo === 'string') {
@@ -866,7 +866,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       // Realtime Google Search & SEO Settings sync
-      const unsubSeo = onSnapshot(doc(db, 'settings', 'seo'), (snapshot) => {
+      const unsubSeo = onSnapshot(doc(db, 'settings', 'seo'), { includeMetadataChanges: true }, (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
           setSeoSettings(prev => {
