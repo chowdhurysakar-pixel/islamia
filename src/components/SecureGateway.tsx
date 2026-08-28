@@ -552,7 +552,7 @@ export const SecureGateway: React.FC = () => {
               setOpMode('receptionist');
             }
             localLogin(loggedInRole, emailLower, loggedInName);
-            await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'passcode', effectivePasscode);
+            await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'password', effectivePasscode);
 
             showToast({
               type: 'success',

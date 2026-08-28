@@ -254,18 +254,40 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     if (emailLower && !deletedSet.has(emailLower)) {
       const existing = map.get(emailLower);
       const isAdmin = u.role === 'admin' || isAdminEmail(emailLower);
-      let staffSecretKey = u.staffSecretKey;
+      let staffSecretKey = u.staffSecretKey || existing?.staffSecretKey;
       if (isAdmin && (!staffSecretKey || staffSecretKey === 'ISLAMIA-STAFF-2026')) {
         staffSecretKey = 'ADMIN2026';
       }
-      const sanitizedUser = {
-        ...u,
-        ...(staffSecretKey ? { staffSecretKey } : {})
-      };
+
       if (existing) {
-        map.set(emailLower, { ...existing, ...sanitizedUser });
+        // Intelligently preserve online status if either doc indicates online
+        const isOnline = Boolean(u.isOnline || existing.isOnline);
+
+        // Pick the newer lastActiveAt
+        const uActiveTime = u.lastActiveAt ? new Date(u.lastActiveAt).getTime() : 0;
+        const exActiveTime = existing.lastActiveAt ? new Date(existing.lastActiveAt).getTime() : 0;
+        const lastActiveAt = uActiveTime >= exActiveTime ? (u.lastActiveAt || existing.lastActiveAt) : (existing.lastActiveAt || u.lastActiveAt);
+
+        // Pick the newer lastLoginAt
+        const uLoginTime = u.lastLoginAt ? new Date(u.lastLoginAt).getTime() : 0;
+        const exLoginTime = existing.lastLoginAt ? new Date(existing.lastLoginAt).getTime() : 0;
+        const lastLoginAt = uLoginTime >= exLoginTime ? (u.lastLoginAt || existing.lastLoginAt) : (existing.lastLoginAt || u.lastLoginAt);
+
+        map.set(emailLower, {
+          ...existing,
+          ...u,
+          isOnline,
+          lastActiveAt,
+          lastLoginAt,
+          staffSecretKey: staffSecretKey || existing.staffSecretKey,
+          loginMethod: u.loginMethod || existing.loginMethod,
+          hrApproved: u.hrApproved ?? existing.hrApproved ?? true
+        });
       } else {
-        map.set(emailLower, sanitizedUser);
+        map.set(emailLower, {
+          ...u,
+          ...(staffSecretKey ? { staffSecretKey } : {})
+        });
       }
     }
   });
@@ -276,13 +298,26 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     if (!deletedSet.has(activeEmailLower)) {
       const existing = map.get(activeEmailLower);
       const isActiveAdmin = activeUser.role === 'admin' || isAdminEmail(activeEmailLower);
+      const now = new Date().toISOString();
       if (existing) {
         map.set(activeEmailLower, {
           ...existing,
           isOnline: true,
           staffSecretKey: isActiveAdmin ? (existing.staffSecretKey && existing.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? existing.staffSecretKey : 'ADMIN2026') : existing.staffSecretKey,
-          lastActiveAt: new Date().toISOString(),
-          lastLoginAt: existing.lastLoginAt || new Date().toISOString()
+          lastActiveAt: now,
+          lastLoginAt: existing.lastLoginAt || now
+        });
+      } else {
+        map.set(activeEmailLower, {
+          uid: activeUser.uid || `staff-${activeEmailLower.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          email: activeEmailLower,
+          name: activeUser.name || 'User',
+          role: activeUser.role || 'staff',
+          isOnline: true,
+          lastActiveAt: now,
+          lastLoginAt: now,
+          hrApproved: true,
+          emailVerified: true
         });
       }
     }
@@ -616,6 +651,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   uData.name = getAdminNameForEmail(emailLower, uData.name);
                 }
               }
+              const now = new Date().toISOString();
+              uData.isOnline = true;
+              uData.lastActiveAt = now;
+              uData.lastLoginAt = uData.lastLoginAt || now;
+
+              // Correctly resolve loginMethod if missing
+              const resolvedMethod = uData.loginMethod || (fbUser.providerData.some(p => p.providerId === 'google.com') ? 'google' : 'password');
+              uData.loginMethod = resolvedMethod;
+
               setCurrentUser(uData);
               setCurrentRole(uData.role);
               if (uData.role === 'admin') {
@@ -629,6 +673,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 localStorage.setItem('hotel_current_user', JSON.stringify(uData));
                 localStorage.setItem('hotel_current_role', uData.role);
               } catch (e) {}
+
+              // Sync online status to Firestore
+              const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+              const presencePayload = {
+                uid: fbUser.uid,
+                email: emailLower,
+                name: uData.name,
+                role: uData.role,
+                isOnline: true,
+                lastActiveAt: now,
+                lastLoginAt: uData.lastLoginAt,
+                loginMethod: resolvedMethod
+              };
+              setDoc(doc(db, 'users', fbUser.uid), presencePayload, { merge: true }).catch(() => {});
+              if (fbUser.uid !== primaryUid) {
+                setDoc(doc(db, 'users', primaryUid), presencePayload, { merge: true }).catch(() => {});
+              }
+
               setIsLoading(false);
               return;
             }
@@ -653,11 +715,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || existingLocal?.name || fbUser.displayName || (isAdminAccount ? getAdminNameForEmail(emailLower) : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User');
           localStorage.removeItem(`pending_name_${emailLower}`);
 
+          const now = new Date().toISOString();
+          const fallbackMethod = fbUser.providerData.some(p => p.providerId === 'google.com') ? 'google' : 'password';
           const profile: UserProfile = {
             uid: fbUser.uid,
             email: fbUser.email || '',
             name: pendingName,
-            role: chosenRole
+            role: chosenRole,
+            isOnline: true,
+            lastActiveAt: now,
+            lastLoginAt: now,
+            hrApproved: true,
+            emailVerified: true,
+            loginMethod: fallbackMethod
           };
           setCurrentUser(profile);
           setCurrentRole(chosenRole);
@@ -673,9 +743,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem('hotel_current_role', chosenRole);
           } catch (e) {}
           
-          setDoc(doc(db, 'users', fbUser.uid), profile).catch(e => {
+          const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          setDoc(doc(db, 'users', fbUser.uid), sanitizeFirestoreData(profile), { merge: true }).catch(e => {
             console.error("Failed to sync user profile to Firestore:", e);
           });
+          if (fbUser.uid !== primaryUid) {
+            setDoc(doc(db, 'users', primaryUid), sanitizeFirestoreData(profile), { merge: true }).catch(() => {});
+          }
         } else {
           // When Firebase user is null (signed out or unverified / offline fallback):
           const savedUser = localStorage.getItem('hotel_current_user');
@@ -1662,16 +1736,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = async () => {
-    // 0. Update online status in Firestore before logging out
+    // 0. Update online status in Firestore before logging out (both main uid and staff-email primary uid)
     if (currentUser?.email) {
       const emailLower = currentUser.email.toLowerCase();
       const targetUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
       if (isFirebaseActive && db) {
         try {
-          await updateDoc(doc(db, 'users', targetUid), {
+          const offlinePayload = {
             isOnline: false,
             lastActiveAt: new Date().toISOString()
-          });
+          };
+          await setDoc(doc(db, 'users', targetUid), offlinePayload, { merge: true });
+          if (targetUid !== primaryUid) {
+            await setDoc(doc(db, 'users', primaryUid), offlinePayload, { merge: true });
+          }
         } catch (e) {}
       }
       setRegisteredUsers(prev => {

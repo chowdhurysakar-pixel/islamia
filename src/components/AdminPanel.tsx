@@ -347,14 +347,14 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
-  // Helper to determine real-time live online presence
+  // Helper to determine real-time live online presence (with timezone/clock skew robustness)
   const isUserOnline = (u: UserProfile) => {
     // Current user on this device is always active
     if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
     // Live online status synced from Firestore or local presence
     if (u.isOnline === true) {
       if (u.lastActiveAt) {
-        const diff = Date.now() - new Date(u.lastActiveAt).getTime();
+        const diff = Math.abs(Date.now() - new Date(u.lastActiveAt).getTime());
         if (diff < 15 * 60 * 1000) return true; // Active within last 15 minutes
       } else {
         return true;
@@ -362,7 +362,7 @@ export const AdminPanel: React.FC = () => {
     }
     // Recent activity within last 5 minutes
     if (u.lastActiveAt) {
-      const diff = Date.now() - new Date(u.lastActiveAt).getTime();
+      const diff = Math.abs(Date.now() - new Date(u.lastActiveAt).getTime());
       if (diff < 5 * 60 * 1000) return true;
     }
     return false;
@@ -1537,18 +1537,20 @@ export const AdminPanel: React.FC = () => {
 
                             return (
                               <div className="space-y-1">
-                                {user.loginMethod === 'passcode' || user.staffSecretKey || isAdminUser ? (
+                                {user.loginMethod === 'google' ? (
+                                  <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold flex items-center gap-1">
+                                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span>
+                                    <span>Google SSO Verified</span>
+                                  </div>
+                                ) : user.loginMethod === 'password' ? (
+                                  <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit border border-slate-200 font-semibold flex items-center gap-1">
+                                    <span className="w-1 h-1 rounded-full bg-slate-400"></span>
+                                    <span>Password Verified</span>
+                                  </div>
+                                ) : (
                                   <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60 font-semibold">
                                     <KeyRound className="w-3 h-3 text-teal-600" />
                                     <span>Passcode: {displayedPasscode}</span>
-                                  </div>
-                                ) : user.loginMethod === 'google' ? (
-                                  <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold">
-                                    Google SSO Verified
-                                  </div>
-                                ) : (
-                                  <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit font-mono">
-                                    Password Login
                                   </div>
                                 )}
 
