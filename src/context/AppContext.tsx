@@ -784,10 +784,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       // 3. Realtime rooms collection sync with single-source-of-truth onSnapshot listener
-      const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
+      const unsubRooms = onSnapshot(collection(db, 'rooms'), async (snapshot) => {
         const roomsList: Room[] = [];
         if (!snapshot.empty) {
-          hasSeededRoomsRef.current = true;
           snapshot.forEach((docSnap) => {
             roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
           });
@@ -795,17 +794,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setRooms(roomsList);
           try { localStorage.setItem('hotel_rooms', JSON.stringify(roomsList)); } catch (e) {}
         } else {
-          if (!hasSeededRoomsRef.current) {
-            hasSeededRoomsRef.current = true;
-            console.log("Firestore rooms collection is empty. Seeding initial rooms...");
-            INITIAL_ROOMS.forEach(async (room) => {
-              try {
+          try {
+            const seedDoc = await getDoc(doc(db, 'settings', 'seeding'));
+            const isSeeded = seedDoc.exists() && seedDoc.data()?.rooms === true;
+            if (!isSeeded) {
+              console.log("Firestore rooms collection is empty. Seeding initial rooms...");
+              await setDoc(doc(db, 'settings', 'seeding'), { rooms: true }, { merge: true });
+              for (const room of INITIAL_ROOMS) {
                 await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
-              } catch (e) {
-                console.warn("Failed to seed initial room:", e);
               }
-            });
-          } else {
+            } else {
+              setRooms([]);
+              try { localStorage.setItem('hotel_rooms', JSON.stringify([])); } catch (e) {}
+            }
+          } catch (e) {
+            console.warn("Rooms empty check/seed error:", e);
             setRooms([]);
             try { localStorage.setItem('hotel_rooms', JSON.stringify([])); } catch (e) {}
           }
@@ -814,10 +817,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Rooms snapshot notice:", error);
       });
 
-      const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
+      const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), async (snapshot) => {
         const feedbacksList: Feedback[] = [];
         if (!snapshot.empty) {
-          hasSeededFeedbacksRef.current = true;
           snapshot.forEach((docSnap) => {
             feedbacksList.push({ id: docSnap.id, ...docSnap.data() } as Feedback);
           });
@@ -825,16 +827,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setFeedbacks(feedbacksList);
           try { localStorage.setItem('hotel_feedbacks', JSON.stringify(feedbacksList)); } catch (e) {}
         } else {
-          if (!hasSeededFeedbacksRef.current) {
-            hasSeededFeedbacksRef.current = true;
-            INITIAL_FEEDBACKS.forEach(async (f) => {
-              try {
+          try {
+            const seedDoc = await getDoc(doc(db, 'settings', 'seeding'));
+            const isSeeded = seedDoc.exists() && seedDoc.data()?.feedbacks === true;
+            if (!isSeeded) {
+              console.log("Firestore feedbacks collection is empty. Seeding initial feedbacks...");
+              await setDoc(doc(db, 'settings', 'seeding'), { feedbacks: true }, { merge: true });
+              for (const f of INITIAL_FEEDBACKS) {
                 await setDoc(doc(db, 'feedbacks', f.id), sanitizeFirestoreData(f));
-              } catch (e) {
-                console.warn("Failed to seed initial feedback:", e);
               }
-            });
-          } else {
+            } else {
+              setFeedbacks([]);
+              try { localStorage.setItem('hotel_feedbacks', JSON.stringify([])); } catch (e) {}
+            }
+          } catch (e) {
+            console.warn("Feedbacks empty check/seed error:", e);
             setFeedbacks([]);
             try { localStorage.setItem('hotel_feedbacks', JSON.stringify([])); } catch (e) {}
           }
@@ -1069,10 +1076,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let unsubRequests: (() => void) | null = null;
 
     // 1. All portals (Staff & Guest View) subscribe to all bookings in real time for instant updates
-    unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+    unsubBookings = onSnapshot(collection(db, 'bookings'), async (snapshot) => {
       const bookingsList: Booking[] = [];
       if (!snapshot.empty) {
-        hasSeededBookingsRef.current = true;
         snapshot.forEach((docSnap) => {
           bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
         });
@@ -1081,16 +1087,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('hotel_bookings', JSON.stringify(bookingsList));
         } catch (e) {}
       } else {
-        if (!hasSeededBookingsRef.current) {
-          hasSeededBookingsRef.current = true;
-          INITIAL_BOOKINGS.forEach(async (b) => {
-            try {
+        try {
+          const seedDoc = await getDoc(doc(db, 'settings', 'seeding'));
+          const isSeeded = seedDoc.exists() && seedDoc.data()?.bookings === true;
+          if (!isSeeded) {
+            console.log("Firestore bookings collection is empty. Seeding initial bookings...");
+            await setDoc(doc(db, 'settings', 'seeding'), { bookings: true }, { merge: true });
+            for (const b of INITIAL_BOOKINGS) {
               await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
-            } catch (e) {
-              console.warn("Failed to seed initial booking:", e);
             }
-          });
-        } else {
+          } else {
+            setBookings([]);
+            try {
+              localStorage.setItem('hotel_bookings', JSON.stringify([]));
+            } catch (e) {}
+          }
+        } catch (e) {
+          console.warn("Bookings empty check/seed error:", e);
           setBookings([]);
           try {
             localStorage.setItem('hotel_bookings', JSON.stringify([]));
@@ -1116,10 +1129,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // 3. Staff/Admin gets all service requests in real time
-    unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
+    unsubRequests = onSnapshot(collection(db, 'serviceRequests'), async (snapshot) => {
       const requestsList: ServiceRequest[] = [];
       if (!snapshot.empty) {
-        hasSeededServicesRef.current = true;
         snapshot.forEach((docSnap) => {
           requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
         });
@@ -1128,16 +1140,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           localStorage.setItem('hotel_services', JSON.stringify(requestsList));
         } catch (e) {}
       } else {
-        if (!hasSeededServicesRef.current) {
-          hasSeededServicesRef.current = true;
-          INITIAL_SERVICES.forEach(async (s) => {
-            try {
+        try {
+          const seedDoc = await getDoc(doc(db, 'settings', 'seeding'));
+          const isSeeded = seedDoc.exists() && seedDoc.data()?.services === true;
+          if (!isSeeded) {
+            console.log("Firestore service requests collection is empty. Seeding initial service requests...");
+            await setDoc(doc(db, 'settings', 'seeding'), { services: true }, { merge: true });
+            for (const s of INITIAL_SERVICES) {
               await setDoc(doc(db, 'serviceRequests', s.id), sanitizeFirestoreData(s));
-            } catch (e) {
-              console.warn("Failed to seed initial service request:", e);
             }
-          });
-        } else {
+          } else {
+            setServiceRequests([]);
+            try {
+              localStorage.setItem('hotel_services', JSON.stringify([]));
+            } catch (e) {}
+          }
+        } catch (e) {
+          console.warn("Services empty check/seed error:", e);
           setServiceRequests([]);
           try {
             localStorage.setItem('hotel_services', JSON.stringify([]));
@@ -1200,20 +1219,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (Array.isArray(data?.emails)) {
-            const currentDeleted = getDeletedUserEmails();
-            let hasNew = false;
-            data.emails.forEach((em: string) => {
-              const clean = String(em).trim().toLowerCase();
-              if (clean && !currentDeleted.has(clean)) {
-                currentDeleted.add(clean);
-                hasNew = true;
-              }
+            const serverDeleted = data.emails.map((em: string) => String(em).trim().toLowerCase()).filter(Boolean);
+            const serverDeletedSet = new Set<string>(serverDeleted);
+            
+            // Overwrite localStorage with raw server state
+            localStorage.setItem('hotel_deleted_users', JSON.stringify(serverDeleted));
+            
+            // Sync current registered staff users list by filtering out any deleted email instantly
+            setRegisteredUsers(prev => {
+              const filtered = prev.filter(u => !serverDeletedSet.has(u.email.toLowerCase()));
+              localStorage.setItem('hotel_registered_users', JSON.stringify(filtered));
+              return filtered;
             });
-            if (hasNew) {
-              localStorage.setItem('hotel_deleted_users', JSON.stringify(Array.from(currentDeleted)));
-              setRegisteredUsers(prev => prev.filter(u => !currentDeleted.has(u.email.toLowerCase())));
-            }
-            if (currentUser?.email && currentDeleted.has(currentUser.email.toLowerCase())) {
+
+            if (currentUser?.email && serverDeletedSet.has(currentUser.email.toLowerCase())) {
               forceStaffEviction('Your user account has been deleted by the administrator.');
             }
           }
