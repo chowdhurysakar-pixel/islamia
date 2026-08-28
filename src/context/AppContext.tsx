@@ -519,10 +519,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Guest House Custom Brand Logo (Uploaded from admin settings)
   const [brandLogo, setBrandLogo] = useState<string>(() => {
     try {
-      return localStorage.getItem('hotel_brand_logo') || '';
-    } catch (e) {
-      return '';
-    }
+      const stored = localStorage.getItem('hotel_brand_logo');
+      if (stored) return stored;
+    } catch (e) {}
+    return 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=200&q=80';
   });
 
   const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>(() => {
