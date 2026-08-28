@@ -33,7 +33,7 @@ export const OFFICIAL_ROOM_TEMPLATES: RoomTemplate[] = [
       'Flat-screen TV',
       '24/7 Electricity'
     ],
-    image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
+    image: 'https://i.ibb.co/tPkNrFV6/photo-2026-08-13-17-56-33-3.jpg',
     description: 'Triple Room accommodating 3 people with a Double + Single Bed setup, sunny private balcony, and private high commode toilet.'
   },
   {
@@ -59,7 +59,7 @@ export const OFFICIAL_ROOM_TEMPLATES: RoomTemplate[] = [
       'Private High Commode Toilet',
       '24/7 Electricity'
     ],
-    image: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80',
+    image: 'https://i.ibb.co/s91PjrHs/photo-2026-08-13-17-56-33.jpg',
     description: 'Family Room designed for serene family stays with Double + Semi Double beds, comfortable sofa, and cloth rack.'
   },
   {
@@ -85,7 +85,7 @@ export const OFFICIAL_ROOM_TEMPLATES: RoomTemplate[] = [
       'Air Conditioning',
       '24/7 Electricity'
     ],
-    image: 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?auto=format&fit=crop&w=800&q=80',
+    image: 'https://i.ibb.co/k2y1Ns91/photo-2026-08-13-17-56-34.jpg',
     description: 'Standard Double room featuring a King Size bed, East & South facing windows, private balcony, and private pan toilet.'
   },
   {
@@ -111,7 +111,7 @@ export const OFFICIAL_ROOM_TEMPLATES: RoomTemplate[] = [
       'Private High Commode Toilet',
       '24/7 Power Backup'
     ],
-    image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80',
+    image: 'https://i.ibb.co/XfqjpY6Z/photo-2026-08-13-17-56-33-2.jpg',
     description: 'Double Deluxe room with two double beds, refrigerator, flat-screen TV, and private high commode for up to 4 guests.'
   },
   {
@@ -137,7 +137,7 @@ export const OFFICIAL_ROOM_TEMPLATES: RoomTemplate[] = [
       'Work Desk',
       '24/7 Electricity'
     ],
-    image: 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80',
+    image: 'https://i.ibb.co/DPjJC14G/photo-2026-08-13-17-56-33-4.jpg',
     description: 'Double - Executive Single with Queen Size bed, work desk, and flexible AC/Non-AC options.'
   },
   {
@@ -162,7 +162,7 @@ export const OFFICIAL_ROOM_TEMPLATES: RoomTemplate[] = [
       'Ceiling Fan',
       'Clean Linen'
     ],
-    image: 'https://images.unsplash.com/photo-1598289431512-b97b0917affc?auto=format&fit=crop&w=800&q=80',
+    image: 'https://i.ibb.co/xSMv6cmn/photo-2026-08-13-17-56-34-2.jpg',
     description: 'Single - Economy tailored for solo travellers, offering essential comfort, ceiling fan, clean linen, and 24/7 electricity.'
   }
 ];
