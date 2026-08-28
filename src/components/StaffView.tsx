@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, getDeletedUserEmails } from '../context/AppContext';
 import { Room, Booking, ServiceRequest, RoomType, RoomStatus, BookingStatus, ServiceRequestStatus } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
@@ -75,6 +75,9 @@ export const StaffView: React.FC = () => {
     bookings, 
     archivedBookings,
     serviceRequests, 
+    currentUser,
+    registeredUsers,
+    logout,
     addRoom, 
     updateRoomStatus, 
     editRoomDetails,
@@ -88,6 +91,18 @@ export const StaffView: React.FC = () => {
     setOpMode,
     showToast
   } = useApp();
+
+  // Security Access Guard for Revoked / Deleted Staff
+  const currentUserEmailLower = currentUser?.email?.toLowerCase().trim() || '';
+  const isDeletedStaff = currentUserEmailLower ? getDeletedUserEmails().has(currentUserEmailLower) : false;
+  const activeStaffRecord = registeredUsers.find(u => u.email.toLowerCase().trim() === currentUserEmailLower);
+  const isRevokedStaff = isDeletedStaff || (currentUser?.role === 'staff' && activeStaffRecord && activeStaffRecord.hrApproved === false);
+
+  React.useEffect(() => {
+    if (isRevokedStaff) {
+      logout();
+    }
+  }, [isRevokedStaff, logout]);
 
   // Async Action Loading States
   const [isSubmittingBooking, setIsSubmittingBooking] = useState<boolean>(false);

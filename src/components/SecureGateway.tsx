@@ -434,6 +434,11 @@ export const SecureGateway: React.FC = () => {
           return;
         }
 
+        if (existing.hrApproved === false) {
+          setError('Access Denied: Staff access for this account has been revoked by HR/Admin. Please contact Admin.');
+          return;
+        }
+
         if (!existing.hrApproved && existing.staffSecretKey !== cleanSecretPasscode && !isStaffSecretValid) {
           setError('Access Denied: Staff members must enter a valid Staff Passcode or be approved by HR.');
           return;
@@ -631,6 +636,12 @@ export const SecureGateway: React.FC = () => {
           const found = usersList.find(u => u.email.toLowerCase() === emailLower);
           if (!isAdmin && !found) {
             setError('Access Denied: Account not found or deleted by Admin.');
+            setIsLoading(false);
+            return;
+          }
+
+          if (!isAdmin && found && found.hrApproved === false) {
+            setError('Access Denied: Staff access for this account has been revoked by HR/Admin.');
             setIsLoading(false);
             return;
           }

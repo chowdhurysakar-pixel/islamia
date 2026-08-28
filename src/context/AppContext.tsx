@@ -1006,6 +1006,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, isFirebaseActive]);
 
+  // Real-time Access Revocation Guard Effect
+  useEffect(() => {
+    if (!currentUser) return;
+    const emailLower = currentUser.email?.trim().toLowerCase();
+    if (!emailLower) return;
+
+    // Admin emails are exempt from HR approval check, but NOT deletion check
+    if (isAdminEmail(emailLower) || currentUser.role === 'admin') {
+      if (getDeletedUserEmails().has(emailLower)) {
+        console.warn(`[Security Enforcement] Logging out deleted admin account: ${emailLower}`);
+        logout();
+        showToast({
+          type: 'warning',
+          message: '🚫 Access Revoked: Your account has been deleted by an Admin.'
+        });
+      }
+      return;
+    }
+
+    // Check staff account validity:
+    const isDeleted = getDeletedUserEmails().has(emailLower);
+    const staffRecord = registeredUsers.find(u => u.email.trim().toLowerCase() === emailLower);
+
+    if (isDeleted || !staffRecord || staffRecord.hrApproved === false) {
+      console.warn(`[Security Enforcement] Terminating revoked staff session: ${emailLower}`);
+      logout();
+      showToast({
+        type: 'warning',
+        message: '🚫 Access Revoked: Your staff access has been revoked or removed by an Admin.'
+      });
+    }
+  }, [currentUser, registeredUsers]);
+
   // Sync with local storage events across browser tabs
   useEffect(() => {
     const handleStorageOrCustom = () => {
@@ -1139,7 +1172,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    // 2. Update Firestore document in real-time
+    // 2. Immediate session termination if active user's approval is revoked
+    if (!approved && currentUser?.email && currentUser.email.trim().toLowerCase() === emailLower && currentUser.role !== 'admin') {
+      console.warn(`[HR Approval Revoked] Logging out active staff user: ${emailLower}`);
+      await logout();
+      showToast({
+        type: 'warning',
+        message: `🚫 Staff access for ${emailLower} has been revoked by HR/Admin.`
+      });
+    }
+
+    // 3. Update Firestore document in real-time
     if (isFirebaseActive && db) {
       try {
         const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
