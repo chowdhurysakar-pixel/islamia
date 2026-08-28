@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, DEFAULT_SYSTEM_USERS } from '../context/AppContext';
 import { UserRole, UserProfile } from '../types';
 import { 
   Mail, Key, User, Users, Hotel, 
@@ -602,6 +602,7 @@ export const SecureGateway: React.FC = () => {
             email: emailLower,
             name: name,
             role: role,
+            password: password, // Store password for local sandbox verification
             emailVerified: true,
             hrApproved: true,
             staffSecretKey: effectivePasscode,
@@ -620,8 +621,34 @@ export const SecureGateway: React.FC = () => {
           await sendOtp(emailLower, name, role, true);
         } else {
           const found = usersList.find(u => u.email === emailLower);
-          const resolvedName = found ? found.name : (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Specialist');
-          const resolvedRole: UserRole = found ? found.role : role;
+          
+          if (found) {
+            const expectedPassword = found.password || found.staffSecretKey || 'islamia2026';
+            if (password !== expectedPassword) {
+              setError('Incorrect email or password. Please verify your credentials.');
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Also search in default system users to see if logging in with default account
+            const isDefaultUser = DEFAULT_SYSTEM_USERS.find(u => u.email.toLowerCase() === emailLower);
+            if (isDefaultUser) {
+              const expectedPassword = isDefaultUser.staffSecretKey || 'islamia2026';
+              if (password !== expectedPassword) {
+                setError('Incorrect email or password. Please verify your credentials.');
+                setIsLoading(false);
+                return;
+              }
+            } else {
+              setError('No account found with this email. Please register your profile first.');
+              setIsLoading(false);
+              return;
+            }
+          }
+
+          const resolvedUser = found || DEFAULT_SYSTEM_USERS.find(u => u.email.toLowerCase() === emailLower)!;
+          const resolvedName = resolvedUser.name;
+          const resolvedRole: UserRole = resolvedUser.role;
           const finalPasscode = (resolvedRole === 'admin' || isAdmin)
             ? (cleanAdminKey || 'ADMIN2026')
             : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
@@ -634,7 +661,7 @@ export const SecureGateway: React.FC = () => {
             setOpMode('receptionist');
           }
           localLogin(resolvedRole, emailLower, resolvedName);
-          await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', finalPasscode);
+          await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'password', finalPasscode);
 
           showToast({
             type: 'success',
