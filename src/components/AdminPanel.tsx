@@ -760,7 +760,6 @@ export const AdminPanel: React.FC = () => {
 
   const [panelUnlocked, setPanelUnlocked] = useState<boolean>(() => {
     if (currentUser?.role === 'admin') return true;
-    if (currentUser?.role === 'staff') return false;
     return sessionStorage.getItem('admin_authorized') === 'true';
   });
   const [gatePasscode, setGatePasscode] = useState<string>('');
