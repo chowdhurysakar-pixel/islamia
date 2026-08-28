@@ -16,6 +16,8 @@ import {
 import { 
   getFirestore, 
   initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection, 
   doc, 
   query, 
@@ -48,6 +50,9 @@ const firestoreDbId = (firebaseConfig.firestoreDatabaseId && firebaseConfig.fire
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    }),
     experimentalForceLongPolling: true,
     ignoreUndefinedProperties: true,
   }, firestoreDbId);

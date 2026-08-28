@@ -784,7 +784,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       // 3. Realtime rooms collection sync with single-source-of-truth onSnapshot listener
-      const unsubRooms = onSnapshot(collection(db, 'rooms'), async (snapshot) => {
+      const unsubRooms = onSnapshot(collection(db, 'rooms'), { includeMetadataChanges: true }, async (snapshot) => {
         const roomsList: Room[] = [];
         if (!snapshot.empty) {
           snapshot.forEach((docSnap) => {
@@ -817,7 +817,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Rooms snapshot notice:", error);
       });
 
-      const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), async (snapshot) => {
+      const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), { includeMetadataChanges: true }, async (snapshot) => {
         const feedbacksList: Feedback[] = [];
         if (!snapshot.empty) {
           snapshot.forEach((docSnap) => {
@@ -1076,7 +1076,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let unsubRequests: (() => void) | null = null;
 
     // 1. All portals (Staff & Guest View) subscribe to all bookings in real time for instant updates
-    unsubBookings = onSnapshot(collection(db, 'bookings'), async (snapshot) => {
+    unsubBookings = onSnapshot(collection(db, 'bookings'), { includeMetadataChanges: true }, async (snapshot) => {
       const bookingsList: Booking[] = [];
       if (!snapshot.empty) {
         snapshot.forEach((docSnap) => {
@@ -1115,7 +1115,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // 2. Staff/Admin gets archived lifetime records in real time
-    unsubArchived = onSnapshot(collection(db, 'archived_bookings'), (snapshot) => {
+    unsubArchived = onSnapshot(collection(db, 'archived_bookings'), { includeMetadataChanges: true }, (snapshot) => {
       const archivedList: Booking[] = [];
       snapshot.forEach((docSnap) => {
         archivedList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
@@ -1129,7 +1129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     // 3. Staff/Admin gets all service requests in real time
-    unsubRequests = onSnapshot(collection(db, 'serviceRequests'), async (snapshot) => {
+    unsubRequests = onSnapshot(collection(db, 'serviceRequests'), { includeMetadataChanges: true }, async (snapshot) => {
       const requestsList: ServiceRequest[] = [];
       if (!snapshot.empty) {
         snapshot.forEach((docSnap) => {
@@ -1171,7 +1171,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let unsubUsers: (() => void) | null = null;
     let unsubDeletedUsers: (() => void) | null = null;
     try {
-      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      unsubUsers = onSnapshot(collection(db, 'users'), { includeMetadataChanges: true }, (snapshot) => {
         const usersList: UserProfile[] = [];
         const deletedSet = getDeletedUserEmails();
         let currentEmailFound = false;
