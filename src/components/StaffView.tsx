@@ -572,8 +572,8 @@ export const StaffView: React.FC = () => {
   // HR Archival Only Customer Database List
   const hrHistoricalBookings = useMemo(() => {
     // Show only checked-out, cancelled, or general stays list historical records
-    return bookings.filter(b => b.status === 'checked-out' || b.status === 'cancelled');
-  }, [bookings]);
+    return allCombinedBookings.filter(b => b.status === 'checked-out' || b.status === 'cancelled');
+  }, [allCombinedBookings]);
 
   // HR Chronological Guest Stay History Lookup
   const guestHistoryBookings = useMemo(() => {
@@ -581,7 +581,7 @@ export const StaffView: React.FC = () => {
     const searchVal = selectedHistoryGuestPhone.trim();
     if (!searchVal) return [];
     
-    return bookings
+    return allCombinedBookings
       .filter(b => {
         const phone = b.guestPhone || '';
         const matchesMainPhone = phone.replace(/[^0-9]/g, '').includes(searchVal.replace(/[^0-9]/g, ''));
@@ -591,7 +591,7 @@ export const StaffView: React.FC = () => {
         return matchesMainPhone || matchesAdditional;
       })
       .sort((a, b) => (new Date(a.checkIn || 0).getTime() || 0) - (new Date(b.checkIn || 0).getTime() || 0));
-  }, [bookings, selectedHistoryGuestPhone]);
+  }, [allCombinedBookings, selectedHistoryGuestPhone]);
 
   const filteredServices = useMemo(() => {
     return serviceRequests.filter(req => {
@@ -606,7 +606,7 @@ export const StaffView: React.FC = () => {
     const countsByEmail: Record<string, number> = {};
     const countsByName: Record<string, number> = {};
 
-    bookings.forEach(b => {
+    allCombinedBookings.forEach(b => {
       const phone = b.guestPhone?.trim();
       const email = b.guestEmail?.trim().toLowerCase();
       const name = b.guestName?.trim().toLowerCase();
@@ -617,7 +617,7 @@ export const StaffView: React.FC = () => {
     });
 
     return { countsByPhone, countsByEmail, countsByName };
-  }, [bookings]);
+  }, [allCombinedBookings]);
 
   const isRepeatGuest = (booking: Booking) => {
     const phone = booking.guestPhone?.trim();

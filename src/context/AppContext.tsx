@@ -734,6 +734,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setBookings(INITIAL_BOOKINGS);
       }
 
+      const storedArchivedBookings = localStorage.getItem('hotel_archived_bookings');
+      if (storedArchivedBookings) {
+        try {
+          const parsedA = JSON.parse(storedArchivedBookings);
+          if (Array.isArray(parsedA)) {
+            setArchivedBookings(parsedA);
+          }
+        } catch (e) {}
+      }
+
       if (storedServices) {
         setServiceRequests(JSON.parse(storedServices));
       } else {
@@ -871,6 +881,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
         });
         setBookings(bookingsList);
+        try {
+          localStorage.setItem('hotel_bookings', JSON.stringify(bookingsList));
+        } catch (e) {}
       } else {
         if (!hasSeededBookingsRef.current) {
           hasSeededBookingsRef.current = true;
@@ -881,8 +894,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               console.warn("Failed to seed initial booking:", e);
             }
           });
-        } else {
-          setBookings([]);
         }
       }
     }, (error) => {
@@ -895,7 +906,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       snapshot.forEach((docSnap) => {
         archivedList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
       });
-      setArchivedBookings(archivedList);
+      setArchivedBookings(prev => {
+        const map = new Map<string, Booking>();
+        prev.forEach(b => map.set(b.id, b));
+        archivedList.forEach(b => map.set(b.id, b));
+        const merged = Array.from(map.values());
+        try {
+          localStorage.setItem('hotel_archived_bookings', JSON.stringify(merged));
+        } catch (e) {}
+        return merged;
+      });
     }, (error) => {
       console.warn("Archived bookings snapshot warning:", error);
     });
@@ -2275,7 +2295,11 @@ Islamia Guest House, Dhanmondi`;
     const todayStr = new Date().toISOString().split('T')[0];
 
     // Optimistically update local state immediately so UI updates instantly
-    setBookings(prev => [newBooking, ...prev.filter(b => b.id !== bookingId)]);
+    setBookings(prev => {
+      const next = [newBooking, ...prev.filter(b => b.id !== bookingId)];
+      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
     if ((bookingData.checkIn && bookingData.checkOut && bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
       setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
     }
@@ -2320,8 +2344,28 @@ Islamia Guest House, Dhanmondi`;
       ...(details?.notes ? { notes: details.notes } : {})
     };
 
-    // 1. Optimistic local state update
-    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...checkoutPayload } : b));
+    const archiveDocData = {
+      ...(targetBooking || {}),
+      ...checkoutPayload,
+      archivedAt: nowStr
+    } as Booking;
+
+    // 1. Optimistic local state update for both bookings and archivedBookings
+    setBookings(prev => {
+      const next = prev.map(b => b.id === bookingId ? { ...b, ...checkoutPayload } : b);
+      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+
+    setArchivedBookings(prev => {
+      const exists = prev.some(b => b.id === bookingId);
+      const next = exists 
+        ? prev.map(b => b.id === bookingId ? { ...b, ...checkoutPayload } : b)
+        : [archiveDocData, ...prev];
+      try { localStorage.setItem('hotel_archived_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+
     if (targetBooking) {
       setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
     }
@@ -2334,12 +2378,6 @@ Islamia Guest House, Dhanmondi`;
           await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'cleaning' }));
         }
 
-        // Always preserve a lifetime record in archived_bookings collection
-        const archiveDocData = {
-          ...(targetBooking || {}),
-          ...checkoutPayload,
-          archivedAt: nowStr
-        };
         await setDoc(doc(db, 'archived_bookings', bookingId), sanitizeFirestoreData(archiveDocData)).catch(e => {
           console.warn("Archived record saved with fallback:", e);
         });
@@ -2369,7 +2407,12 @@ Islamia Guest House, Dhanmondi`;
     const targetBooking = bookings.find(b => b.id === bookingId);
 
     // Optimistic local state update
-    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
+    setBookings(prev => {
+      const next = prev.map(b => b.id === bookingId ? { ...b, status } : b);
+      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+
     if (targetBooking) {
       if (status === 'checked-in') {
         setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
@@ -2404,7 +2447,11 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const addBookingNotes = async (bookingId: string, notes: string) => {
-    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, notes } : b));
+    setBookings(prev => {
+      const next = prev.map(b => b.id === bookingId ? { ...b, notes } : b);
+      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
 
     if (isFirebaseActive && db) {
       try {
@@ -2416,12 +2463,21 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const deleteBooking = async (bookingId: string) => {
-    setBookings(prev => prev.filter(b => b.id !== bookingId));
-    setArchivedBookings(prev => prev.filter(b => b.id !== bookingId));
+    setBookings(prev => {
+      const next = prev.filter(b => b.id !== bookingId);
+      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
+    setArchivedBookings(prev => {
+      const next = prev.filter(b => b.id !== bookingId);
+      try { localStorage.setItem('hotel_archived_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
 
     if (isFirebaseActive && db) {
       try {
         await deleteDoc(doc(db, 'bookings', bookingId));
+        await deleteDoc(doc(db, 'archived_bookings', bookingId)).catch(() => {});
       } catch (e) {
         console.warn("Firestore delete booking error:", e);
       }
@@ -2429,7 +2485,11 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const updateBookingPayment = async (bookingId: string, paymentStatus: string, paidAmount: number, paymentMethod?: string) => {
-    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b));
+    setBookings(prev => {
+      const next = prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b);
+      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
+      return next;
+    });
 
     if (isFirebaseActive && db) {
       try {
