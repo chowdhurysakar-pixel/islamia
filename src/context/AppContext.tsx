@@ -479,7 +479,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const emailLower = fbUser.email?.toLowerCase() || '';
           const isAdminAccount = isAdminEmail(emailLower);
           
-          if (!fbUser.emailVerified && !isAdminAccount) {
+          const isDeleted = getDeletedUserEmails().has(emailLower);
+          if (isDeleted) {
             setCurrentUser(null);
             setCurrentRole('guest');
             sessionStorage.removeItem('admin_authorized');
@@ -1029,7 +1030,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isDeleted = getDeletedUserEmails().has(emailLower);
     const staffRecord = registeredUsers.find(u => u.email.trim().toLowerCase() === emailLower);
 
-    if (isDeleted || !staffRecord || staffRecord.hrApproved === false) {
+    if (isDeleted || (staffRecord && staffRecord.hrApproved === false)) {
       console.warn(`[Security Enforcement] Terminating revoked staff session: ${emailLower}`);
       logout();
       showToast({
