@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useApp, DEFAULT_SYSTEM_USERS } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { UserRole, UserProfile } from '../types';
 import { 
   Mail, Key, User, Users, Hotel, 
@@ -446,10 +446,6 @@ export const SecureGateway: React.FC = () => {
             // Send verification email link via Firebase Auth
             await sendEmailVerification(userCredential.user);
 
-            const effectivePasscode = (isAdmin || role === 'admin') 
-              ? (cleanAdminKey || 'ADMIN2026') 
-              : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
-
             const newUser: UserProfile = {
               uid: userCredential.user.uid,
               email: emailLower,
@@ -458,7 +454,7 @@ export const SecureGateway: React.FC = () => {
               phone: phone,
               emailVerified: false,
               hrApproved: true,
-              staffSecretKey: effectivePasscode,
+              staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
               registeredAt: new Date().toISOString()
             };
             
@@ -521,10 +517,6 @@ export const SecureGateway: React.FC = () => {
             let loggedInName = userCredential.user.displayName || (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Staff');
             let loggedInRole: UserRole = role;
 
-            const effectivePasscode = (loggedInRole === 'admin' || isAdmin)
-              ? (cleanAdminKey || 'ADMIN2026')
-              : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
-
             if (docSnap.exists()) {
               const data = docSnap.data() as UserProfile;
               loggedInName = data.name || loggedInName;
@@ -537,7 +529,7 @@ export const SecureGateway: React.FC = () => {
                 role: loggedInRole,
                 emailVerified: true,
                 hrApproved: true,
-                staffSecretKey: effectivePasscode,
+                staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
                 isOnline: true,
                 lastLoginAt: new Date().toISOString()
               };
@@ -552,7 +544,7 @@ export const SecureGateway: React.FC = () => {
               setOpMode('receptionist');
             }
             localLogin(loggedInRole, emailLower, loggedInName);
-            await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'password', effectivePasscode);
+            await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
 
             showToast({
               type: 'success',
@@ -585,10 +577,6 @@ export const SecureGateway: React.FC = () => {
         const storedUsers = localStorage.getItem('hotel_registered_users');
         const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
 
-        const effectivePasscode = (isAdmin || role === 'admin')
-          ? (cleanAdminKey || 'ADMIN2026')
-          : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
-
         if (authMode === 'signup') {
           const exists = usersList.some(u => u.email === emailLower);
           if (exists) {
@@ -602,10 +590,9 @@ export const SecureGateway: React.FC = () => {
             email: emailLower,
             name: name,
             role: role,
-            password: password, // Store password for local sandbox verification
             emailVerified: true,
             hrApproved: true,
-            staffSecretKey: effectivePasscode,
+            staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
             isOnline: true,
             lastLoginAt: new Date().toISOString()
           };
@@ -621,37 +608,8 @@ export const SecureGateway: React.FC = () => {
           await sendOtp(emailLower, name, role, true);
         } else {
           const found = usersList.find(u => u.email === emailLower);
-          
-          if (found) {
-            const expectedPassword = found.password || found.staffSecretKey || 'islamia2026';
-            if (password !== expectedPassword) {
-              setError('Incorrect email or password. Please verify your credentials.');
-              setIsLoading(false);
-              return;
-            }
-          } else {
-            // Also search in default system users to see if logging in with default account
-            const isDefaultUser = DEFAULT_SYSTEM_USERS.find(u => u.email.toLowerCase() === emailLower);
-            if (isDefaultUser) {
-              const expectedPassword = isDefaultUser.staffSecretKey || 'islamia2026';
-              if (password !== expectedPassword) {
-                setError('Incorrect email or password. Please verify your credentials.');
-                setIsLoading(false);
-                return;
-              }
-            } else {
-              setError('No account found with this email. Please register your profile first.');
-              setIsLoading(false);
-              return;
-            }
-          }
-
-          const resolvedUser = found || DEFAULT_SYSTEM_USERS.find(u => u.email.toLowerCase() === emailLower)!;
-          const resolvedName = resolvedUser.name;
-          const resolvedRole: UserRole = resolvedUser.role;
-          const finalPasscode = (resolvedRole === 'admin' || isAdmin)
-            ? (cleanAdminKey || 'ADMIN2026')
-            : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
+          const resolvedName = found ? found.name : (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Specialist');
+          const resolvedRole: UserRole = found ? found.role : role;
           
           if (resolvedRole === 'admin') {
             sessionStorage.setItem('admin_authorized', 'true');
@@ -661,7 +619,7 @@ export const SecureGateway: React.FC = () => {
             setOpMode('receptionist');
           }
           localLogin(resolvedRole, emailLower, resolvedName);
-          await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', finalPasscode);
+          await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
 
           showToast({
             type: 'success',

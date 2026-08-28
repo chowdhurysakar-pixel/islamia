@@ -2,50 +2,172 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
     // --- Helper Primitives ---
     function isSignedIn() {
       return request.auth != null;
     }
 
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Check if the current user profile exists with a staff/admin role
+    function isStaff() {
+      return isSignedIn() && 
+        (request.auth.token.email in ["islamiaguesthouse@gmail.com", "admin@islamiaguesthouse.com", "chowdhurysakar@gmail.com", "hr.manager@islamiaguesthouse.com"] ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "staff" ||
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin")));
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+        (request.auth.token.email in ["islamiaguesthouse@gmail.com", "admin@islamiaguesthouse.com", "chowdhurysakar@gmail.com", "hr.manager@islamiaguesthouse.com"] ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"));
+    }
+
     // --- Connection Test Collection ---
     match /test/{testId} {
-      allow read, write: if true;
+      allow read: if true;
     }
 
     // --- Rooms Collection ---
     match /rooms/{roomId} {
-      allow read, write: if true;
+      allow get, list: if true; // Publicly readable (all guests need to check room availability & prices)
+      
+      allow create: if isSignedIn() && isValidId(roomId) && isStaff() &&
+        incoming().id == roomId &&
+        incoming().number is string && incoming().number.size() <= 10 &&
+        incoming().price is number && incoming().price > 0 &&
+        incoming().capacity is number && incoming().capacity > 0 &&
+        incoming().status in ["available", "occupied", "maintenance", "cleaning"];
+
+      allow update: if isSignedIn() && isValidId(roomId) && (
+        isStaff() || 
+        // Allow automatic occupant check/release if there is a matching booking status shift
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status']) && incoming().status in ["available", "occupied", "cleaning"])
+      );
+
+      allow delete: if isSignedIn() && isValidId(roomId) && isStaff();
     }
 
     // --- Bookings Collection ---
     match /bookings/{bookingId} {
-      allow read, write: if true;
-    }
+      // List rules: Force client query-side security evaluation (cannot query all bookings blindly)
+      allow list: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
+      allow get: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
 
-    // --- Archived Lifetime Bookings Collection ---
-    match /archived_bookings/{bookingId} {
-      allow read, write: if true;
+      allow create: if isSignedIn() && isValidId(bookingId) &&
+        incoming().id == bookingId &&
+        incoming().guestName is string && incoming().guestName.size() <= 100 &&
+        incoming().guestEmail is string && incoming().guestEmail.size() <= 100 &&
+        incoming().checkIn is string && incoming().checkOut is string &&
+        incoming().totalAmount is number && incoming().totalAmount >= 0 &&
+        incoming().status in ["pending", "confirmed", "checked-in", "checked-out", "cancelled"] &&
+        (!incoming().keys().hasAny(['expectedPersonCount']) || (incoming().expectedPersonCount is number && incoming().expectedPersonCount >= 1 && incoming().expectedPersonCount <= 10)) &&
+        (incoming().userId == request.auth.uid || isStaff());
+
+      allow update: if isSignedIn() && isValidId(bookingId) && (
+        isStaff() ||
+        // Guests can cancel their own bookings
+        (existing().userId == request.auth.uid && 
+         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'notes']) && 
+         incoming().status == "cancelled")
+      );
+
+      allow delete: if isSignedIn() && isValidId(bookingId) && isStaff();
     }
 
     // --- Service Requests Collection ---
     match /serviceRequests/{requestId} {
-      allow read, write: if true;
+      allow list: if isSignedIn() && (isStaff() || get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.userId == request.auth.uid);
+      allow get: if isSignedIn() && (isStaff() || get(/databases/$(database)/documents/bookings/$(resource.data.bookingId)).data.userId == request.auth.uid);
+
+      allow create: if isSignedIn() && isValidId(requestId) &&
+        incoming().id == requestId &&
+        incoming().roomId is string &&
+        incoming().type in ["housekeeping", "room-service", "maintenance", "concierge"] &&
+        incoming().status in ["pending", "in-progress", "completed"] &&
+        incoming().description is string && incoming().description.size() <= 1000;
+
+      allow update: if isSignedIn() && isValidId(requestId) && (
+        isStaff() ||
+        // Guests can change the description/notes of their pending service request
+        (existing().status == "pending" && incoming().diff(existing()).affectedKeys().hasOnly(['description']))
+      );
+
+      allow delete: if isSignedIn() && isValidId(requestId) && isStaff();
     }
 
     // --- User Profiles Collection ---
     match /users/{userId} {
-      allow read, write: if true;
+      allow get: if isSignedIn() && (request.auth.uid == userId || isStaff());
+      allow list: if isSignedIn() && isStaff();
+
+      allow create: if isSignedIn() && (
+        isStaff() ||
+        request.auth.uid == userId
+      );
+
+      allow update: if isSignedIn() && (
+        isStaff() ||
+        request.auth.uid == userId
+      );
+
+      allow delete: if isSignedIn() && isStaff();
     }
 
     // --- Feedbacks Collection ---
     match /feedbacks/{feedbackId} {
-      allow read, write: if true;
+      allow get, list: if true; // Feedbacks are publicly viewable
+      
+      allow create: if isSignedIn() && isValidId(feedbackId) &&
+        incoming().id == feedbackId &&
+        incoming().userId == request.auth.uid &&
+        incoming().userName is string && incoming().userName.size() <= 100 &&
+        incoming().userEmail is string && incoming().userEmail.size() <= 100 &&
+        incoming().comment is string && incoming().comment.size() <= 2000 &&
+        incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5 &&
+        incoming().createdAt is string;
+
+      allow update: if isSignedIn() && isValidId(feedbackId) &&
+        existing().userId == request.auth.uid &&
+        incoming().userId == request.auth.uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'comment']) &&
+        incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5 &&
+        incoming().comment is string && incoming().comment.size() <= 2000;
+
+      allow delete: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
     }
 
     // --- Settings & Branding Collection ---
     match /settings/{settingId} {
-      allow read, write: if true;
+      allow get, list: if true; // Publicly readable for dynamic brand logo and property configurations
+      
+      allow create, update: if isSignedIn() && isValidId(settingId) && (
+        isStaff() ||
+        request.auth.token.email in ["islamiaguesthouse@gmail.com", "admin@islamiaguesthouse.com", "chowdhurysakar@gmail.com", "hr.manager@islamiaguesthouse.com"]
+      );
+
+      allow delete: if isSignedIn() && isValidId(settingId) && isAdmin();
     }
   }
 }
-

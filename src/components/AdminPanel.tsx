@@ -3,13 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from '../types';
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { OfficialRoomPresets } from './OfficialRoomPresets';
-import { GoogleSearchManager } from './GoogleSearchManager';
 import { 
   Building, Shield, ShieldCheck, Users, CheckCircle2, AlertCircle, Key, 
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
@@ -237,15 +236,6 @@ export const AdminPanel: React.FC = () => {
   const [editingPasscode, setEditingPasscode] = useState<string>(masterStaffPasscode || 'ISLAMIA-STAFF-2026');
   const [isEditingPasscode, setIsEditingPasscode] = useState<boolean>(false);
   const [staffFilterTab, setStaffFilterTab] = useState<'all' | 'online' | 'pending' | 'admins' | 'staff'>('all');
-  const [presenceTick, setPresenceTick] = useState<number>(0);
-
-  // Live presence ticker to re-evaluate active statuses in real time
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setPresenceTick(t => t + 1);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Search & Filter States
   const [staffSearch, setStaffSearch] = useState<string>('');
@@ -285,32 +275,16 @@ export const AdminPanel: React.FC = () => {
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
   // Update staff HR Approval status with instant Firestore sync
-  const toggleStaffApproval = async (email: string, explicitState?: boolean) => {
+  const toggleStaffApproval = async (email: string) => {
     const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!targetUser) return;
-    const nextApproved = explicitState !== undefined ? explicitState : !targetUser.hrApproved;
+    const nextApproved = !targetUser.hrApproved;
     await updateStaffApproval(email, nextApproved, targetUser.uid);
     showToast({
       type: 'success',
       message: nextApproved 
-        ? `✅ Staff account for ${targetUser.name} (${email}) approved by HR/Admin!` 
+        ? `✅ Staff account for ${targetUser.name} approved by HR/Admin!` 
         : `⚠️ HR authorization revoked for ${targetUser.name}.`
-    });
-  };
-
-  // 1-Click Approve All Pending Staff Members
-  const approveAllPendingStaff = async () => {
-    const pendingStaff = registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved);
-    if (pendingStaff.length === 0) {
-      showToast({ type: 'info', message: 'No staff accounts are currently pending HR approval.' });
-      return;
-    }
-    for (const staff of pendingStaff) {
-      await updateStaffApproval(staff.email, true, staff.uid);
-    }
-    showToast({
-      type: 'success',
-      message: `🎉 All ${pendingStaff.length} pending staff member(s) approved for Front Desk operations!`
     });
   };
 
@@ -347,25 +321,14 @@ export const AdminPanel: React.FC = () => {
     });
   };
 
-  // Helper to determine real-time live online presence (with timezone/clock skew robustness)
+  // Helper to determine real-time live online presence
   const isUserOnline = (u: UserProfile) => {
-    // Current user on this device is always active
+    if (u.isOnline) return true;
     if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
-    
-    // Live online status synced from Firestore or local presence
-    if (u.isOnline === true) {
-      if (u.lastActiveAt) {
-        const diff = Math.abs(Date.now() - new Date(u.lastActiveAt).getTime());
-        // Clock skew robust: allow up to 6 hours of clock mismatch if explicitly marked online
-        if (diff < 6 * 60 * 60 * 1000) return true;
-      } else {
-        return true;
-      }
-    }
-    // Recent activity within last 1 hour (fallback for cases where isOnline might be stale but they were active)
+    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com') return true;
     if (u.lastActiveAt) {
-      const diff = Math.abs(Date.now() - new Date(u.lastActiveAt).getTime());
-      if (diff < 60 * 60 * 1000) return true;
+      const diff = Date.now() - new Date(u.lastActiveAt).getTime();
+      if (diff < 10 * 60 * 1000) return true;
     }
     return false;
   };
@@ -376,16 +339,11 @@ export const AdminPanel: React.FC = () => {
       const online = isUserOnline(u);
       return online && !u.isOnline ? { ...u, isOnline: true } : u;
     }).filter(u => {
-      const isAdminUser = u.role === 'admin' || u.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
-      const effectivePasscode = isAdminUser
-        ? (u.staffSecretKey && u.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? u.staffSecretKey : 'ADMIN2026')
-        : (u.staffSecretKey || 'STAFF789');
-
       const matchesSearch = 
         u.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
         u.email.toLowerCase().includes(staffSearch.toLowerCase()) ||
         (u.phone && u.phone.includes(staffSearch)) ||
-        effectivePasscode.toLowerCase().includes(staffSearch.toLowerCase());
+        (u.staffSecretKey && u.staffSecretKey.toLowerCase().includes(staffSearch.toLowerCase()));
 
       if (!matchesSearch) return false;
 
@@ -395,7 +353,7 @@ export const AdminPanel: React.FC = () => {
       if (staffFilterTab === 'staff') return u.role === 'staff';
       return true;
     });
-  }, [registeredUsers, staffSearch, staffFilterTab, currentUser, presenceTick]);
+  }, [registeredUsers, staffSearch, staffFilterTab, currentUser]);
 
   // Filtered Chambers for Chambers tab
   const filteredChambers = useMemo(() => {
@@ -763,6 +721,7 @@ export const AdminPanel: React.FC = () => {
 
   const [panelUnlocked, setPanelUnlocked] = useState<boolean>(() => {
     if (currentUser?.role === 'admin') return true;
+    if (currentUser?.role === 'staff') return false;
     return sessionStorage.getItem('admin_authorized') === 'true';
   });
   const [gatePasscode, setGatePasscode] = useState<string>('');
@@ -1396,18 +1355,6 @@ export const AdminPanel: React.FC = () => {
 
               {/* Filter Tabs & Search */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                {registeredUsers.some(u => u.role === 'staff' && !u.hrApproved) && (
-                  <button
-                    id="admin-approve-all-pending-btn"
-                    onClick={approveAllPendingStaff}
-                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
-                    title="1-Click Approve all pending staff accounts for Front Desk operations"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Approve All Pending ({registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length})</span>
-                  </button>
-                )}
-
                 <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs">
                   <button
                     onClick={() => setStaffFilterTab('all')}
@@ -1531,39 +1478,28 @@ export const AdminPanel: React.FC = () => {
 
                         {/* Auth Method / Passcode */}
                         <td className="p-3">
-                          {(() => {
-                            const isAdminUser = user.role === 'admin' || user.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
-                            const displayedPasscode = isAdminUser
-                              ? (user.staffSecretKey && user.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? user.staffSecretKey : 'ADMIN2026')
-                              : (user.staffSecretKey || 'STAFF789');
-
-                            return (
-                              <div className="space-y-1">
-                                {user.loginMethod === 'google' ? (
-                                  <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold flex items-center gap-1">
-                                    <span className="w-1 h-1 rounded-full bg-blue-500 animate-pulse"></span>
-                                    <span>Google SSO Verified</span>
-                                  </div>
-                                ) : user.loginMethod === 'password' ? (
-                                  <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit border border-slate-200 font-semibold flex items-center gap-1">
-                                    <span className="w-1 h-1 rounded-full bg-slate-400"></span>
-                                    <span>Password Verified</span>
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60 font-semibold">
-                                    <KeyRound className="w-3 h-3 text-teal-600" />
-                                    <span>Passcode: {displayedPasscode}</span>
-                                  </div>
-                                )}
-
-                                {user.lastLoginAt && (
-                                  <div className="text-[10px] text-slate-400">
-                                    Signed in: {new Date(user.lastLoginAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(user.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </div>
-                                )}
+                          <div className="space-y-1">
+                            {user.loginMethod === 'passcode' || user.staffSecretKey ? (
+                              <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60">
+                                <KeyRound className="w-3 h-3 text-teal-600" />
+                                <span>Passcode: {user.staffSecretKey || 'STAFF789'}</span>
                               </div>
-                            );
-                          })()}
+                            ) : user.loginMethod === 'google' ? (
+                              <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold">
+                                Google SSO Verified
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit font-mono">
+                                Password Login
+                              </div>
+                            )}
+
+                            {user.lastLoginAt && (
+                              <div className="text-[10px] text-slate-400">
+                                Signed in: {new Date(user.lastLoginAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(user.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            )}
+                          </div>
                         </td>
 
                         {/* Role */}
@@ -1591,39 +1527,26 @@ export const AdminPanel: React.FC = () => {
                         </td>
 
                         {/* Actions */}
-                        <td className="p-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {user.hrApproved ? (
-                              <button
-                                id={`admin-revoke-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
-                                onClick={() => toggleStaffApproval(user.email, false)}
-                                className="px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 inline-flex items-center gap-1"
-                                title="Revoke staff authorization"
-                              >
-                                <ShieldAlert className="w-3.5 h-3.5" />
-                                <span>Revoke Access</span>
-                              </button>
-                            ) : (
-                              <button
-                                id={`admin-approve-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
-                                onClick={() => toggleStaffApproval(user.email, true)}
-                                className="px-3.5 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm inline-flex items-center gap-1.5"
-                                title="1-Click Approve staff work authorization"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Approve Access</span>
-                              </button>
-                            )}
-
-                            <button
-                              id={`admin-delete-staff-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
-                              onClick={() => deleteStaffUser(user.email)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer active:scale-90"
-                              title={`Permanently remove user record: ${user.name || user.email}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                        <td className="p-3 text-right space-x-2">
+                          <button
+                            id={`admin-toggle-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                            onClick={() => toggleStaffApproval(user.email)}
+                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 ${
+                              user.hrApproved
+                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
+                                : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold shadow-sm'
+                            }`}
+                          >
+                            {user.hrApproved ? 'Revoke Access' : 'Approve Staff'}
+                          </button>
+                          <button
+                            id={`admin-delete-staff-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                            onClick={() => deleteStaffUser(user.email)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer active:scale-90"
+                            title={`Permanently remove user record: ${user.name || user.email}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                       );
@@ -2659,9 +2582,6 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
           </div>
-
-          {/* Google Search & SEO Live Real-Time Management Panel */}
-          <GoogleSearchManager />
         </div>
       )}
 

@@ -4,7 +4,7 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
-import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback, SEOSetting } from '../types';
+import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, BookingStatus, ServiceRequestStatus, ServiceRequestType, ToastInfo, Feedback } from '../types';
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -120,9 +120,6 @@ interface AppContextType {
   brandLogo: string;
   updateBrandLogo: (logoDataUrl: string) => Promise<void>;
   removeBrandLogo: () => Promise<void>;
-  // Google Search & SEO Settings Management
-  seoSettings: SEOSetting;
-  updateSeoSettings: (newSettings: Partial<SEOSetting>) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -142,7 +139,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     role: 'admin',
     hrApproved: true,
     emailVerified: true,
-    isOnline: false,
+    isOnline: true,
     lastLoginAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     loginMethod: 'passcode',
@@ -155,7 +152,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     role: 'admin',
     hrApproved: true,
     emailVerified: true,
-    isOnline: false,
+    isOnline: true,
     lastLoginAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     loginMethod: 'passcode',
@@ -191,7 +188,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: true,
     emailVerified: true,
-    isOnline: false,
+    isOnline: true,
     lastLoginAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     loginMethod: 'passcode'
@@ -253,41 +250,10 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     const emailLower = u.email ? u.email.toLowerCase() : '';
     if (emailLower && !deletedSet.has(emailLower)) {
       const existing = map.get(emailLower);
-      const isAdmin = u.role === 'admin' || isAdminEmail(emailLower);
-      let staffSecretKey = u.staffSecretKey || existing?.staffSecretKey;
-      if (isAdmin && (!staffSecretKey || staffSecretKey === 'ISLAMIA-STAFF-2026')) {
-        staffSecretKey = 'ADMIN2026';
-      }
-
       if (existing) {
-        // Intelligently preserve online status if either doc indicates online
-        const isOnline = Boolean(u.isOnline || existing.isOnline);
-
-        // Pick the newer lastActiveAt
-        const uActiveTime = u.lastActiveAt ? new Date(u.lastActiveAt).getTime() : 0;
-        const exActiveTime = existing.lastActiveAt ? new Date(existing.lastActiveAt).getTime() : 0;
-        const lastActiveAt = uActiveTime >= exActiveTime ? (u.lastActiveAt || existing.lastActiveAt) : (existing.lastActiveAt || u.lastActiveAt);
-
-        // Pick the newer lastLoginAt
-        const uLoginTime = u.lastLoginAt ? new Date(u.lastLoginAt).getTime() : 0;
-        const exLoginTime = existing.lastLoginAt ? new Date(existing.lastLoginAt).getTime() : 0;
-        const lastLoginAt = uLoginTime >= exLoginTime ? (u.lastLoginAt || existing.lastLoginAt) : (existing.lastLoginAt || u.lastLoginAt);
-
-        map.set(emailLower, {
-          ...existing,
-          ...u,
-          isOnline,
-          lastActiveAt,
-          lastLoginAt,
-          staffSecretKey: staffSecretKey || existing.staffSecretKey,
-          loginMethod: u.loginMethod || existing.loginMethod,
-          hrApproved: u.hrApproved ?? existing.hrApproved ?? true
-        });
+        map.set(emailLower, { ...existing, ...u });
       } else {
-        map.set(emailLower, {
-          ...u,
-          ...(staffSecretKey ? { staffSecretKey } : {})
-        });
+        map.set(emailLower, u);
       }
     }
   });
@@ -297,30 +263,25 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     const activeEmailLower = activeUser.email.toLowerCase();
     if (!deletedSet.has(activeEmailLower)) {
       const existing = map.get(activeEmailLower);
-      const isActiveAdmin = activeUser.role === 'admin' || isAdminEmail(activeEmailLower);
-      const now = new Date().toISOString();
       if (existing) {
         map.set(activeEmailLower, {
           ...existing,
           isOnline: true,
-          staffSecretKey: isActiveAdmin ? (existing.staffSecretKey && existing.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? existing.staffSecretKey : 'ADMIN2026') : existing.staffSecretKey,
-          lastActiveAt: now,
-          lastLoginAt: existing.lastLoginAt || now
-        });
-      } else {
-        map.set(activeEmailLower, {
-          uid: activeUser.uid || `staff-${activeEmailLower.replace(/[^a-zA-Z0-9]/g, '_')}`,
-          email: activeEmailLower,
-          name: activeUser.name || 'User',
-          role: activeUser.role || 'staff',
-          isOnline: true,
-          lastActiveAt: now,
-          lastLoginAt: now,
-          hrApproved: true,
-          emailVerified: true
+          lastActiveAt: new Date().toISOString(),
+          lastLoginAt: existing.lastLoginAt || new Date().toISOString()
         });
       }
     }
+  }
+
+  // If in admin mode or authorized, ensure islamiaguesthouse@gmail.com (Mr. Sajjad) is live online ONLY IF NOT DELETED
+  const sajjad = map.get('islamiaguesthouse@gmail.com');
+  if (sajjad && !deletedSet.has('islamiaguesthouse@gmail.com')) {
+    sajjad.name = 'Mr. Sajjad (Admin)';
+    sajjad.role = 'admin';
+    sajjad.hrApproved = true;
+    sajjad.isOnline = true;
+    sajjad.lastActiveAt = sajjad.lastActiveAt || new Date().toISOString();
   }
 
   return Array.from(map.values());
@@ -340,104 +301,12 @@ const isAdminEmail = (email?: string | null): boolean => {
   return ADMIN_EMAIL_WHITELIST.includes(email.trim().toLowerCase());
 };
 
-const INITIAL_FEEDBACKS: Feedback[] = [
-  {
-    id: 'F1',
-    userId: 'sample-user-1',
-    userName: 'Rahat Rahman',
-    userEmail: 'rahat@gmail.com',
-    rating: 5,
-    comment: 'Absolutely love the peace and quiet here! Ibne Sina is right across which was very convenient for us.',
-    createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
-  },
-  {
-    id: 'F2',
-    userId: 'sample-user-2',
-    userName: 'Sultana Begum',
-    userEmail: 'sultana@yahoo.com',
-    rating: 4,
-    comment: 'Clean rooms and excellent staff. Meena Bazar is very close. Recommended for families.',
-    createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
-  }
-];
-
-export const DEFAULT_SEO_SETTINGS: SEOSetting = {
-  metaTitle: "Islamia Guest House Dhanmondi - Premium Rooms & Suites in Dhaka",
-  metaDescription: "Book air-conditioned executive chambers & guest suites at Islamia Guest House, Road 9/A, Dhanmondi, Dhaka. Opposite Ibne Sina Hospital & behind Meena Bazar. 24/7 front desk & instant booking.",
-  keywords: "Islamia Guest House, Dhanmondi guest house, hotel Dhanmondi, Ibne Sina hospital room, Dhanmondi 9/A room, Dhaka guest house, room booking Dhanmondi",
-  canonicalUrl: "https://islamiaguesthouse.com/",
-  ogImageUrl: "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&q=80&w=1200",
-  hotelName: "Islamia Guest House Dhanmondi",
-  address: "House #39, Road #9/A, Dhanmondi R/A (Opposite Ibne Sina Hospital & behind Meena Bazar), Dhaka - 1209, Bangladesh",
-  phone: "+880 1711-542745",
-  googleMapUrl: "https://maps.google.com/?q=Islamia+Guest+House+Dhanmondi+Dhaka"
-};
-
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [seoSettings, setSeoSettings] = useState<SEOSetting>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_seo_settings');
-      if (stored) {
-        return { ...DEFAULT_SEO_SETTINGS, ...JSON.parse(stored) };
-      }
-    } catch (e) {}
-    return DEFAULT_SEO_SETTINGS;
-  });
-  const [rooms, setRooms] = useState<Room[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_rooms');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return INITIAL_ROOMS;
-  });
-
-  const [bookings, setBookings] = useState<Booking[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_bookings');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return INITIAL_BOOKINGS;
-  });
-
-  const [archivedBookings, setArchivedBookings] = useState<Booking[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_archived_bookings');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return [];
-  });
-
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_services');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return INITIAL_SERVICES;
-  });
-
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_feedbacks');
-      if (stored !== null) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    return INITIAL_FEEDBACKS;
-  });
-
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [archivedBookings, setArchivedBookings] = useState<Booking[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem('hotel_current_user');
@@ -519,10 +388,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Guest House Custom Brand Logo (Uploaded from admin settings)
   const [brandLogo, setBrandLogo] = useState<string>(() => {
     try {
-      const stored = localStorage.getItem('hotel_brand_logo');
-      if (stored) return stored;
-    } catch (e) {}
-    return 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=200&q=80';
+      return localStorage.getItem('hotel_brand_logo') || '';
+    } catch (e) {
+      return '';
+    }
   });
 
   const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>(() => {
@@ -542,49 +411,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const hasSeededRoomsRef = useRef(false);
   const hasSeededBookingsRef = useRef(false);
   const hasSeededServicesRef = useRef(false);
-  const hasSeededFeedbacksRef = useRef(false);
-
-  // Instant Forced Eviction / Logout for Removed or Revoked Staff Accounts
-  const forceStaffEviction = (reason: string = 'Your staff account access has been revoked or removed by the administrator.') => {
-    const userEmail = currentUser?.email?.toLowerCase() || '';
-
-    // 1. Immediately reset memory state & redirect to staff login screen (SecureGateway)
-    setCurrentUser(null);
-    setCurrentRoleState('staff');
-    setOpModeState('receptionist');
-
-    // 2. Clear stored credentials & sessions
-    try {
-      localStorage.removeItem('hotel_current_user');
-      localStorage.setItem('hotel_current_role', 'staff');
-      localStorage.setItem('hotel_op_mode', 'receptionist');
-      sessionStorage.removeItem('admin_authorized');
-      localStorage.removeItem('pending_google_role');
-    } catch (e) {}
-
-    // 3. Sign out of Firebase Auth if active
-    if (auth) {
-      try {
-        signOut(auth);
-      } catch (e) {}
-    }
-
-    // 4. Broadcast to all open tabs and windows
-    try {
-      if (userEmail) {
-        const channel = new BroadcastChannel('hotel_auth_sync');
-        channel.postMessage({ type: 'FORCE_LOGOUT', email: userEmail, reason });
-        channel.close();
-      }
-    } catch (e) {}
-
-    // 5. Trigger warning notification alert
-    setActiveToast({
-      type: 'error',
-      message: `⛔ Access Terminated: ${reason} You have been automatically signed out.`,
-      duration: 10000
-    });
-  };
 
   // Dynamic Active Guests Calculation (Sum of all guests in checked-in / confirmed active stays)
   const activeGuestsCount = useMemo(() => {
@@ -651,15 +477,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                   uData.name = getAdminNameForEmail(emailLower, uData.name);
                 }
               }
-              const now = new Date().toISOString();
-              uData.isOnline = true;
-              uData.lastActiveAt = now;
-              uData.lastLoginAt = uData.lastLoginAt || now;
-
-              // Correctly resolve loginMethod if missing
-              const resolvedMethod = uData.loginMethod || (fbUser.providerData.some(p => p.providerId === 'google.com') ? 'google' : 'password');
-              uData.loginMethod = resolvedMethod;
-
               setCurrentUser(uData);
               setCurrentRole(uData.role);
               if (uData.role === 'admin') {
@@ -673,24 +490,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 localStorage.setItem('hotel_current_user', JSON.stringify(uData));
                 localStorage.setItem('hotel_current_role', uData.role);
               } catch (e) {}
-
-              // Sync online status to Firestore
-              const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
-              const presencePayload = {
-                uid: fbUser.uid,
-                email: emailLower,
-                name: uData.name,
-                role: uData.role,
-                isOnline: true,
-                lastActiveAt: now,
-                lastLoginAt: uData.lastLoginAt,
-                loginMethod: resolvedMethod
-              };
-              setDoc(doc(db, 'users', fbUser.uid), presencePayload, { merge: true }).catch(() => {});
-              if (fbUser.uid !== primaryUid) {
-                setDoc(doc(db, 'users', primaryUid), presencePayload, { merge: true }).catch(() => {});
-              }
-
               setIsLoading(false);
               return;
             }
@@ -715,19 +514,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const pendingName = localStorage.getItem(`pending_name_${emailLower}`) || existingLocal?.name || fbUser.displayName || (isAdminAccount ? getAdminNameForEmail(emailLower) : chosenRole === 'staff' ? 'Front Desk Staff' : 'Guest User');
           localStorage.removeItem(`pending_name_${emailLower}`);
 
-          const now = new Date().toISOString();
-          const fallbackMethod = fbUser.providerData.some(p => p.providerId === 'google.com') ? 'google' : 'password';
           const profile: UserProfile = {
             uid: fbUser.uid,
             email: fbUser.email || '',
             name: pendingName,
-            role: chosenRole,
-            isOnline: true,
-            lastActiveAt: now,
-            lastLoginAt: now,
-            hrApproved: true,
-            emailVerified: true,
-            loginMethod: fallbackMethod
+            role: chosenRole
           };
           setCurrentUser(profile);
           setCurrentRole(chosenRole);
@@ -743,13 +534,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             localStorage.setItem('hotel_current_role', chosenRole);
           } catch (e) {}
           
-          const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
-          setDoc(doc(db, 'users', fbUser.uid), sanitizeFirestoreData(profile), { merge: true }).catch(e => {
+          setDoc(doc(db, 'users', fbUser.uid), profile).catch(e => {
             console.error("Failed to sync user profile to Firestore:", e);
           });
-          if (fbUser.uid !== primaryUid) {
-            setDoc(doc(db, 'users', primaryUid), sanitizeFirestoreData(profile), { merge: true }).catch(() => {});
-          }
         } else {
           // When Firebase user is null (signed out or unverified / offline fallback):
           const savedUser = localStorage.getItem('hotel_current_user');
@@ -784,74 +571,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
 
       // 3. Realtime rooms collection sync with single-source-of-truth onSnapshot listener
-      const unsubRooms = onSnapshot(collection(db, 'rooms'), { includeMetadataChanges: true }, async (snapshot) => {
-        const roomsList: Room[] = [];
+      const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
         if (!snapshot.empty) {
+          hasSeededRoomsRef.current = true;
+          const roomsList: Room[] = [];
           snapshot.forEach((docSnap) => {
             roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
           });
           roomsList.sort((a, b) => Number(a.number) - Number(b.number));
           setRooms(roomsList);
-          try { localStorage.setItem('hotel_rooms', JSON.stringify(roomsList)); } catch (e) {}
-        } else {
           try {
-            const seedDoc = await getDoc(doc(db, 'settings', 'seeding'));
-            const isSeeded = seedDoc.exists() && seedDoc.data()?.rooms === true;
-            if (!isSeeded) {
-              console.log("Firestore rooms collection is empty. Seeding initial rooms...");
-              await setDoc(doc(db, 'settings', 'seeding'), { rooms: true }, { merge: true });
-              for (const room of INITIAL_ROOMS) {
-                await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
-              }
-            } else {
-              setRooms([]);
-              try { localStorage.setItem('hotel_rooms', JSON.stringify([])); } catch (e) {}
-            }
+            localStorage.setItem('hotel_rooms', JSON.stringify(roomsList));
           } catch (e) {
-            console.warn("Rooms empty check/seed error:", e);
+            console.error("Failed saving rooms snapshot to localStorage:", e);
+          }
+        } else {
+          // If Firestore rooms collection is completely empty, seed initial rooms ONCE into Firestore
+          if (!hasSeededRoomsRef.current) {
+            hasSeededRoomsRef.current = true;
+            console.log("Firestore rooms collection is empty. Seeding initial rooms...");
+            INITIAL_ROOMS.forEach(async (room) => {
+              try {
+                await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
+              } catch (e) {
+                console.warn("Failed to seed initial room:", e);
+              }
+            });
+          } else {
             setRooms([]);
-            try { localStorage.setItem('hotel_rooms', JSON.stringify([])); } catch (e) {}
+            try {
+              localStorage.setItem('hotel_rooms', JSON.stringify([]));
+            } catch (e) {
+              console.error("Failed saving empty rooms to localStorage:", e);
+            }
           }
         }
       }, (error) => {
-        console.warn("Rooms snapshot notice:", error);
+        handleFirestoreError(error, OperationType.GET, 'rooms');
       });
 
-      const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), { includeMetadataChanges: true }, async (snapshot) => {
+      const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
         const feedbacksList: Feedback[] = [];
-        if (!snapshot.empty) {
-          snapshot.forEach((docSnap) => {
-            feedbacksList.push({ id: docSnap.id, ...docSnap.data() } as Feedback);
-          });
-          feedbacksList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          setFeedbacks(feedbacksList);
-          try { localStorage.setItem('hotel_feedbacks', JSON.stringify(feedbacksList)); } catch (e) {}
-        } else {
-          try {
-            const seedDoc = await getDoc(doc(db, 'settings', 'seeding'));
-            const isSeeded = seedDoc.exists() && seedDoc.data()?.feedbacks === true;
-            if (!isSeeded) {
-              console.log("Firestore feedbacks collection is empty. Seeding initial feedbacks...");
-              await setDoc(doc(db, 'settings', 'seeding'), { feedbacks: true }, { merge: true });
-              for (const f of INITIAL_FEEDBACKS) {
-                await setDoc(doc(db, 'feedbacks', f.id), sanitizeFirestoreData(f));
-              }
-            } else {
-              setFeedbacks([]);
-              try { localStorage.setItem('hotel_feedbacks', JSON.stringify([])); } catch (e) {}
-            }
-          } catch (e) {
-            console.warn("Feedbacks empty check/seed error:", e);
-            setFeedbacks([]);
-            try { localStorage.setItem('hotel_feedbacks', JSON.stringify([])); } catch (e) {}
-          }
-        }
+        snapshot.forEach((docSnap) => {
+          feedbacksList.push({ id: docSnap.id, ...docSnap.data() } as Feedback);
+        });
+        feedbacksList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setFeedbacks(feedbacksList);
       }, (error) => {
-        console.warn("Feedbacks snapshot notice:", error);
+        handleFirestoreError(error, OperationType.GET, 'feedbacks');
       });
 
       // Realtime branding & uploaded logo sync
-      const unsubBranding = onSnapshot(doc(db, 'settings', 'branding'), { includeMetadataChanges: true }, (snapshot) => {
+      const unsubBranding = onSnapshot(doc(db, 'settings', 'branding'), (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (typeof data.logo === 'string') {
@@ -865,28 +636,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Branding settings snapshot listener:", error);
       });
 
-      // Realtime Google Search & SEO Settings sync
-      const unsubSeo = onSnapshot(doc(db, 'settings', 'seo'), { includeMetadataChanges: true }, (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data();
-          setSeoSettings(prev => {
-            const merged = { ...prev, ...data };
-            try {
-              localStorage.setItem('hotel_seo_settings', JSON.stringify(merged));
-            } catch (e) {}
-            return merged;
-          });
-        }
-      }, (error) => {
-        console.warn("SEO settings snapshot notice:", error);
-      });
-
       return () => {
         unsubscribeAuth();
         unsubRooms();
         unsubFeedbacks();
         unsubBranding();
-        unsubSeo();
       };
     } else {
       // Offline Local Storage Sandbox Fallback
@@ -935,16 +689,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } else {
         localStorage.setItem('hotel_bookings', JSON.stringify(INITIAL_BOOKINGS));
         setBookings(INITIAL_BOOKINGS);
-      }
-
-      const storedArchivedBookings = localStorage.getItem('hotel_archived_bookings');
-      if (storedArchivedBookings) {
-        try {
-          const parsedA = JSON.parse(storedArchivedBookings);
-          if (Array.isArray(parsedA)) {
-            setArchivedBookings(parsedA);
-          }
-        } catch (e) {}
       }
 
       if (storedServices) {
@@ -1076,136 +820,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let unsubRequests: (() => void) | null = null;
 
     // 1. All portals (Staff & Guest View) subscribe to all bookings in real time for instant updates
-    unsubBookings = onSnapshot(collection(db, 'bookings'), { includeMetadataChanges: true }, async (snapshot) => {
-      const bookingsList: Booking[] = [];
+    unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
       if (!snapshot.empty) {
+        hasSeededBookingsRef.current = true;
+        const bookingsList: Booking[] = [];
         snapshot.forEach((docSnap) => {
           bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
         });
         setBookings(bookingsList);
-        try {
-          localStorage.setItem('hotel_bookings', JSON.stringify(bookingsList));
-        } catch (e) {}
       } else {
-        try {
-          const seedDoc = await getDoc(doc(db, 'settings', 'seeding'));
-          const isSeeded = seedDoc.exists() && seedDoc.data()?.bookings === true;
-          if (!isSeeded) {
-            console.log("Firestore bookings collection is empty. Seeding initial bookings...");
-            await setDoc(doc(db, 'settings', 'seeding'), { bookings: true }, { merge: true });
-            for (const b of INITIAL_BOOKINGS) {
-              await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
-            }
-          } else {
-            setBookings([]);
+        if (!hasSeededBookingsRef.current) {
+          hasSeededBookingsRef.current = true;
+          INITIAL_BOOKINGS.forEach(async (b) => {
             try {
-              localStorage.setItem('hotel_bookings', JSON.stringify([]));
-            } catch (e) {}
-          }
-        } catch (e) {
-          console.warn("Bookings empty check/seed error:", e);
+              await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
+            } catch (e) {
+              console.warn("Failed to seed initial booking:", e);
+            }
+          });
+        } else {
           setBookings([]);
-          try {
-            localStorage.setItem('hotel_bookings', JSON.stringify([]));
-          } catch (e) {}
         }
       }
     }, (error) => {
-      console.warn("Bookings snapshot notice:", error);
+      handleFirestoreError(error, OperationType.GET, 'bookings');
     });
 
     // 2. Staff/Admin gets archived lifetime records in real time
-    unsubArchived = onSnapshot(collection(db, 'archived_bookings'), { includeMetadataChanges: true }, (snapshot) => {
+    unsubArchived = onSnapshot(collection(db, 'archived_bookings'), (snapshot) => {
       const archivedList: Booking[] = [];
       snapshot.forEach((docSnap) => {
         archivedList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
       });
       setArchivedBookings(archivedList);
-      try {
-        localStorage.setItem('hotel_archived_bookings', JSON.stringify(archivedList));
-      } catch (e) {}
     }, (error) => {
       console.warn("Archived bookings snapshot warning:", error);
     });
 
     // 3. Staff/Admin gets all service requests in real time
-    unsubRequests = onSnapshot(collection(db, 'serviceRequests'), { includeMetadataChanges: true }, async (snapshot) => {
-      const requestsList: ServiceRequest[] = [];
+    unsubRequests = onSnapshot(collection(db, 'serviceRequests'), (snapshot) => {
       if (!snapshot.empty) {
+        hasSeededServicesRef.current = true;
+        const requestsList: ServiceRequest[] = [];
         snapshot.forEach((docSnap) => {
           requestsList.push({ id: docSnap.id, ...docSnap.data() } as ServiceRequest);
         });
         setServiceRequests(requestsList);
-        try {
-          localStorage.setItem('hotel_services', JSON.stringify(requestsList));
-        } catch (e) {}
       } else {
-        try {
-          const seedDoc = await getDoc(doc(db, 'settings', 'seeding'));
-          const isSeeded = seedDoc.exists() && seedDoc.data()?.services === true;
-          if (!isSeeded) {
-            console.log("Firestore service requests collection is empty. Seeding initial service requests...");
-            await setDoc(doc(db, 'settings', 'seeding'), { services: true }, { merge: true });
-            for (const s of INITIAL_SERVICES) {
-              await setDoc(doc(db, 'serviceRequests', s.id), sanitizeFirestoreData(s));
-            }
-          } else {
-            setServiceRequests([]);
+        if (!hasSeededServicesRef.current) {
+          hasSeededServicesRef.current = true;
+          INITIAL_SERVICES.forEach(async (s) => {
             try {
-              localStorage.setItem('hotel_services', JSON.stringify([]));
-            } catch (e) {}
-          }
-        } catch (e) {
-          console.warn("Services empty check/seed error:", e);
+              await setDoc(doc(db, 'serviceRequests', s.id), sanitizeFirestoreData(s));
+            } catch (e) {
+              console.warn("Failed to seed initial service request:", e);
+            }
+          });
+        } else {
           setServiceRequests([]);
-          try {
-            localStorage.setItem('hotel_services', JSON.stringify([]));
-          } catch (e) {}
         }
       }
     }, (error) => {
-      console.warn("Service requests snapshot warning:", error);
+      handleFirestoreError(error, OperationType.GET, 'serviceRequests');
     });
 
     // 4. Real-time Live Staff & HR Approvals sync from Firestore users collection
     let unsubUsers: (() => void) | null = null;
     let unsubDeletedUsers: (() => void) | null = null;
     try {
-      unsubUsers = onSnapshot(collection(db, 'users'), { includeMetadataChanges: true }, (snapshot) => {
+      unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const usersList: UserProfile[] = [];
         const deletedSet = getDeletedUserEmails();
-        let currentEmailFound = false;
-        let currentHrApproved: boolean | undefined = undefined;
-
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as UserProfile;
           const userEmailLower = (data.email || '').trim().toLowerCase();
           if (userEmailLower && !deletedSet.has(userEmailLower)) {
             usersList.push({ uid: docSnap.id, ...data });
           }
-          if (currentUser?.email && userEmailLower === currentUser.email.toLowerCase()) {
-            currentEmailFound = true;
-            if (data.hrApproved === false) {
-              currentHrApproved = false;
-            } else if (data.hrApproved === true) {
-              currentHrApproved = true;
-            }
-          }
         });
-
-        // Eviction Guard: ONLY evict if explicitly in deleted registry OR HR revoked access (and not during initial load)
-        if (currentUser?.email && !isLoading) {
-          const myEmail = currentUser.email.toLowerCase();
-          if (deletedSet.has(myEmail)) {
-            forceStaffEviction('Your user account has been deleted by the administrator.');
-            return;
-          }
-          if ((currentUser.role === 'staff' || currentRole === 'staff') && currentEmailFound && currentHrApproved === false) {
-            forceStaffEviction('Your staff HR access authorization has been revoked by the administrator.');
-            return;
-          }
-        }
-
         const merged = mergeWithDefaultRegisteredUsers(usersList, currentUser, deletedSet);
         setRegisteredUsers(merged);
         try {
@@ -1219,21 +911,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (Array.isArray(data?.emails)) {
-            const serverDeleted = data.emails.map((em: string) => String(em).trim().toLowerCase()).filter(Boolean);
-            const serverDeletedSet = new Set<string>(serverDeleted);
-            
-            // Overwrite localStorage with raw server state
-            localStorage.setItem('hotel_deleted_users', JSON.stringify(serverDeleted));
-            
-            // Sync current registered staff users list by filtering out any deleted email instantly
-            setRegisteredUsers(prev => {
-              const filtered = prev.filter(u => !serverDeletedSet.has(u.email.toLowerCase()));
-              localStorage.setItem('hotel_registered_users', JSON.stringify(filtered));
-              return filtered;
+            const currentDeleted = getDeletedUserEmails();
+            let hasNew = false;
+            data.emails.forEach((em: string) => {
+              const clean = String(em).trim().toLowerCase();
+              if (clean && !currentDeleted.has(clean)) {
+                currentDeleted.add(clean);
+                hasNew = true;
+              }
             });
-
-            if (currentUser?.email && serverDeletedSet.has(currentUser.email.toLowerCase())) {
-              forceStaffEviction('Your user account has been deleted by the administrator.');
+            if (hasNew) {
+              localStorage.setItem('hotel_deleted_users', JSON.stringify(Array.from(currentDeleted)));
+              setRegisteredUsers(prev => prev.filter(u => !currentDeleted.has(u.email.toLowerCase())));
             }
           }
         }
@@ -1251,143 +940,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (unsubUsers) unsubUsers();
       if (unsubDeletedUsers) unsubDeletedUsers();
     };
-  }, [currentUser, currentRole, opMode, isFirebaseActive, isLoading]);
-
-  // Real-Time Active User Auth Guard: Instantly logs out if this user's document is deleted or HR status revoked
-  useEffect(() => {
-    if (!currentUser?.email) return;
-    const emailLower = currentUser.email.toLowerCase();
-    const deletedSet = getDeletedUserEmails();
-
-    if (deletedSet.has(emailLower)) {
-      forceStaffEviction('Your account has been deleted by the administrator.');
-      return;
-    }
-
-    if (isFirebaseActive && db) {
-      const userUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      const unsubUserDoc = onSnapshot(doc(db, 'users', userUid), (docSnap) => {
-        const freshDeletedSet = getDeletedUserEmails();
-        if (freshDeletedSet.has(emailLower)) {
-          forceStaffEviction('Your account has been deleted by the administrator.');
-          return;
-        }
-
-        if (docSnap.exists() && !isLoading) {
-          const data = docSnap.data() as UserProfile;
-          if ((currentUser.role === 'staff' || currentRole === 'staff') && data.hrApproved === false) {
-            forceStaffEviction('Your staff HR access authorization has been revoked by the administrator.');
-          }
-        }
-      }, (err) => {
-        console.warn("Live user doc auth listener notice:", err);
-      });
-
-      return () => {
-        unsubUserDoc();
-      };
-    }
-  }, [currentUser, currentRole, isFirebaseActive, isLoading]);
-
-  // Cross-Tab and Inter-Device Instant Eviction and Presence Broadcast Listener
-  useEffect(() => {
-    let channel: BroadcastChannel | null = null;
-    try {
-      channel = new BroadcastChannel('hotel_auth_sync');
-      channel.onmessage = (event) => {
-        if (event.data?.type === 'FORCE_LOGOUT') {
-          const targetEmail = event.data?.email?.toLowerCase();
-          if (currentUser?.email && currentUser.email.toLowerCase() === targetEmail) {
-            forceStaffEviction(event.data?.reason || 'Your staff access was revoked.');
-          }
-        } else if (event.data?.type === 'USER_ONLINE' && event.data?.profile) {
-          const incomingProfile: UserProfile = event.data.profile;
-          setRegisteredUsers(prev => {
-            const next = [...prev];
-            const idx = next.findIndex(u => u.email.toLowerCase() === incomingProfile.email.toLowerCase());
-            if (idx >= 0) {
-              next[idx] = { 
-                ...next[idx], 
-                ...incomingProfile, 
-                isOnline: true, 
-                lastActiveAt: incomingProfile.lastActiveAt || new Date().toISOString() 
-              };
-            } else {
-              next.unshift({ ...incomingProfile, isOnline: true });
-            }
-            return next;
-          });
-        } else if (event.data?.type === 'PRESENCE_HEARTBEAT' && event.data?.email) {
-          const targetEmail = String(event.data.email).toLowerCase();
-          const targetActiveAt = event.data.lastActiveAt || new Date().toISOString();
-          setRegisteredUsers(prev => {
-            return prev.map(u => {
-              if (u.email.toLowerCase() === targetEmail) {
-                return { ...u, isOnline: true, lastActiveAt: targetActiveAt };
-              }
-              return u;
-            });
-          });
-        }
-      };
-    } catch (e) {}
-
-    const handleRevoked = (e: any) => {
-      const detail = e?.detail;
-      if (detail?.email && currentUser?.email && currentUser.email.toLowerCase() === detail.email.toLowerCase()) {
-        forceStaffEviction(detail.reason || 'Your staff access was removed or revoked.');
-      }
-    };
-
-    window.addEventListener('hotel_session_revoked', handleRevoked);
-
-    return () => {
-      if (channel) {
-        channel.close();
-      }
-      window.removeEventListener('hotel_session_revoked', handleRevoked);
-    };
-  }, [currentUser]);
+  }, [currentUser, currentRole, opMode, isFirebaseActive]);
 
   // Presence Heartbeat: Keeps user online status refreshed in Firestore
   useEffect(() => {
     if (!currentUser || !currentUser.email) return;
 
     const emailLower = currentUser.email.toLowerCase();
-    const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    const userUid = currentUser.uid || primaryUid;
+    const userUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
     const pingOnline = async () => {
-      const deletedSet = getDeletedUserEmails();
-      if (deletedSet.has(emailLower)) {
-        forceStaffEviction('Your account has been deleted by the administrator.');
-        return;
-      }
-
       const now = new Date().toISOString();
-
-      // Local & Broadcast sync
-      try {
-        const channel = new BroadcastChannel('hotel_auth_sync');
-        channel.postMessage({ type: 'PRESENCE_HEARTBEAT', email: emailLower, lastActiveAt: now });
-        channel.close();
-      } catch (e) {}
-
-      if (isFirebaseActive && db) {
+      if (isFirebaseActive && db && userUid) {
         try {
-          const payload = {
-            uid: userUid,
-            email: emailLower,
-            name: currentUser.name || 'Staff Member',
-            role: currentUser.role || currentRole || 'staff',
+          await setDoc(doc(db, 'users', userUid), {
             isOnline: true,
-            lastActiveAt: now,
-            hrApproved: currentUser.hrApproved ?? true
-          };
-          await setDoc(doc(db, 'users', userUid), payload, { merge: true });
-          if (userUid !== primaryUid) {
-            await setDoc(doc(db, 'users', primaryUid), payload, { merge: true });
-          }
+            lastActiveAt: now
+          }, { merge: true });
         } catch (e) {}
       }
     };
@@ -1395,20 +964,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Ping immediately on mount/login
     pingOnline();
 
-    // Ping every 25 seconds
-    const interval = setInterval(pingOnline, 25000);
+    // Ping every 30 seconds
+    const interval = setInterval(pingOnline, 30000);
 
     const handleOffline = async () => {
-      if (isFirebaseActive && db) {
+      if (isFirebaseActive && db && userUid) {
         try {
-          const offlinePayload = {
+          await setDoc(doc(db, 'users', userUid), {
             isOnline: false,
             lastActiveAt: new Date().toISOString()
-          };
-          await setDoc(doc(db, 'users', userUid), offlinePayload, { merge: true });
-          if (userUid !== primaryUid) {
-            await setDoc(doc(db, 'users', primaryUid), offlinePayload, { merge: true });
-          }
+          }, { merge: true });
         } catch (e) {}
       }
     };
@@ -1419,29 +984,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleOffline);
     };
-  }, [currentUser, currentRole, isFirebaseActive]);
+  }, [currentUser, isFirebaseActive]);
 
   // Sync with local storage events across browser tabs
   useEffect(() => {
     const handleStorageOrCustom = () => {
-      const currentDeleted = getDeletedUserEmails();
-      if (currentUser?.email && currentDeleted.has(currentUser.email.toLowerCase())) {
-        forceStaffEviction('Your account was deleted by the administrator.');
-        return;
-      }
-
       const stored = localStorage.getItem('hotel_registered_users');
       if (stored) {
         try {
-          const parsed: UserProfile[] = JSON.parse(stored);
-          if (currentUser?.email && (currentUser.role === 'staff' || currentRole === 'staff')) {
-            const me = parsed.find(u => u.email.toLowerCase() === currentUser.email.toLowerCase());
-            if (me && me.hrApproved === false) {
-              forceStaffEviction('Your staff access has been removed or revoked.');
-              return;
-            }
-          }
-          setRegisteredUsers(mergeWithDefaultRegisteredUsers(parsed, currentUser, currentDeleted));
+          setRegisteredUsers(mergeWithDefaultRegisteredUsers(JSON.parse(stored), currentUser));
         } catch (err) {}
       }
       const storedMaster = localStorage.getItem('master_staff_passcode');
@@ -1457,7 +1008,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('storage', handleStorageOrCustom);
       window.removeEventListener('hotel_presence_updated', handleStorageOrCustom);
     };
-  }, [currentUser, currentRole]);
+  }, [currentUser]);
 
   // Local storage offline caching helper
   useEffect(() => {
@@ -1506,18 +1057,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const isAdmin = isAdminEmail(emailLower) || role === 'admin';
     const finalRole: UserRole = isAdmin ? 'admin' : role;
     const finalName = isAdmin ? getAdminNameForEmail(emailLower, name) : (name || 'Staff Member');
-    const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
-    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : primaryUid);
-
-    const defaultPasscode = finalRole === 'admin' ? 'ADMIN2026' : (masterStaffPasscode || 'ISLAMIA-STAFF-2026');
-    const resolvedPasscode = passcodeUsed || defaultPasscode;
+    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
 
     const userProfile: UserProfile = {
       uid: userUid,
       email: emailLower,
       name: finalName,
       role: finalRole,
-      staffSecretKey: resolvedPasscode,
+      staffSecretKey: passcodeUsed || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
       hrApproved: true,
       emailVerified: true,
       isOnline: true,
@@ -1531,14 +1078,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = [...prev];
       const idx = next.findIndex(u => u.email.toLowerCase() === emailLower);
       if (idx >= 0) {
-        next[idx] = { 
-          ...next[idx], 
-          ...userProfile, 
-          staffSecretKey: resolvedPasscode,
-          isOnline: true, 
-          lastLoginAt: now, 
-          lastActiveAt: now 
-        };
+        next[idx] = { ...next[idx], ...userProfile, isOnline: true, lastLoginAt: now, lastActiveAt: now };
       } else {
         next.unshift(userProfile);
       }
@@ -1549,19 +1089,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
-    try {
-      const channel = new BroadcastChannel('hotel_auth_sync');
-      channel.postMessage({ type: 'USER_ONLINE', profile: userProfile });
-      channel.close();
-    } catch (e) {}
-
     if (isFirebaseActive && db) {
       try {
-        const sanitized = sanitizeFirestoreData(userProfile);
-        await setDoc(doc(db, 'users', userUid), sanitized, { merge: true });
-        if (userUid !== primaryUid) {
-          await setDoc(doc(db, 'users', primaryUid), sanitized, { merge: true });
-        }
+        await setDoc(doc(db, 'users', userUid), sanitizeFirestoreData(userProfile), { merge: true });
       } catch (e) {
         console.warn("Could not sync user presence to Firestore:", e);
       }
@@ -1586,21 +1116,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    // If revoking access, broadcast instant eviction to any tab/device running this staff session
-    if (!approved) {
-      try {
-        const channel = new BroadcastChannel('hotel_auth_sync');
-        channel.postMessage({ type: 'FORCE_LOGOUT', email: emailLower, reason: 'Staff HR access authorization was revoked by administrator.' });
-        channel.close();
-      } catch (e) {}
-      window.dispatchEvent(new CustomEvent('hotel_session_revoked', { 
-        detail: { email: emailLower, reason: 'Staff HR access authorization was revoked by administrator.' } 
-      }));
-      if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
-        forceStaffEviction('Your staff HR access authorization has been revoked by the administrator.');
-      }
-    }
-
     // 2. Update Firestore document in real-time
     if (isFirebaseActive && db) {
       try {
@@ -1619,16 +1134,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 1. Mark in permanent deleted registry so default lists and snapshots never resurrect it
     addDeletedUserEmail(emailLower);
 
-    // Broadcast instant eviction across all tabs and devices
-    try {
-      const channel = new BroadcastChannel('hotel_auth_sync');
-      channel.postMessage({ type: 'FORCE_LOGOUT', email: emailLower, reason: 'Your staff account has been deleted by the administrator.' });
-      channel.close();
-    } catch (e) {}
-    window.dispatchEvent(new CustomEvent('hotel_session_revoked', { 
-      detail: { email: emailLower, reason: 'Your staff account has been deleted by the administrator.' } 
-    }));
-
     // 2. Remove from active state & local storage
     setRegisteredUsers(prev => {
       const updated = prev.filter(u => u.email.toLowerCase() !== emailLower);
@@ -1639,9 +1144,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    // 3. If currently logged in as this user, evict immediately
+    // 3. If currently logged in as this user, sign out
     if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
-      forceStaffEviction('Your staff account has been deleted by the administrator.');
+      logout();
     }
 
     // 4. Delete all possible document IDs in Firestore and update Firestore deleted_users settings
@@ -1757,21 +1262,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logout = async () => {
-    // 0. Update online status in Firestore before logging out (both main uid and staff-email primary uid)
+    // 0. Update online status in Firestore before logging out
     if (currentUser?.email) {
       const emailLower = currentUser.email.toLowerCase();
       const targetUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
-      const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
       if (isFirebaseActive && db) {
         try {
-          const offlinePayload = {
+          await updateDoc(doc(db, 'users', targetUid), {
             isOnline: false,
             lastActiveAt: new Date().toISOString()
-          };
-          await setDoc(doc(db, 'users', targetUid), offlinePayload, { merge: true });
-          if (targetUid !== primaryUid) {
-            await setDoc(doc(db, 'users', primaryUid), offlinePayload, { merge: true });
-          }
+          });
         } catch (e) {}
       }
       setRegisteredUsers(prev => {
@@ -2522,11 +2022,7 @@ Islamia Guest House, Dhanmondi`;
     const todayStr = new Date().toISOString().split('T')[0];
 
     // Optimistically update local state immediately so UI updates instantly
-    setBookings(prev => {
-      const next = [newBooking, ...prev.filter(b => b.id !== bookingId)];
-      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
+    setBookings(prev => [newBooking, ...prev.filter(b => b.id !== bookingId)]);
     if ((bookingData.checkIn && bookingData.checkOut && bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
       setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
     }
@@ -2571,28 +2067,8 @@ Islamia Guest House, Dhanmondi`;
       ...(details?.notes ? { notes: details.notes } : {})
     };
 
-    const archiveDocData = {
-      ...(targetBooking || {}),
-      ...checkoutPayload,
-      archivedAt: nowStr
-    } as Booking;
-
-    // 1. Optimistic local state update for both bookings and archivedBookings
-    setBookings(prev => {
-      const next = prev.map(b => b.id === bookingId ? { ...b, ...checkoutPayload } : b);
-      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
-
-    setArchivedBookings(prev => {
-      const exists = prev.some(b => b.id === bookingId);
-      const next = exists 
-        ? prev.map(b => b.id === bookingId ? { ...b, ...checkoutPayload } : b)
-        : [archiveDocData, ...prev];
-      try { localStorage.setItem('hotel_archived_bookings', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
-
+    // 1. Optimistic local state update
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...checkoutPayload } : b));
     if (targetBooking) {
       setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
     }
@@ -2605,6 +2081,12 @@ Islamia Guest House, Dhanmondi`;
           await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'cleaning' }));
         }
 
+        // Always preserve a lifetime record in archived_bookings collection
+        const archiveDocData = {
+          ...(targetBooking || {}),
+          ...checkoutPayload,
+          archivedAt: nowStr
+        };
         await setDoc(doc(db, 'archived_bookings', bookingId), sanitizeFirestoreData(archiveDocData)).catch(e => {
           console.warn("Archived record saved with fallback:", e);
         });
@@ -2634,12 +2116,7 @@ Islamia Guest House, Dhanmondi`;
     const targetBooking = bookings.find(b => b.id === bookingId);
 
     // Optimistic local state update
-    setBookings(prev => {
-      const next = prev.map(b => b.id === bookingId ? { ...b, status } : b);
-      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
-
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, status } : b));
     if (targetBooking) {
       if (status === 'checked-in') {
         setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'occupied' } : r));
@@ -2674,11 +2151,7 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const addBookingNotes = async (bookingId: string, notes: string) => {
-    setBookings(prev => {
-      const next = prev.map(b => b.id === bookingId ? { ...b, notes } : b);
-      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, notes } : b));
 
     if (isFirebaseActive && db) {
       try {
@@ -2690,21 +2163,12 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const deleteBooking = async (bookingId: string) => {
-    setBookings(prev => {
-      const next = prev.filter(b => b.id !== bookingId);
-      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
-    setArchivedBookings(prev => {
-      const next = prev.filter(b => b.id !== bookingId);
-      try { localStorage.setItem('hotel_archived_bookings', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
+    setBookings(prev => prev.filter(b => b.id !== bookingId));
+    setArchivedBookings(prev => prev.filter(b => b.id !== bookingId));
 
     if (isFirebaseActive && db) {
       try {
         await deleteDoc(doc(db, 'bookings', bookingId));
-        await deleteDoc(doc(db, 'archived_bookings', bookingId)).catch(() => {});
       } catch (e) {
         console.warn("Firestore delete booking error:", e);
       }
@@ -2712,11 +2176,7 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const updateBookingPayment = async (bookingId: string, paymentStatus: string, paidAmount: number, paymentMethod?: string) => {
-    setBookings(prev => {
-      const next = prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b);
-      try { localStorage.setItem('hotel_bookings', JSON.stringify(next)); } catch (e) {}
-      return next;
-    });
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, paymentStatus: paymentStatus as any, paidAmount, paymentMethod: paymentMethod as any } : b));
 
     if (isFirebaseActive && db) {
       try {
@@ -2870,129 +2330,6 @@ Islamia Guest House, Dhanmondi`;
     }
   };
 
-  // Synchronize document head & Google Search structured data (Schema.org JSON-LD) in real time
-  const updateHeadMeta = (seo: SEOSetting, feedbackList: Feedback[]) => {
-    if (typeof document === 'undefined') return;
-
-    const totalReviews = feedbackList.length;
-    const avgRating = totalReviews > 0
-      ? Number((feedbackList.reduce((acc, f) => acc + (f.rating || 5), 0) / totalReviews).toFixed(1))
-      : 4.8;
-
-    const ratingText = `★ ${avgRating}/5 (${totalReviews} reviews)`;
-    const fullTitle = seo.metaTitle ? `${seo.metaTitle} | ${ratingText}` : `Islamia Guest House | ${ratingText}`;
-
-    document.title = fullTitle;
-
-    const setMetaTag = (attrName: string, attrVal: string, content: string) => {
-      let el = document.querySelector(`meta[${attrName}="${attrVal}"]`);
-      if (!el) {
-        el = document.createElement('meta');
-        el.setAttribute(attrName, attrVal);
-        document.head.appendChild(el);
-      }
-      el.setAttribute('content', content);
-    };
-
-    const liveDesc = `${seo.metaDescription || ''} Verified Rating: ${avgRating}★ (${totalReviews} guest reviews).`;
-
-    setMetaTag('name', 'title', fullTitle);
-    setMetaTag('name', 'description', liveDesc);
-    setMetaTag('name', 'keywords', seo.keywords || '');
-
-    setMetaTag('property', 'og:title', fullTitle);
-    setMetaTag('property', 'og:description', liveDesc);
-    setMetaTag('property', 'og:url', seo.canonicalUrl || 'https://islamiaguesthouse.com/');
-    setMetaTag('property', 'og:image', seo.ogImageUrl || '');
-    setMetaTag('property', 'og:site_name', seo.hotelName || 'Islamia Guest House');
-
-    let link = document.querySelector('link[rel="canonical"]');
-    if (!link) {
-      link = document.createElement('link');
-      link.setAttribute('rel', 'canonical');
-      document.head.appendChild(link);
-    }
-    link.setAttribute('href', seo.canonicalUrl || 'https://islamiaguesthouse.com/');
-
-    // Update JSON-LD Schema for Google Rich Search Snippets
-    let script = document.getElementById('google-jsonld-schema') as HTMLScriptElement;
-    if (!script) {
-      script = document.createElement('script');
-      script.id = 'google-jsonld-schema';
-      script.type = 'application/ld+json';
-      document.head.appendChild(script);
-    }
-
-    const jsonLd = {
-      "@context": "https://schema.org",
-      "@type": "LodgingBusiness",
-      "name": seo.hotelName,
-      "url": seo.canonicalUrl,
-      "description": seo.metaDescription,
-      "image": seo.ogImageUrl,
-      "telephone": seo.phone,
-      "address": {
-        "@type": "PostalAddress",
-        "streetAddress": "House #39, Road #9/A, Dhanmondi R/A",
-        "addressLocality": "Dhaka",
-        "postalCode": "1209",
-        "addressCountry": "BD"
-      },
-      "geo": {
-        "@type": "GeoCoordinates",
-        "latitude": 23.7533,
-        "longitude": 90.3769
-      },
-      "aggregateRating": {
-        "@type": "AggregateRating",
-        "ratingValue": avgRating,
-        "reviewCount": totalReviews || 1,
-        "bestRating": "5",
-        "worstRating": "1"
-      },
-      "priceRange": "BDT 1,500 - BDT 6,000",
-      "hasMap": seo.googleMapUrl
-    };
-
-    script.textContent = JSON.stringify(jsonLd, null, 2);
-  };
-
-  useEffect(() => {
-    updateHeadMeta(seoSettings, feedbacks);
-  }, [seoSettings, feedbacks]);
-
-  const updateSeoSettings = async (newSettings: Partial<SEOSetting>): Promise<void> => {
-    const updated = {
-      ...seoSettings,
-      ...newSettings,
-      updatedAt: new Date().toISOString(),
-      updatedBy: currentUser?.email || 'admin'
-    };
-    setSeoSettings(updated);
-    try {
-      localStorage.setItem('hotel_seo_settings', JSON.stringify(updated));
-    } catch (e) {
-      console.warn("Failed saving SEO settings to localStorage:", e);
-    }
-
-    if (isFirebaseActive && db) {
-      try {
-        await setDoc(doc(db, 'settings', 'seo'), sanitizeFirestoreData(updated), { merge: true });
-        showToast({
-          message: '🚀 Google Search SEO metadata & Schema.org updated live!',
-          type: 'success'
-        });
-      } catch (error) {
-        console.warn("Failed to persist SEO settings to Firestore:", error);
-      }
-    } else {
-      showToast({
-        message: '🚀 Google Search SEO metadata updated locally!',
-        type: 'success'
-      });
-    }
-  };
-
   return (
     <AppContext.Provider value={{
       rooms,
@@ -3047,9 +2384,7 @@ Islamia Guest House, Dhanmondi`;
       updateMasterStaffPasscode,
       brandLogo,
       updateBrandLogo,
-      removeBrandLogo,
-      seoSettings,
-      updateSeoSettings
+      removeBrandLogo
     }}>
       {children}
     </AppContext.Provider>

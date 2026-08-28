@@ -75,7 +75,6 @@ export interface UserProfile {
   name: string;
   role: UserRole;
   phone?: string;
-  password?: string;
   staffSecretKey?: string;
   hrApproved?: boolean;
   emailVerified?: boolean;
@@ -119,20 +118,6 @@ export interface Feedback {
 
 export interface BrandingSetting {
   logo: string; // Base64 data URL of uploaded image
-  updatedAt?: string;
-  updatedBy?: string;
-}
-
-export interface SEOSetting {
-  metaTitle: string;
-  metaDescription: string;
-  keywords: string;
-  canonicalUrl: string;
-  ogImageUrl: string;
-  hotelName: string;
-  address: string;
-  phone: string;
-  googleMapUrl: string;
   updatedAt?: string;
   updatedBy?: string;
 }

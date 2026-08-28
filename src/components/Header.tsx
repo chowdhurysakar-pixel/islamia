@@ -29,9 +29,10 @@ export const Header: React.FC = () => {
   }, []);
 
   const handleAdminAccessClick = () => {
-    const isAlreadyAdminUser = currentUser?.role === 'admin' || sessionStorage.getItem('admin_authorized') === 'true';
+    const isAlreadyAdminUser = currentUser?.role === 'admin';
+    const isSessionUnlocked = sessionStorage.getItem('admin_authorized') === 'true';
 
-    if (isAlreadyAdminUser) {
+    if (isAlreadyAdminUser || (isSessionUnlocked && currentUser?.role !== 'staff')) {
       if (currentRole === 'guest') toggleRole();
       setOpMode('admin');
     } else {

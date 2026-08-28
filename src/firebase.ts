@@ -15,9 +15,6 @@ import {
 } from 'firebase/auth';
 import { 
   getFirestore, 
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   collection, 
   doc, 
   query, 
@@ -29,46 +26,17 @@ import {
   updateDoc, 
   deleteDoc, 
   onSnapshot, 
-  getDocFromServer,
-  setLogLevel 
+  getDocFromServer 
 } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
-
-// Silence non-fatal transient connection retry notices
-try {
-  setLogLevel('error');
-} catch (e) {}
 
 // Initialize Firebase App
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firestore with auto-detect long polling and error resilience
-const firestoreDbId = (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)')
-  ? firebaseConfig.firestoreDatabaseId
-  : undefined;
-
-let firestoreInstance;
-try {
-  firestoreInstance = initializeFirestore(app, {
-    localCache: persistentLocalCache({
-      tabManager: persistentMultipleTabManager()
-    }),
-    experimentalForceLongPolling: true,
-    ignoreUndefinedProperties: true,
-  }, firestoreDbId);
-} catch (e) {
-  try {
-    firestoreInstance = initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
-      ignoreUndefinedProperties: true,
-    }, firestoreDbId);
-  } catch (err) {
-    firestoreInstance = firestoreDbId ? getFirestore(app, firestoreDbId) : getFirestore(app);
-  }
-}
-
-// Export database instance
-export const db = firestoreInstance;
+// Initialize Firestore with configured database ID
+export const db = (firebaseConfig.firestoreDatabaseId && firebaseConfig.firestoreDatabaseId !== '(default)')
+  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
 
 // Initialize Firebase Auth
 export const auth = getAuth(app);

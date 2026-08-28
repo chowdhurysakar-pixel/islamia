@@ -86,9 +86,7 @@ export const StaffView: React.FC = () => {
     triggerSmsConfirmation,
     opMode,
     setOpMode,
-    showToast,
-    currentUser,
-    logout
+    showToast
   } = useApp();
 
   // Async Action Loading States
@@ -572,8 +570,8 @@ export const StaffView: React.FC = () => {
   // HR Archival Only Customer Database List
   const hrHistoricalBookings = useMemo(() => {
     // Show only checked-out, cancelled, or general stays list historical records
-    return allCombinedBookings.filter(b => b.status === 'checked-out' || b.status === 'cancelled');
-  }, [allCombinedBookings]);
+    return bookings.filter(b => b.status === 'checked-out' || b.status === 'cancelled');
+  }, [bookings]);
 
   // HR Chronological Guest Stay History Lookup
   const guestHistoryBookings = useMemo(() => {
@@ -581,7 +579,7 @@ export const StaffView: React.FC = () => {
     const searchVal = selectedHistoryGuestPhone.trim();
     if (!searchVal) return [];
     
-    return allCombinedBookings
+    return bookings
       .filter(b => {
         const phone = b.guestPhone || '';
         const matchesMainPhone = phone.replace(/[^0-9]/g, '').includes(searchVal.replace(/[^0-9]/g, ''));
@@ -591,7 +589,7 @@ export const StaffView: React.FC = () => {
         return matchesMainPhone || matchesAdditional;
       })
       .sort((a, b) => (new Date(a.checkIn || 0).getTime() || 0) - (new Date(b.checkIn || 0).getTime() || 0));
-  }, [allCombinedBookings, selectedHistoryGuestPhone]);
+  }, [bookings, selectedHistoryGuestPhone]);
 
   const filteredServices = useMemo(() => {
     return serviceRequests.filter(req => {
@@ -606,7 +604,7 @@ export const StaffView: React.FC = () => {
     const countsByEmail: Record<string, number> = {};
     const countsByName: Record<string, number> = {};
 
-    allCombinedBookings.forEach(b => {
+    bookings.forEach(b => {
       const phone = b.guestPhone?.trim();
       const email = b.guestEmail?.trim().toLowerCase();
       const name = b.guestName?.trim().toLowerCase();
@@ -617,7 +615,7 @@ export const StaffView: React.FC = () => {
     });
 
     return { countsByPhone, countsByEmail, countsByName };
-  }, [allCombinedBookings]);
+  }, [bookings]);
 
   const isRepeatGuest = (booking: Booking) => {
     const phone = booking.guestPhone?.trim();
@@ -726,73 +724,6 @@ export const StaffView: React.FC = () => {
       message: `📥 Exported ${dataToExport.length} guest logs to CSV file successfully!`
     });
   };
-
-  // If the logged-in user is a staff member whose HR approval is pending, show the waiting screen
-  if (currentUser && currentUser.role === 'staff' && currentUser.hrApproved === false) {
-    return (
-      <div className="max-w-xl mx-auto my-12 bg-white border border-amber-200 rounded-3xl p-8 shadow-sm text-center space-y-6">
-        <div className="w-16 h-16 bg-amber-50 border border-amber-200 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-xs">
-          <Clock className="w-8 h-8 animate-pulse" />
-        </div>
-
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full">
-            <AlertCircle className="w-3.5 h-3.5" />
-            <span>Pending HR Access Approval</span>
-          </div>
-          <h2 className="text-xl font-bold text-slate-900">Awaiting Admin Approval</h2>
-          <p className="text-sm text-slate-600">
-            Welcome, <span className="font-semibold text-slate-900">{currentUser.name || currentUser.email}</span>. Your staff account is registered, but requires 1-click HR approval from Administrator (Mr. Sajjad) in the <strong>Staff &amp; Receptionist Registry</strong> before you can operate the Front Desk.
-          </p>
-        </div>
-
-        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-2 text-xs text-slate-600">
-          <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-            <span className="font-semibold text-slate-700">Account Name:</span>
-            <span className="font-medium text-slate-900">{currentUser.name || 'Reception Staff'}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-            <span className="font-semibold text-slate-700">Email:</span>
-            <span className="font-mono text-slate-900">{currentUser.email}</span>
-          </div>
-          <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-            <span className="font-semibold text-slate-700">Assigned Role:</span>
-            <span className="font-mono uppercase font-bold text-slate-800">{currentUser.role}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-700">HR Status:</span>
-            <span className="text-amber-700 font-bold flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-              Awaiting 1-Click Approval
-            </span>
-          </div>
-        </div>
-
-        <div className="p-3.5 bg-teal-50/80 border border-teal-200/60 rounded-2xl text-xs text-teal-800 flex items-center justify-center gap-2">
-          <Sparkles className="w-4 h-4 text-teal-600 shrink-0" />
-          <span>This workspace will instantly unlock the moment the Admin clicks <strong>Approve Access</strong> in the Admin panel!</span>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-          <button
-            onClick={() => {
-              showToast({ type: 'info', message: 'Checking live HR approval status...' });
-            }}
-            className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition active:scale-95 cursor-pointer flex items-center justify-center gap-2"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Check Live Status</span>
-          </button>
-          <button
-            onClick={logout}
-            className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 font-bold text-xs rounded-xl transition active:scale-95 cursor-pointer"
-          >
-            Sign Out
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
