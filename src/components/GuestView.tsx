@@ -253,10 +253,9 @@ export const GuestView: React.FC = () => {
   const filteredRooms = useMemo(() => {
     return rooms.filter(room => {
       const matchesType = roomTypeFilter === 'all' || room.type === roomTypeFilter;
-      const matchesCapacity = room.capacity >= adultsCount;
-      return matchesType && matchesCapacity;
+      return matchesType;
     });
-  }, [rooms, roomTypeFilter, adultsCount]);
+  }, [rooms, roomTypeFilter]);
 
   // Search query state for My Stays
   const [myStaySearch, setMyStaySearch] = useState<string>(() => {
