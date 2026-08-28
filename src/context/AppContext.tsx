@@ -303,11 +303,80 @@ const isAdminEmail = (email?: string | null): boolean => {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [archivedBookings, setArchivedBookings] = useState<Booking[]>([]);
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
-  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
+  const [rooms, setRooms] = useState<Room[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_rooms');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_ROOMS;
+  });
+
+  const [bookings, setBookings] = useState<Booking[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_bookings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_BOOKINGS;
+  });
+
+  const [archivedBookings, setArchivedBookings] = useState<Booking[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_archived_bookings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [];
+  });
+
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_services');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return INITIAL_SERVICES;
+  });
+
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>(() => {
+    try {
+      const stored = localStorage.getItem('hotel_feedbacks');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [
+      {
+        id: 'F1',
+        userId: 'sample-user-1',
+        userName: 'Rahat Rahman',
+        userEmail: 'rahat@gmail.com',
+        rating: 5,
+        comment: 'Absolutely love the peace and quiet here! Ibne Sina is right across which was very convenient for us.',
+        createdAt: new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: 'F2',
+        userId: 'sample-user-2',
+        userName: 'Sultana Begum',
+        userEmail: 'sultana@yahoo.com',
+        rating: 4,
+        comment: 'Clean rooms and excellent staff. Meena Bazar is very close. Recommended for families.',
+        createdAt: new Date(Date.now() - 5 * 24 * 3600 * 1000).toISOString()
+      }
+    ];
+  });
+
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
     try {
       const saved = localStorage.getItem('hotel_current_user');
@@ -615,42 +684,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       // 3. Realtime rooms collection sync with single-source-of-truth onSnapshot listener
       const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
+        const roomsList: Room[] = [];
         if (!snapshot.empty) {
           hasSeededRoomsRef.current = true;
-          const roomsList: Room[] = [];
           snapshot.forEach((docSnap) => {
             roomsList.push({ id: docSnap.id, ...docSnap.data() } as Room);
           });
-          roomsList.sort((a, b) => Number(a.number) - Number(b.number));
-          setRooms(roomsList);
-          try {
-            localStorage.setItem('hotel_rooms', JSON.stringify(roomsList));
-          } catch (e) {
-            console.error("Failed saving rooms snapshot to localStorage:", e);
+        }
+        setRooms(prev => {
+          const map = new Map<string, Room>();
+          prev.forEach(r => map.set(r.id, r));
+          roomsList.forEach(r => map.set(r.id, r));
+          const merged = Array.from(map.values()).sort((a, b) => Number(a.number) - Number(b.number));
+          if (merged.length === 0) {
+            try { localStorage.setItem('hotel_rooms', JSON.stringify(INITIAL_ROOMS)); } catch (e) {}
+            return INITIAL_ROOMS;
           }
-        } else {
-          // If Firestore rooms collection is completely empty, seed initial rooms ONCE into Firestore
-          if (!hasSeededRoomsRef.current) {
-            hasSeededRoomsRef.current = true;
-            console.log("Firestore rooms collection is empty. Seeding initial rooms...");
-            INITIAL_ROOMS.forEach(async (room) => {
-              try {
-                await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
-              } catch (e) {
-                console.warn("Failed to seed initial room:", e);
-              }
-            });
-          } else {
-            setRooms([]);
+          try { localStorage.setItem('hotel_rooms', JSON.stringify(merged)); } catch (e) {}
+          return merged;
+        });
+
+        if (snapshot.empty && !hasSeededRoomsRef.current) {
+          hasSeededRoomsRef.current = true;
+          console.log("Firestore rooms collection is empty. Seeding initial rooms...");
+          INITIAL_ROOMS.forEach(async (room) => {
             try {
-              localStorage.setItem('hotel_rooms', JSON.stringify([]));
+              await setDoc(doc(db, 'rooms', room.id), sanitizeFirestoreData(room));
             } catch (e) {
-              console.error("Failed saving empty rooms to localStorage:", e);
+              console.warn("Failed to seed initial room:", e);
             }
-          }
+          });
         }
       }, (error) => {
-        handleFirestoreError(error, OperationType.GET, 'rooms');
+        console.warn("Rooms snapshot notice:", error);
       });
 
       const unsubFeedbacks = onSnapshot(collection(db, 'feedbacks'), (snapshot) => {
@@ -874,30 +940,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 1. All portals (Staff & Guest View) subscribe to all bookings in real time for instant updates
     unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
+      const bookingsList: Booking[] = [];
       if (!snapshot.empty) {
         hasSeededBookingsRef.current = true;
-        const bookingsList: Booking[] = [];
         snapshot.forEach((docSnap) => {
           bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
         });
-        setBookings(bookingsList);
+      }
+      setBookings(prev => {
+        const map = new Map<string, Booking>();
+        prev.forEach(b => map.set(b.id, b));
+        bookingsList.forEach(b => map.set(b.id, b));
+        const merged = Array.from(map.values());
         try {
-          localStorage.setItem('hotel_bookings', JSON.stringify(bookingsList));
+          localStorage.setItem('hotel_bookings', JSON.stringify(merged));
         } catch (e) {}
-      } else {
-        if (!hasSeededBookingsRef.current) {
-          hasSeededBookingsRef.current = true;
-          INITIAL_BOOKINGS.forEach(async (b) => {
-            try {
-              await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
-            } catch (e) {
-              console.warn("Failed to seed initial booking:", e);
-            }
-          });
-        }
+        return merged;
+      });
+
+      if (snapshot.empty && !hasSeededBookingsRef.current) {
+        hasSeededBookingsRef.current = true;
+        INITIAL_BOOKINGS.forEach(async (b) => {
+          try {
+            await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
+          } catch (e) {
+            console.warn("Failed to seed initial booking:", e);
+          }
+        });
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'bookings');
+      console.warn("Bookings snapshot notice:", error);
     });
 
     // 2. Staff/Admin gets archived lifetime records in real time
