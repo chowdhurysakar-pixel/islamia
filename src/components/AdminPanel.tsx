@@ -351,19 +351,21 @@ export const AdminPanel: React.FC = () => {
   const isUserOnline = (u: UserProfile) => {
     // Current user on this device is always active
     if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
+    
     // Live online status synced from Firestore or local presence
     if (u.isOnline === true) {
       if (u.lastActiveAt) {
         const diff = Math.abs(Date.now() - new Date(u.lastActiveAt).getTime());
-        if (diff < 15 * 60 * 1000) return true; // Active within last 15 minutes
+        // Clock skew robust: allow up to 6 hours of clock mismatch if explicitly marked online
+        if (diff < 6 * 60 * 60 * 1000) return true;
       } else {
         return true;
       }
     }
-    // Recent activity within last 5 minutes
+    // Recent activity within last 1 hour (fallback for cases where isOnline might be stale but they were active)
     if (u.lastActiveAt) {
       const diff = Math.abs(Date.now() - new Date(u.lastActiveAt).getTime());
-      if (diff < 5 * 60 * 1000) return true;
+      if (diff < 60 * 60 * 1000) return true;
     }
     return false;
   };
