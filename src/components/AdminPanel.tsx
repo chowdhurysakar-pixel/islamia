@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from '../types';
 import { RoomCard } from './RoomCard';
@@ -92,7 +92,6 @@ export const AdminPanel: React.FC = () => {
     registeredUsers,
     updateStaffApproval,
     deleteStaffAccount,
-    updateStaffPassword,
     masterStaffPasscode,
     updateMasterStaffPasscode,
     currentUser,
@@ -116,44 +115,6 @@ export const AdminPanel: React.FC = () => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
-
-  // Change Staff Member Password State & Handlers
-  const [changePasswordUserEmail, setChangePasswordUserEmail] = useState<string | null>(null);
-  const [newStaffPasswordInput, setNewStaffPasswordInput] = useState<string>('');
-  const [isUpdatingStaffPassword, setIsUpdatingStaffPassword] = useState<boolean>(false);
-
-  const handleUpdateStaffPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!changePasswordUserEmail || !newStaffPasswordInput) return;
-    if (newStaffPasswordInput.length < 6) {
-      showToast({
-        type: 'error',
-        message: 'Password must be at least 6 characters long.'
-      });
-      return;
-    }
-
-    setIsUpdatingStaffPassword(true);
-    try {
-      const res = await updateStaffPassword(changePasswordUserEmail, newStaffPasswordInput);
-      if (res.success) {
-        setChangePasswordUserEmail(null);
-        setNewStaffPasswordInput('');
-      } else {
-        showToast({
-          type: 'error',
-          message: res.error || 'Failed to update staff password.'
-        });
-      }
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        message: err?.message || 'Failed to update password.'
-      });
-    } finally {
-      setIsUpdatingStaffPassword(false);
-    }
-  };
 
   // Logo Upload State & Handlers (Strictly direct file upload, no URL/link inputs)
   const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
@@ -275,6 +236,15 @@ export const AdminPanel: React.FC = () => {
   const [editingPasscode, setEditingPasscode] = useState<string>(masterStaffPasscode || 'ISLAMIA-STAFF-2026');
   const [isEditingPasscode, setIsEditingPasscode] = useState<boolean>(false);
   const [staffFilterTab, setStaffFilterTab] = useState<'all' | 'online' | 'pending' | 'admins' | 'staff'>('all');
+  const [presenceTick, setPresenceTick] = useState<number>(0);
+
+  // Live presence ticker to re-evaluate active statuses in real time
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPresenceTick(t => t + 1);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Search & Filter States
   const [staffSearch, setStaffSearch] = useState<string>('');
@@ -314,16 +284,32 @@ export const AdminPanel: React.FC = () => {
   const [propertyTaxRate, setPropertyTaxRate] = useState<number>(5);
 
   // Update staff HR Approval status with instant Firestore sync
-  const toggleStaffApproval = async (email: string) => {
+  const toggleStaffApproval = async (email: string, explicitState?: boolean) => {
     const targetUser = registeredUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!targetUser) return;
-    const nextApproved = !targetUser.hrApproved;
+    const nextApproved = explicitState !== undefined ? explicitState : !targetUser.hrApproved;
     await updateStaffApproval(email, nextApproved, targetUser.uid);
     showToast({
       type: 'success',
       message: nextApproved 
-        ? `✅ Staff account for ${targetUser.name} approved by HR/Admin!` 
+        ? `✅ Staff account for ${targetUser.name} (${email}) approved by HR/Admin!` 
         : `⚠️ HR authorization revoked for ${targetUser.name}.`
+    });
+  };
+
+  // 1-Click Approve All Pending Staff Members
+  const approveAllPendingStaff = async () => {
+    const pendingStaff = registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved);
+    if (pendingStaff.length === 0) {
+      showToast({ type: 'info', message: 'No staff accounts are currently pending HR approval.' });
+      return;
+    }
+    for (const staff of pendingStaff) {
+      await updateStaffApproval(staff.email, true, staff.uid);
+    }
+    showToast({
+      type: 'success',
+      message: `🎉 All ${pendingStaff.length} pending staff member(s) approved for Front Desk operations!`
     });
   };
 
@@ -362,12 +348,21 @@ export const AdminPanel: React.FC = () => {
 
   // Helper to determine real-time live online presence
   const isUserOnline = (u: UserProfile) => {
-    if (u.isOnline) return true;
+    // Current user on this device is always active
     if (currentUser?.email && currentUser.email.toLowerCase() === u.email.toLowerCase()) return true;
-    if (u.email.toLowerCase() === 'islamiaguesthouse@gmail.com') return true;
+    // Live online status synced from Firestore or local presence
+    if (u.isOnline === true) {
+      if (u.lastActiveAt) {
+        const diff = Date.now() - new Date(u.lastActiveAt).getTime();
+        if (diff < 15 * 60 * 1000) return true; // Active within last 15 minutes
+      } else {
+        return true;
+      }
+    }
+    // Recent activity within last 5 minutes
     if (u.lastActiveAt) {
       const diff = Date.now() - new Date(u.lastActiveAt).getTime();
-      if (diff < 10 * 60 * 1000) return true;
+      if (diff < 5 * 60 * 1000) return true;
     }
     return false;
   };
@@ -378,11 +373,16 @@ export const AdminPanel: React.FC = () => {
       const online = isUserOnline(u);
       return online && !u.isOnline ? { ...u, isOnline: true } : u;
     }).filter(u => {
+      const isAdminUser = u.role === 'admin' || u.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
+      const effectivePasscode = isAdminUser
+        ? (u.staffSecretKey && u.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? u.staffSecretKey : 'ADMIN2026')
+        : (u.staffSecretKey || 'STAFF789');
+
       const matchesSearch = 
         u.name.toLowerCase().includes(staffSearch.toLowerCase()) ||
         u.email.toLowerCase().includes(staffSearch.toLowerCase()) ||
         (u.phone && u.phone.includes(staffSearch)) ||
-        (u.staffSecretKey && u.staffSecretKey.toLowerCase().includes(staffSearch.toLowerCase()));
+        effectivePasscode.toLowerCase().includes(staffSearch.toLowerCase());
 
       if (!matchesSearch) return false;
 
@@ -392,7 +392,7 @@ export const AdminPanel: React.FC = () => {
       if (staffFilterTab === 'staff') return u.role === 'staff';
       return true;
     });
-  }, [registeredUsers, staffSearch, staffFilterTab, currentUser]);
+  }, [registeredUsers, staffSearch, staffFilterTab, currentUser, presenceTick]);
 
   // Filtered Chambers for Chambers tab
   const filteredChambers = useMemo(() => {
@@ -1394,6 +1394,18 @@ export const AdminPanel: React.FC = () => {
 
               {/* Filter Tabs & Search */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                {registeredUsers.some(u => u.role === 'staff' && !u.hrApproved) && (
+                  <button
+                    id="admin-approve-all-pending-btn"
+                    onClick={approveAllPendingStaff}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+                    title="1-Click Approve all pending staff accounts for Front Desk operations"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Approve All Pending ({registeredUsers.filter(u => u.role === 'staff' && !u.hrApproved).length})</span>
+                  </button>
+                )}
+
                 <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 text-xs">
                   <button
                     onClick={() => setStaffFilterTab('all')}
@@ -1517,28 +1529,37 @@ export const AdminPanel: React.FC = () => {
 
                         {/* Auth Method / Passcode */}
                         <td className="p-3">
-                          <div className="space-y-1">
-                            {user.loginMethod === 'passcode' || user.staffSecretKey ? (
-                              <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60">
-                                <KeyRound className="w-3 h-3 text-teal-600" />
-                                <span>Passcode: {user.staffSecretKey || 'STAFF789'}</span>
-                              </div>
-                            ) : user.loginMethod === 'google' ? (
-                              <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold">
-                                Google SSO Verified
-                              </div>
-                            ) : (
-                              <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit font-mono">
-                                Password Login
-                              </div>
-                            )}
+                          {(() => {
+                            const isAdminUser = user.role === 'admin' || user.email.toLowerCase() === 'islamiaguesthouse@gmail.com';
+                            const displayedPasscode = isAdminUser
+                              ? (user.staffSecretKey && user.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? user.staffSecretKey : 'ADMIN2026')
+                              : (user.staffSecretKey || 'STAFF789');
 
-                            {user.lastLoginAt && (
-                              <div className="text-[10px] text-slate-400">
-                                Signed in: {new Date(user.lastLoginAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(user.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            return (
+                              <div className="space-y-1">
+                                {user.loginMethod === 'passcode' || user.staffSecretKey || isAdminUser ? (
+                                  <div className="flex items-center gap-1 text-[11px] font-mono text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg w-fit border border-teal-200/60 font-semibold">
+                                    <KeyRound className="w-3 h-3 text-teal-600" />
+                                    <span>Passcode: {displayedPasscode}</span>
+                                  </div>
+                                ) : user.loginMethod === 'google' ? (
+                                  <div className="text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg w-fit border border-blue-200/60 font-semibold">
+                                    Google SSO Verified
+                                  </div>
+                                ) : (
+                                  <div className="text-[11px] text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg w-fit font-mono">
+                                    Password Login
+                                  </div>
+                                )}
+
+                                {user.lastLoginAt && (
+                                  <div className="text-[10px] text-slate-400">
+                                    Signed in: {new Date(user.lastLoginAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} at {new Date(user.lastLoginAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Role */}
@@ -1566,38 +1587,39 @@ export const AdminPanel: React.FC = () => {
                         </td>
 
                         {/* Actions */}
-                        <td className="p-3 text-right space-x-2">
-                          <button
-                            id={`admin-change-pw-staff-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
-                            onClick={() => {
-                              setChangePasswordUserEmail(user.email);
-                              setNewStaffPasswordInput('');
-                            }}
-                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 inline-flex items-center gap-1 border border-slate-200"
-                            title={`Update password for ${user.name || user.email}`}
-                          >
-                            <KeyRound className="w-3.5 h-3.5 text-teal-600" />
-                            <span>Password</span>
-                          </button>
-                          <button
-                            id={`admin-toggle-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
-                            onClick={() => toggleStaffApproval(user.email)}
-                            className={`px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 ${
-                              user.hrApproved
-                                ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200'
-                                : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400 font-bold shadow-sm'
-                            }`}
-                          >
-                            {user.hrApproved ? 'Revoke Access' : 'Approve Staff'}
-                          </button>
-                          <button
-                            id={`admin-delete-staff-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
-                            onClick={() => deleteStaffUser(user.email)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer active:scale-90"
-                            title={`Permanently remove user record: ${user.name || user.email}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {user.hrApproved ? (
+                              <button
+                                id={`admin-revoke-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                                onClick={() => toggleStaffApproval(user.email, false)}
+                                className="px-3 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 inline-flex items-center gap-1"
+                                title="Revoke staff authorization"
+                              >
+                                <ShieldAlert className="w-3.5 h-3.5" />
+                                <span>Revoke Access</span>
+                              </button>
+                            ) : (
+                              <button
+                                id={`admin-approve-hr-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                                onClick={() => toggleStaffApproval(user.email, true)}
+                                className="px-3.5 py-1.5 rounded-xl font-bold text-[11px] transition cursor-pointer active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm inline-flex items-center gap-1.5"
+                                title="1-Click Approve staff work authorization"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approve Access</span>
+                              </button>
+                            )}
+
+                            <button
+                              id={`admin-delete-staff-${user.email.replace(/[^a-zA-Z0-9]/g, '-')}`}
+                              onClick={() => deleteStaffUser(user.email)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer active:scale-90"
+                              title={`Permanently remove user record: ${user.name || user.email}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                       );
@@ -1606,63 +1628,6 @@ export const AdminPanel: React.FC = () => {
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Change Staff Password Modal */}
-      {changePasswordUserEmail && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-2xl space-y-5 relative">
-            <button
-              onClick={() => setChangePasswordUserEmail(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="space-y-1">
-              <div className="w-12 h-12 bg-teal-50 text-teal-600 rounded-2xl flex items-center justify-center mb-3">
-                <KeyRound className="w-6 h-6 text-teal-600" />
-              </div>
-              <h3 className="text-lg font-bold text-slate-900">Change Staff Password</h3>
-              <p className="text-xs text-slate-500">
-                Update login password for <strong className="text-slate-700">{changePasswordUserEmail}</strong>. Staff will be required to use this new password to access the portal.
-              </p>
-            </div>
-
-            <form onSubmit={handleUpdateStaffPassword} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={newStaffPasswordInput}
-                  onChange={(e) => setNewStaffPasswordInput(e.target.value)}
-                  placeholder="At least 6 characters"
-                  required
-                  minLength={6}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setChangePasswordUserEmail(null)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUpdatingStaffPassword}
-                  className="px-5 py-2.5 bg-teal-600 text-white rounded-xl text-xs font-bold hover:bg-teal-500 transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isUpdatingStaffPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update Password'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

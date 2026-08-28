@@ -113,7 +113,6 @@ interface AppContextType {
   registeredUsers: UserProfile[];
   updateStaffApproval: (email: string, approved: boolean, uid?: string) => Promise<void>;
   deleteStaffAccount: (email: string, uid?: string) => Promise<void>;
-  updateStaffPassword: (email: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
   recordStaffSignIn: (email: string, name: string, role?: UserRole, loginMethod?: 'passcode' | 'password' | 'google' | 'master_key' | 'offline', passcodeUsed?: string) => Promise<void>;
   masterStaffPasscode: string;
   updateMasterStaffPasscode: (passcode: string) => Promise<void>;
@@ -140,7 +139,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     role: 'admin',
     hrApproved: true,
     emailVerified: true,
-    isOnline: true,
+    isOnline: false,
     lastLoginAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     loginMethod: 'passcode',
@@ -153,7 +152,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     role: 'admin',
     hrApproved: true,
     emailVerified: true,
-    isOnline: true,
+    isOnline: false,
     lastLoginAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     loginMethod: 'passcode',
@@ -189,7 +188,7 @@ export const DEFAULT_SYSTEM_USERS: UserProfile[] = [
     staffSecretKey: 'ISLAMIA-STAFF-2026',
     hrApproved: true,
     emailVerified: true,
-    isOnline: true,
+    isOnline: false,
     lastLoginAt: new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
     loginMethod: 'passcode'
@@ -236,19 +235,8 @@ export const removeDeletedUserEmail = (email: string): void => {
   } catch (e) {}
 };
 
-export const getStaffPasswordMap = (): Record<string, string> => {
-  try {
-    const raw = localStorage.getItem('hotel_staff_passwords');
-    if (!raw) return {};
-    return JSON.parse(raw);
-  } catch (e) {
-    return {};
-  }
-};
-
 export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], activeUser?: UserProfile | null, customDeletedEmails?: Set<string>): UserProfile[] => {
   const deletedSet = customDeletedEmails || getDeletedUserEmails();
-  const pwMap = getStaffPasswordMap();
   const map = new Map<string, UserProfile>();
 
   DEFAULT_SYSTEM_USERS.forEach(u => {
@@ -262,19 +250,20 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     const emailLower = u.email ? u.email.toLowerCase() : '';
     if (emailLower && !deletedSet.has(emailLower)) {
       const existing = map.get(emailLower);
-      if (existing) {
-        map.set(emailLower, { ...existing, ...u });
-      } else {
-        map.set(emailLower, u);
+      const isAdmin = u.role === 'admin' || isAdminEmail(emailLower);
+      let staffSecretKey = u.staffSecretKey;
+      if (isAdmin && (!staffSecretKey || staffSecretKey === 'ISLAMIA-STAFF-2026')) {
+        staffSecretKey = 'ADMIN2026';
       }
-    }
-  });
-
-  // Attach stored custom passwords if present
-  map.forEach((user, emailLower) => {
-    if (pwMap[emailLower]) {
-      user.password = pwMap[emailLower];
-      user.staffSecretKey = pwMap[emailLower];
+      const sanitizedUser = {
+        ...u,
+        ...(staffSecretKey ? { staffSecretKey } : {})
+      };
+      if (existing) {
+        map.set(emailLower, { ...existing, ...sanitizedUser });
+      } else {
+        map.set(emailLower, sanitizedUser);
+      }
     }
   });
 
@@ -283,25 +272,17 @@ export const mergeWithDefaultRegisteredUsers = (fetchedList: UserProfile[], acti
     const activeEmailLower = activeUser.email.toLowerCase();
     if (!deletedSet.has(activeEmailLower)) {
       const existing = map.get(activeEmailLower);
+      const isActiveAdmin = activeUser.role === 'admin' || isAdminEmail(activeEmailLower);
       if (existing) {
         map.set(activeEmailLower, {
           ...existing,
           isOnline: true,
+          staffSecretKey: isActiveAdmin ? (existing.staffSecretKey && existing.staffSecretKey !== 'ISLAMIA-STAFF-2026' ? existing.staffSecretKey : 'ADMIN2026') : existing.staffSecretKey,
           lastActiveAt: new Date().toISOString(),
           lastLoginAt: existing.lastLoginAt || new Date().toISOString()
         });
       }
     }
-  }
-
-  // If in admin mode or authorized, ensure islamiaguesthouse@gmail.com (Mr. Sajjad) is live online ONLY IF NOT DELETED
-  const sajjad = map.get('islamiaguesthouse@gmail.com');
-  if (sajjad && !deletedSet.has('islamiaguesthouse@gmail.com')) {
-    sajjad.name = 'Mr. Sajjad (Admin)';
-    sajjad.role = 'admin';
-    sajjad.hrApproved = true;
-    sajjad.isOnline = true;
-    sajjad.lastActiveAt = sajjad.lastActiveAt || new Date().toISOString();
   }
 
   return Array.from(map.values());
@@ -432,6 +413,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const hasSeededBookingsRef = useRef(false);
   const hasSeededServicesRef = useRef(false);
 
+  // Instant Forced Eviction / Logout for Removed or Revoked Staff Accounts
+  const forceStaffEviction = (reason: string = 'Your staff account access has been revoked or removed by the administrator.') => {
+    const userEmail = currentUser?.email?.toLowerCase() || '';
+
+    // 1. Immediately reset memory state & drop roles to guest
+    setCurrentUser(null);
+    setCurrentRoleState('guest');
+    setOpModeState('guest');
+
+    // 2. Clear stored credentials & sessions
+    try {
+      localStorage.removeItem('hotel_current_user');
+      localStorage.setItem('hotel_current_role', 'guest');
+      localStorage.setItem('hotel_op_mode', 'guest');
+      sessionStorage.removeItem('admin_authorized');
+      localStorage.removeItem('pending_google_role');
+    } catch (e) {}
+
+    // 3. Sign out of Firebase Auth if active
+    if (auth) {
+      try {
+        signOut(auth);
+      } catch (e) {}
+    }
+
+    // 4. Broadcast to all open tabs and windows
+    try {
+      if (userEmail) {
+        const channel = new BroadcastChannel('hotel_auth_sync');
+        channel.postMessage({ type: 'FORCE_LOGOUT', email: userEmail, reason });
+        channel.close();
+      }
+    } catch (e) {}
+
+    // 5. Trigger warning notification alert
+    setActiveToast({
+      type: 'error',
+      message: `⛔ Access Terminated: ${reason} You have been automatically signed out.`,
+      duration: 10000
+    });
+  };
+
   // Dynamic Active Guests Calculation (Sum of all guests in checked-in / confirmed active stays)
   const activeGuestsCount = useMemo(() => {
     return bookings
@@ -479,8 +502,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const emailLower = fbUser.email?.toLowerCase() || '';
           const isAdminAccount = isAdminEmail(emailLower);
           
-          const isDeleted = getDeletedUserEmails().has(emailLower);
-          if (isDeleted) {
+          if (!fbUser.emailVerified && !isAdminAccount) {
             setCurrentUser(null);
             setCurrentRole('guest');
             sessionStorage.removeItem('admin_authorized');
@@ -912,13 +934,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
         const usersList: UserProfile[] = [];
         const deletedSet = getDeletedUserEmails();
+        let currentEmailFound = false;
+        let currentHrApproved = true;
+
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as UserProfile;
           const userEmailLower = (data.email || '').trim().toLowerCase();
           if (userEmailLower && !deletedSet.has(userEmailLower)) {
             usersList.push({ uid: docSnap.id, ...data });
           }
+          if (currentUser?.email && userEmailLower === currentUser.email.toLowerCase()) {
+            currentEmailFound = true;
+            if (data.hrApproved === false) {
+              currentHrApproved = false;
+            }
+          }
         });
+
+        // Eviction Guard: ONLY evict if explicitly in deleted registry OR HR revoked access
+        if (currentUser?.email) {
+          const myEmail = currentUser.email.toLowerCase();
+          if (deletedSet.has(myEmail)) {
+            forceStaffEviction('Your user account has been deleted by the administrator.');
+            return;
+          }
+          if ((currentUser.role === 'staff' || currentRole === 'staff') && currentEmailFound && !currentHrApproved) {
+            forceStaffEviction('Your staff HR access authorization has been revoked by the administrator.');
+            return;
+          }
+        }
+
         const merged = mergeWithDefaultRegisteredUsers(usersList, currentUser, deletedSet);
         setRegisteredUsers(merged);
         try {
@@ -945,6 +990,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               localStorage.setItem('hotel_deleted_users', JSON.stringify(Array.from(currentDeleted)));
               setRegisteredUsers(prev => prev.filter(u => !currentDeleted.has(u.email.toLowerCase())));
             }
+            if (currentUser?.email && currentDeleted.has(currentUser.email.toLowerCase())) {
+              forceStaffEviction('Your user account has been deleted by the administrator.');
+            }
           }
         }
       }, (err) => {
@@ -963,21 +1011,141 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [currentUser, currentRole, opMode, isFirebaseActive]);
 
+  // Real-Time Active User Auth Guard: Instantly logs out if this user's document is deleted or HR status revoked
+  useEffect(() => {
+    if (!currentUser?.email) return;
+    const emailLower = currentUser.email.toLowerCase();
+    const deletedSet = getDeletedUserEmails();
+
+    if (deletedSet.has(emailLower)) {
+      forceStaffEviction('Your account has been deleted by the administrator.');
+      return;
+    }
+
+    if (isFirebaseActive && db) {
+      const userUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const unsubUserDoc = onSnapshot(doc(db, 'users', userUid), (docSnap) => {
+        const freshDeletedSet = getDeletedUserEmails();
+        if (freshDeletedSet.has(emailLower)) {
+          forceStaffEviction('Your account has been deleted by the administrator.');
+          return;
+        }
+
+        if (docSnap.exists()) {
+          const data = docSnap.data() as UserProfile;
+          if ((currentUser.role === 'staff' || currentRole === 'staff') && data.hrApproved === false) {
+            forceStaffEviction('Your staff HR access authorization has been revoked by the administrator.');
+          }
+        }
+      }, (err) => {
+        console.warn("Live user doc auth listener notice:", err);
+      });
+
+      return () => {
+        unsubUserDoc();
+      };
+    }
+  }, [currentUser, currentRole, isFirebaseActive]);
+
+  // Cross-Tab and Inter-Device Instant Eviction and Presence Broadcast Listener
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel('hotel_auth_sync');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'FORCE_LOGOUT') {
+          const targetEmail = event.data?.email?.toLowerCase();
+          if (currentUser?.email && currentUser.email.toLowerCase() === targetEmail) {
+            forceStaffEviction(event.data?.reason || 'Your staff access was revoked.');
+          }
+        } else if (event.data?.type === 'USER_ONLINE' && event.data?.profile) {
+          const incomingProfile: UserProfile = event.data.profile;
+          setRegisteredUsers(prev => {
+            const next = [...prev];
+            const idx = next.findIndex(u => u.email.toLowerCase() === incomingProfile.email.toLowerCase());
+            if (idx >= 0) {
+              next[idx] = { 
+                ...next[idx], 
+                ...incomingProfile, 
+                isOnline: true, 
+                lastActiveAt: incomingProfile.lastActiveAt || new Date().toISOString() 
+              };
+            } else {
+              next.unshift({ ...incomingProfile, isOnline: true });
+            }
+            return next;
+          });
+        } else if (event.data?.type === 'PRESENCE_HEARTBEAT' && event.data?.email) {
+          const targetEmail = String(event.data.email).toLowerCase();
+          const targetActiveAt = event.data.lastActiveAt || new Date().toISOString();
+          setRegisteredUsers(prev => {
+            return prev.map(u => {
+              if (u.email.toLowerCase() === targetEmail) {
+                return { ...u, isOnline: true, lastActiveAt: targetActiveAt };
+              }
+              return u;
+            });
+          });
+        }
+      };
+    } catch (e) {}
+
+    const handleRevoked = (e: any) => {
+      const detail = e?.detail;
+      if (detail?.email && currentUser?.email && currentUser.email.toLowerCase() === detail.email.toLowerCase()) {
+        forceStaffEviction(detail.reason || 'Your staff access was removed or revoked.');
+      }
+    };
+
+    window.addEventListener('hotel_session_revoked', handleRevoked);
+
+    return () => {
+      if (channel) {
+        channel.close();
+      }
+      window.removeEventListener('hotel_session_revoked', handleRevoked);
+    };
+  }, [currentUser]);
+
   // Presence Heartbeat: Keeps user online status refreshed in Firestore
   useEffect(() => {
     if (!currentUser || !currentUser.email) return;
 
     const emailLower = currentUser.email.toLowerCase();
-    const userUid = currentUser.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const userUid = currentUser.uid || primaryUid;
 
     const pingOnline = async () => {
+      const deletedSet = getDeletedUserEmails();
+      if (deletedSet.has(emailLower)) {
+        forceStaffEviction('Your account has been deleted by the administrator.');
+        return;
+      }
+
       const now = new Date().toISOString();
-      if (isFirebaseActive && db && userUid) {
+
+      // Local & Broadcast sync
+      try {
+        const channel = new BroadcastChannel('hotel_auth_sync');
+        channel.postMessage({ type: 'PRESENCE_HEARTBEAT', email: emailLower, lastActiveAt: now });
+        channel.close();
+      } catch (e) {}
+
+      if (isFirebaseActive && db) {
         try {
-          await setDoc(doc(db, 'users', userUid), {
+          const payload = {
+            uid: userUid,
+            email: emailLower,
+            name: currentUser.name || 'Staff Member',
+            role: currentUser.role || currentRole || 'staff',
             isOnline: true,
-            lastActiveAt: now
-          }, { merge: true });
+            lastActiveAt: now,
+            hrApproved: currentUser.hrApproved ?? true
+          };
+          await setDoc(doc(db, 'users', userUid), payload, { merge: true });
+          if (userUid !== primaryUid) {
+            await setDoc(doc(db, 'users', primaryUid), payload, { merge: true });
+          }
         } catch (e) {}
       }
     };
@@ -985,16 +1153,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Ping immediately on mount/login
     pingOnline();
 
-    // Ping every 30 seconds
-    const interval = setInterval(pingOnline, 30000);
+    // Ping every 25 seconds
+    const interval = setInterval(pingOnline, 25000);
 
     const handleOffline = async () => {
-      if (isFirebaseActive && db && userUid) {
+      if (isFirebaseActive && db) {
         try {
-          await setDoc(doc(db, 'users', userUid), {
+          const offlinePayload = {
             isOnline: false,
             lastActiveAt: new Date().toISOString()
-          }, { merge: true });
+          };
+          await setDoc(doc(db, 'users', userUid), offlinePayload, { merge: true });
+          if (userUid !== primaryUid) {
+            await setDoc(doc(db, 'users', primaryUid), offlinePayload, { merge: true });
+          }
         } catch (e) {}
       }
     };
@@ -1005,48 +1177,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleOffline);
     };
-  }, [currentUser, isFirebaseActive]);
-
-  // Real-time Access Revocation Guard Effect
-  useEffect(() => {
-    if (!currentUser) return;
-    const emailLower = currentUser.email?.trim().toLowerCase();
-    if (!emailLower) return;
-
-    // Admin emails are exempt from HR approval check, but NOT deletion check
-    if (isAdminEmail(emailLower) || currentUser.role === 'admin') {
-      if (getDeletedUserEmails().has(emailLower)) {
-        console.warn(`[Security Enforcement] Logging out deleted admin account: ${emailLower}`);
-        logout();
-        showToast({
-          type: 'warning',
-          message: '🚫 Access Revoked: Your account has been deleted by an Admin.'
-        });
-      }
-      return;
-    }
-
-    // Check staff account validity:
-    const isDeleted = getDeletedUserEmails().has(emailLower);
-    const staffRecord = registeredUsers.find(u => u.email.trim().toLowerCase() === emailLower);
-
-    if (isDeleted || (staffRecord && staffRecord.hrApproved === false)) {
-      console.warn(`[Security Enforcement] Terminating revoked staff session: ${emailLower}`);
-      logout();
-      showToast({
-        type: 'warning',
-        message: '🚫 Access Revoked: Your staff access has been revoked or removed by an Admin.'
-      });
-    }
-  }, [currentUser, registeredUsers]);
+  }, [currentUser, currentRole, isFirebaseActive]);
 
   // Sync with local storage events across browser tabs
   useEffect(() => {
     const handleStorageOrCustom = () => {
+      const currentDeleted = getDeletedUserEmails();
+      if (currentUser?.email && currentDeleted.has(currentUser.email.toLowerCase())) {
+        forceStaffEviction('Your account was deleted by the administrator.');
+        return;
+      }
+
       const stored = localStorage.getItem('hotel_registered_users');
       if (stored) {
         try {
-          setRegisteredUsers(mergeWithDefaultRegisteredUsers(JSON.parse(stored), currentUser));
+          const parsed: UserProfile[] = JSON.parse(stored);
+          if (currentUser?.email && (currentUser.role === 'staff' || currentRole === 'staff')) {
+            const me = parsed.find(u => u.email.toLowerCase() === currentUser.email.toLowerCase());
+            if (me && me.hrApproved === false) {
+              forceStaffEviction('Your staff access has been removed or revoked.');
+              return;
+            }
+          }
+          setRegisteredUsers(mergeWithDefaultRegisteredUsers(parsed, currentUser, currentDeleted));
         } catch (err) {}
       }
       const storedMaster = localStorage.getItem('master_staff_passcode');
@@ -1062,7 +1215,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.removeEventListener('storage', handleStorageOrCustom);
       window.removeEventListener('hotel_presence_updated', handleStorageOrCustom);
     };
-  }, [currentUser]);
+  }, [currentUser, currentRole]);
 
   // Local storage offline caching helper
   useEffect(() => {
@@ -1106,22 +1259,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     passcodeUsed?: string
   ) => {
     const emailLower = email.trim().toLowerCase();
-    if (getDeletedUserEmails().has(emailLower)) {
-      console.warn("Blocked recordStaffSignIn for deleted user:", emailLower);
-      return;
-    }
+    removeDeletedUserEmail(emailLower);
     const now = new Date().toISOString();
     const isAdmin = isAdminEmail(emailLower) || role === 'admin';
     const finalRole: UserRole = isAdmin ? 'admin' : role;
     const finalName = isAdmin ? getAdminNameForEmail(emailLower, name) : (name || 'Staff Member');
-    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`);
+    const primaryUid = `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const userUid = auth?.currentUser?.uid || (currentUser?.uid && !currentUser.uid.startsWith('local-') ? currentUser.uid : primaryUid);
+
+    const defaultPasscode = finalRole === 'admin' ? 'ADMIN2026' : (masterStaffPasscode || 'ISLAMIA-STAFF-2026');
+    const resolvedPasscode = passcodeUsed || defaultPasscode;
 
     const userProfile: UserProfile = {
       uid: userUid,
       email: emailLower,
       name: finalName,
       role: finalRole,
-      staffSecretKey: passcodeUsed || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+      staffSecretKey: resolvedPasscode,
       hrApproved: true,
       emailVerified: true,
       isOnline: true,
@@ -1135,7 +1289,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = [...prev];
       const idx = next.findIndex(u => u.email.toLowerCase() === emailLower);
       if (idx >= 0) {
-        next[idx] = { ...next[idx], ...userProfile, isOnline: true, lastLoginAt: now, lastActiveAt: now };
+        next[idx] = { 
+          ...next[idx], 
+          ...userProfile, 
+          staffSecretKey: resolvedPasscode,
+          isOnline: true, 
+          lastLoginAt: now, 
+          lastActiveAt: now 
+        };
       } else {
         next.unshift(userProfile);
       }
@@ -1146,9 +1307,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return next;
     });
 
+    try {
+      const channel = new BroadcastChannel('hotel_auth_sync');
+      channel.postMessage({ type: 'USER_ONLINE', profile: userProfile });
+      channel.close();
+    } catch (e) {}
+
     if (isFirebaseActive && db) {
       try {
-        await setDoc(doc(db, 'users', userUid), sanitizeFirestoreData(userProfile), { merge: true });
+        const sanitized = sanitizeFirestoreData(userProfile);
+        await setDoc(doc(db, 'users', userUid), sanitized, { merge: true });
+        if (userUid !== primaryUid) {
+          await setDoc(doc(db, 'users', primaryUid), sanitized, { merge: true });
+        }
       } catch (e) {
         console.warn("Could not sync user presence to Firestore:", e);
       }
@@ -1173,17 +1344,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    // 2. Immediate session termination if active user's approval is revoked
-    if (!approved && currentUser?.email && currentUser.email.trim().toLowerCase() === emailLower && currentUser.role !== 'admin') {
-      console.warn(`[HR Approval Revoked] Logging out active staff user: ${emailLower}`);
-      await logout();
-      showToast({
-        type: 'warning',
-        message: `🚫 Staff access for ${emailLower} has been revoked by HR/Admin.`
-      });
+    // If revoking access, broadcast instant eviction to any tab/device running this staff session
+    if (!approved) {
+      try {
+        const channel = new BroadcastChannel('hotel_auth_sync');
+        channel.postMessage({ type: 'FORCE_LOGOUT', email: emailLower, reason: 'Staff HR access authorization was revoked by administrator.' });
+        channel.close();
+      } catch (e) {}
+      window.dispatchEvent(new CustomEvent('hotel_session_revoked', { 
+        detail: { email: emailLower, reason: 'Staff HR access authorization was revoked by administrator.' } 
+      }));
+      if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
+        forceStaffEviction('Your staff HR access authorization has been revoked by the administrator.');
+      }
     }
 
-    // 3. Update Firestore document in real-time
+    // 2. Update Firestore document in real-time
     if (isFirebaseActive && db) {
       try {
         const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
@@ -1201,12 +1377,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 1. Mark in permanent deleted registry so default lists and snapshots never resurrect it
     addDeletedUserEmail(emailLower);
 
-    // Remove from custom password store
+    // Broadcast instant eviction across all tabs and devices
     try {
-      const pwMap = getStaffPasswordMap();
-      delete pwMap[emailLower];
-      localStorage.setItem('hotel_staff_passwords', JSON.stringify(pwMap));
+      const channel = new BroadcastChannel('hotel_auth_sync');
+      channel.postMessage({ type: 'FORCE_LOGOUT', email: emailLower, reason: 'Your staff account has been deleted by the administrator.' });
+      channel.close();
     } catch (e) {}
+    window.dispatchEvent(new CustomEvent('hotel_session_revoked', { 
+      detail: { email: emailLower, reason: 'Your staff account has been deleted by the administrator.' } 
+    }));
 
     // 2. Remove from active state & local storage
     setRegisteredUsers(prev => {
@@ -1218,9 +1397,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return updated;
     });
 
-    // 3. If currently logged in as this user, sign out
+    // 3. If currently logged in as this user, evict immediately
     if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
-      await logout();
+      forceStaffEviction('Your staff account has been deleted by the administrator.');
     }
 
     // 4. Delete all possible document IDs in Firestore and update Firestore deleted_users settings
@@ -1254,75 +1433,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn("Failed to delete user doc in Firestore:", e);
       }
     }
-  };
-
-  const updateStaffPassword = async (email: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
-    const emailLower = email.trim().toLowerCase();
-    if (!newPassword || newPassword.length < 6) {
-      return { success: false, error: 'Password must be at least 6 characters long.' };
-    }
-
-    if (getDeletedUserEmails().has(emailLower)) {
-      return { success: false, error: 'Cannot update password for a deleted staff account.' };
-    }
-
-    // 1. Update password store in localStorage
-    try {
-      const pwMap = getStaffPasswordMap();
-      pwMap[emailLower] = newPassword;
-      localStorage.setItem('hotel_staff_passwords', JSON.stringify(pwMap));
-    } catch (e) {}
-
-    // 2. Update registeredUsers in state and localStorage
-    setRegisteredUsers(prev => {
-      const updated = prev.map(u => {
-        if (u.email.toLowerCase() === emailLower) {
-          return { ...u, password: newPassword, staffSecretKey: newPassword };
-        }
-        return u;
-      });
-      try {
-        localStorage.setItem('hotel_registered_users', JSON.stringify(updated));
-        window.dispatchEvent(new CustomEvent('hotel_presence_updated', { detail: { email: emailLower, passwordUpdated: true } }));
-      } catch (e) {}
-      return updated;
-    });
-
-    // 3. Update active session user if matching
-    if (currentUser?.email && currentUser.email.toLowerCase() === emailLower) {
-      setCurrentUser(prev => prev ? { ...prev, password: newPassword, staffSecretKey: newPassword } : null);
-      try {
-        const cur = localStorage.getItem('hotel_current_user');
-        if (cur) {
-          const parsed = JSON.parse(cur);
-          parsed.password = newPassword;
-          parsed.staffSecretKey = newPassword;
-          localStorage.setItem('hotel_current_user', JSON.stringify(parsed));
-        }
-      } catch (e) {}
-    }
-
-    // 4. Update Firestore user document if active
-    if (isFirebaseActive && db) {
-      try {
-        const targetUser = registeredUsers.find(u => u.email.toLowerCase() === emailLower);
-        const targetUid = targetUser?.uid || `staff-${emailLower.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        await setDoc(doc(db, 'users', targetUid), {
-          password: newPassword,
-          staffSecretKey: newPassword,
-          passwordUpdatedAt: new Date().toISOString()
-        }, { merge: true });
-      } catch (e) {
-        console.warn("Failed to sync updated staff password to Firestore:", e);
-      }
-    }
-
-    showToast({
-      type: 'success',
-      message: `🔑 Password updated successfully for ${emailLower}.`
-    });
-
-    return { success: true };
   };
 
   const updateMasterStaffPasscode = async (passcode: string) => {
@@ -2522,7 +2632,6 @@ Islamia Guest House, Dhanmondi`;
       registeredUsers,
       updateStaffApproval,
       deleteStaffAccount,
-      updateStaffPassword,
       recordStaffSignIn,
       masterStaffPasscode,
       updateMasterStaffPasscode,

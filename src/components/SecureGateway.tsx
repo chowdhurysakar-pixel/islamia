@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useApp, getDeletedUserEmails, getStaffPasswordMap } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { UserRole, UserProfile } from '../types';
 import { 
   Mail, Key, User, Users, Hotel, 
@@ -381,13 +381,7 @@ export const SecureGateway: React.FC = () => {
       return;
     }
 
-    const emailLower = email.toLowerCase().trim();
-
-    // STRICT GUARD: Block deleted staff/admin accounts immediately
-    if (getDeletedUserEmails().has(emailLower)) {
-      setError('Access Denied: This account has been deleted by an Admin. Access is revoked.');
-      return;
-    }
+    const emailLower = email.toLowerCase();
 
     // 1. Restricted Domain Check on Registration
     if (authMode === 'signup') {
@@ -397,17 +391,12 @@ export const SecureGateway: React.FC = () => {
       }
     }
 
-    // 2. Security Passcode & Credentials Verification:
+    // 2. Security Passcode Verification:
     const cleanAdminKey = adminMasterKey.trim().toUpperCase();
     const cleanSecretPasscode = staffSecretPasscode.trim().toUpperCase();
     const isMasterPasscodeMatch = masterStaffPasscode && cleanSecretPasscode === masterStaffPasscode.toUpperCase();
     const isStaffSecretValid = VALID_STAFF_PASSCODES.includes(cleanSecretPasscode) || isMasterPasscodeMatch;
     const isAdminKeyValid = VALID_ADMIN_PASSCODES.includes(cleanAdminKey);
-
-    const storedUsers = localStorage.getItem('hotel_registered_users');
-    const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
-    const existing = usersList.find(u => u.email.toLowerCase() === emailLower);
-    const pwMap = getStaffPasswordMap();
 
     if (isAdmin) {
       if (authMode === 'signup' && !isAdminKeyValid) {
@@ -416,8 +405,11 @@ export const SecureGateway: React.FC = () => {
       }
 
       if (authMode === 'signin' && !isAdminKeyValid) {
-        const existingAdmin = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'admin');
-        if (!existingAdmin && !isAdminKeyValid) {
+        const storedUsers = localStorage.getItem('hotel_registered_users');
+        const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
+        const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'admin');
+
+        if (!existing && !isAdminKeyValid) {
           setError('Access Denied: Please enter a valid Admin Master Passcode to log in as Admin.');
           return;
         }
@@ -428,26 +420,13 @@ export const SecureGateway: React.FC = () => {
         return;
       }
 
-      if (authMode === 'signin') {
-        if (!existing) {
-          setError('Access Denied: Account not found or deleted by Admin. Please contact HR.');
-          return;
-        }
-
-        if (existing.hrApproved === false) {
-          setError('Access Denied: Staff access for this account has been revoked by HR/Admin. Please contact Admin.');
-          return;
-        }
-
-        if (!existing.hrApproved && existing.staffSecretKey !== cleanSecretPasscode && !isStaffSecretValid) {
+      if (authMode === 'signin' && !isStaffSecretValid) {
+        const storedUsers = localStorage.getItem('hotel_registered_users');
+        const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
+        const existing = usersList.find(u => u.email.toLowerCase() === emailLower && u.role === 'staff');
+        
+        if (!existing || (!existing.hrApproved && existing.staffSecretKey !== cleanSecretPasscode)) {
           setError('Access Denied: Staff members must enter a valid Staff Passcode or be approved by HR.');
-          return;
-        }
-
-        // Validate password for staff
-        const storedPassword = pwMap[emailLower] || existing.password;
-        if (storedPassword && password !== storedPassword) {
-          setError('Access Denied: Incorrect staff password. Please enter your valid staff password.');
           return;
         }
       }
@@ -467,6 +446,10 @@ export const SecureGateway: React.FC = () => {
             // Send verification email link via Firebase Auth
             await sendEmailVerification(userCredential.user);
 
+            const effectivePasscode = (isAdmin || role === 'admin') 
+              ? (cleanAdminKey || 'ADMIN2026') 
+              : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
+
             const newUser: UserProfile = {
               uid: userCredential.user.uid,
               email: emailLower,
@@ -475,7 +458,7 @@ export const SecureGateway: React.FC = () => {
               phone: phone,
               emailVerified: false,
               hrApproved: true,
-              staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+              staffSecretKey: effectivePasscode,
               registeredAt: new Date().toISOString()
             };
             
@@ -538,6 +521,10 @@ export const SecureGateway: React.FC = () => {
             let loggedInName = userCredential.user.displayName || (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Staff');
             let loggedInRole: UserRole = role;
 
+            const effectivePasscode = (loggedInRole === 'admin' || isAdmin)
+              ? (cleanAdminKey || 'ADMIN2026')
+              : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
+
             if (docSnap.exists()) {
               const data = docSnap.data() as UserProfile;
               loggedInName = data.name || loggedInName;
@@ -550,7 +537,7 @@ export const SecureGateway: React.FC = () => {
                 role: loggedInRole,
                 emailVerified: true,
                 hrApproved: true,
-                staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+                staffSecretKey: effectivePasscode,
                 isOnline: true,
                 lastLoginAt: new Date().toISOString()
               };
@@ -565,7 +552,7 @@ export const SecureGateway: React.FC = () => {
               setOpMode('receptionist');
             }
             localLogin(loggedInRole, emailLower, loggedInName);
-            await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
+            await recordStaffSignIn(emailLower, loggedInName, loggedInRole, 'passcode', effectivePasscode);
 
             showToast({
               type: 'success',
@@ -598,6 +585,10 @@ export const SecureGateway: React.FC = () => {
         const storedUsers = localStorage.getItem('hotel_registered_users');
         const usersList: UserProfile[] = storedUsers ? JSON.parse(storedUsers) : [];
 
+        const effectivePasscode = (isAdmin || role === 'admin')
+          ? (cleanAdminKey || 'ADMIN2026')
+          : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
+
         if (authMode === 'signup') {
           const exists = usersList.some(u => u.email === emailLower);
           if (exists) {
@@ -613,7 +604,7 @@ export const SecureGateway: React.FC = () => {
             role: role,
             emailVerified: true,
             hrApproved: true,
-            staffSecretKey: cleanSecretPasscode || masterStaffPasscode || 'ISLAMIA-STAFF-2026',
+            staffSecretKey: effectivePasscode,
             isOnline: true,
             lastLoginAt: new Date().toISOString()
           };
@@ -628,33 +619,12 @@ export const SecureGateway: React.FC = () => {
 
           await sendOtp(emailLower, name, role, true);
         } else {
-          if (getDeletedUserEmails().has(emailLower)) {
-            setError('Access Denied: Account deleted by Admin.');
-            setIsLoading(false);
-            return;
-          }
-          const found = usersList.find(u => u.email.toLowerCase() === emailLower);
-          if (!isAdmin && !found) {
-            setError('Access Denied: Account not found or deleted by Admin.');
-            setIsLoading(false);
-            return;
-          }
-
-          if (!isAdmin && found && found.hrApproved === false) {
-            setError('Access Denied: Staff access for this account has been revoked by HR/Admin.');
-            setIsLoading(false);
-            return;
-          }
-
-          const storedPassword = pwMap[emailLower] || (found ? found.password : null);
-          if (storedPassword && password !== storedPassword) {
-            setError('Access Denied: Incorrect staff password. Access denied.');
-            setIsLoading(false);
-            return;
-          }
-
+          const found = usersList.find(u => u.email === emailLower);
           const resolvedName = found ? found.name : (isAdmin ? 'Mr. Sajjad (Admin)' : 'Front Desk Specialist');
           const resolvedRole: UserRole = found ? found.role : role;
+          const finalPasscode = (resolvedRole === 'admin' || isAdmin)
+            ? (cleanAdminKey || 'ADMIN2026')
+            : (cleanSecretPasscode || masterStaffPasscode || 'STAFF789');
           
           if (resolvedRole === 'admin') {
             sessionStorage.setItem('admin_authorized', 'true');
@@ -664,7 +634,7 @@ export const SecureGateway: React.FC = () => {
             setOpMode('receptionist');
           }
           localLogin(resolvedRole, emailLower, resolvedName);
-          await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', cleanSecretPasscode || masterStaffPasscode);
+          await recordStaffSignIn(emailLower, resolvedName, resolvedRole, 'passcode', finalPasscode);
 
           showToast({
             type: 'success',
