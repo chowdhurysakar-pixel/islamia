@@ -138,7 +138,7 @@ export const ExploreDhanmondi: React.FC = () => {
 
           <div className="pt-2">
             <a 
-              href="https://wa.me/8801799148408?text=Hello%20Islamia%20Guest%20House,%20can%20you%20help%20me%20with%20guided%20tour%20directions%20around%20Dhanmondi?" 
+              href="https://wa.me/8801799948408?text=Hello%20Islamia%20Guest%20House,%20can%20you%20help%20me%20with%20guided%20tour%20directions%20around%20Dhanmondi?" 
               target="_blank" 
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 border border-[#d7bd8a] text-[#d7bd8a] hover:bg-[#d7bd8a] hover:text-[#0e2b33] px-6 py-2.5 text-xs font-bold tracking-wider rounded transition-all mt-2"

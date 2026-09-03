@@ -2127,7 +2127,7 @@ House No: 55/C/1, Road No: 9/A, Dhanmondi-1209, Dhaka
 
 Hotline & bKash Payment: 01832-841818
 Call: 01909-806960
-WhatsApp: 01799-148408
+WhatsApp: 01799-948408
 Thank you for choosing Islamia Guest House!`;
   };
 
@@ -2149,7 +2149,7 @@ Thank you for choosing Islamia Guest House!`;
     }
 
     const smsUrl = `sms:${cleanPhone}?&body=${encodeURIComponent(smsBody)}`;
-    const whatsappUrl = `https://wa.me/${waNumber || '8801799148408'}?text=${encodeURIComponent(smsBody)}`;
+    const whatsappUrl = `https://wa.me/${waNumber || '8801799948408'}?text=${encodeURIComponent(smsBody)}`;
 
     if (autoOpenSmsApp && cleanPhone) {
       try {
@@ -2208,7 +2208,7 @@ Landmarks: Opposite Ibne Sina 9/A, Behind Meena Bazar, Adjacent to Northern Medi
 For any support or questions, please reach us on:
 - bKash Payment / Hotline: 01832-841818
 - Phone Call: 01909-806960
-- WhatsApp: 01799-148408
+- WhatsApp: 01799-948408
 
 Enjoy your stay!
 

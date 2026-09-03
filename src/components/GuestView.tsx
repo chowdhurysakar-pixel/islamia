@@ -533,7 +533,7 @@ export const GuestView: React.FC = () => {
               <span>☏ 01909-806960</span>
             </a>
             <a 
-              href="https://wa.me/8801799148408?text=Hello%20Islamia%20Guest%20House,%20I%20would%20like%20to%20inquire%20about%20room%20availability." 
+              href="https://wa.me/8801799948408?text=Hello%20Islamia%20Guest%20House,%20I%20would%20like%20to%20inquire%20about%20room%20availability." 
               target="_blank" 
               rel="noopener noreferrer" 
               className="hover:text-[#905e38] flex items-center gap-1.5 text-[#0e2b33] font-medium"
@@ -2102,7 +2102,7 @@ export const GuestView: React.FC = () => {
                       <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono leading-none mb-1">
                         WhatsApp Message
                       </p>
-                      <p className="text-sm font-mono font-bold text-slate-100">01799-148408</p>
+                      <p className="text-sm font-mono font-bold text-slate-100">01799-948408</p>
                     </div>
                   </div>
                   <span className="text-[10px] font-bold font-mono text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
@@ -2179,7 +2179,7 @@ export const GuestView: React.FC = () => {
                 <ul className="space-y-2">
                   <li><a href="https://maps.app.goo.gl/e3o656i1uDh3QXHV8" target="_blank" rel="noopener noreferrer" className="hover:text-white flex items-center gap-1">Location &amp; Map <ExternalLink className="w-3 h-3 text-[#d7bd8a]" /></a></li>
                   <li><a href="tel:01909806960" className="hover:text-white">Hotline: 01909-806960</a></li>
-                  <li><a href="https://wa.me/8801799148408" target="_blank" rel="noopener noreferrer" className="hover:text-white">WhatsApp 01799-148408</a></li>
+                  <li><a href="https://wa.me/8801799948408" target="_blank" rel="noopener noreferrer" className="hover:text-white">WhatsApp 01799-948408</a></li>
                 </ul>
               </div>
             </div>
