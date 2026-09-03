@@ -590,7 +590,7 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
                           <img 
                             src={brandLogo} 
                             alt="Logo" 
-                            className="h-12 w-auto max-w-[140px] object-contain rounded border border-slate-200 p-0.5 bg-white shadow-xs" 
+                            className="h-12 w-auto max-w-[140px] object-contain shrink-0" 
                           />
                         )}
                         <span className={`font-black tracking-tight text-slate-900 ${

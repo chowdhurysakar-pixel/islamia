@@ -8,6 +8,7 @@ import { Room, Booking, ServiceRequest, UserProfile, UserRole, RoomStatus, Booki
 import { INITIAL_ROOMS, INITIAL_BOOKINGS, INITIAL_SERVICES } from '../mockData';
 import { initFirebase, db, auth, handleFirestoreError, OperationType } from '../firebase';
 import firebaseConfig from '../firebase-applet-config.json';
+import { removeBlackBackground } from '../utils/imageUtils';
 import { 
   collection, 
   doc, 
@@ -385,14 +386,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem('master_staff_passcode') || 'ISLAMIA-STAFF-2026';
   });
 
-  // Guest House Permanent Brand Logo
+  // Guest House Permanent Brand Logo (Default to transparent PNG)
   const [brandLogo, setBrandLogo] = useState<string>(() => {
     try {
-      return localStorage.getItem('hotel_brand_logo') || 'https://i.ibb.co/MDK4kDPh/logo.jpg';
+      const stored = localStorage.getItem('hotel_brand_logo');
+      if (stored && stored !== 'https://i.ibb.co/MDK4kDPh/logo.jpg') {
+        return stored;
+      }
+      return '/logo.png';
     } catch (e) {
-      return 'https://i.ibb.co/MDK4kDPh/logo.jpg';
+      return '/logo.png';
     }
   });
+
+  // Automatically detect and remove any black or solid background from active brand logo
+  useEffect(() => {
+    if (!brandLogo || typeof window === 'undefined') return;
+
+    if (brandLogo === 'https://i.ibb.co/MDK4kDPh/logo.jpg') {
+      setBrandLogo('/logo.png');
+      try {
+        localStorage.setItem('hotel_brand_logo', '/logo.png');
+      } catch (e) {}
+      return;
+    }
+
+    let isMounted = true;
+    removeBlackBackground(brandLogo, { forceBlack: false })
+      .then((transparentLogo) => {
+        if (isMounted && transparentLogo && transparentLogo !== brandLogo) {
+          setBrandLogo(transparentLogo);
+          try {
+            localStorage.setItem('hotel_brand_logo', transparentLogo);
+          } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [brandLogo]);
 
   const [registeredUsers, setRegisteredUsers] = useState<UserProfile[]>(() => {
     try {
@@ -668,9 +702,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (typeof data.logo === 'string') {
-            setBrandLogo(data.logo);
+            const cleanVal = data.logo === 'https://i.ibb.co/MDK4kDPh/logo.jpg' ? '/logo.png' : data.logo;
+            setBrandLogo(cleanVal);
             try {
-              localStorage.setItem('hotel_brand_logo', data.logo);
+              localStorage.setItem('hotel_brand_logo', cleanVal);
             } catch (e) {}
           }
         }
@@ -2480,9 +2515,17 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const updateBrandLogo = async (logoDataUrl: string): Promise<void> => {
-    setBrandLogo(logoDataUrl);
+    // Automatically strip any black or dark background into a pristine transparent PNG
+    let cleanLogo = logoDataUrl;
     try {
-      localStorage.setItem('hotel_brand_logo', logoDataUrl);
+      cleanLogo = await removeBlackBackground(logoDataUrl, { forceBlack: false });
+    } catch (e) {
+      cleanLogo = logoDataUrl;
+    }
+
+    setBrandLogo(cleanLogo);
+    try {
+      localStorage.setItem('hotel_brand_logo', cleanLogo);
     } catch (e) {
       console.warn("Failed saving brand logo to localStorage:", e);
     }
@@ -2490,7 +2533,7 @@ Islamia Guest House, Dhanmondi`;
     if (isFirebaseActive && db) {
       try {
         await setDoc(doc(db, 'settings', 'branding'), sanitizeFirestoreData({
-          logo: logoDataUrl,
+          logo: cleanLogo,
           updatedAt: new Date().toISOString(),
           updatedBy: currentUser?.email || 'admin'
         }), { merge: true });
@@ -2501,9 +2544,9 @@ Islamia Guest House, Dhanmondi`;
   };
 
   const removeBrandLogo = async (): Promise<void> => {
-    setBrandLogo('https://i.ibb.co/MDK4kDPh/logo.jpg');
+    setBrandLogo('/logo.png');
     try {
-      localStorage.setItem('hotel_brand_logo', 'https://i.ibb.co/MDK4kDPh/logo.jpg');
+      localStorage.setItem('hotel_brand_logo', '/logo.png');
     } catch (e) {
       console.warn("Failed resetting brand logo to permanent default in localStorage:", e);
     }
@@ -2511,7 +2554,7 @@ Islamia Guest House, Dhanmondi`;
     if (isFirebaseActive && db) {
       try {
         await setDoc(doc(db, 'settings', 'branding'), sanitizeFirestoreData({
-          logo: 'https://i.ibb.co/MDK4kDPh/logo.jpg',
+          logo: '/logo.png',
           updatedAt: new Date().toISOString(),
           updatedBy: currentUser?.email || 'admin'
         }), { merge: true });

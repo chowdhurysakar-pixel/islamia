@@ -240,7 +240,7 @@ const MainLayout: React.FC = () => {
                 <img 
                   src={brandLogo} 
                   alt="Islamia Guest House Logo" 
-                  className="w-6 h-6 rounded object-contain bg-white border border-slate-200 p-0.5 shadow-2xs shrink-0" 
+                  className="h-6 w-auto object-contain shrink-0" 
                 />
               )}
               <p className="text-xs text-slate-500 font-medium">

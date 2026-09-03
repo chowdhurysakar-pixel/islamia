@@ -9,6 +9,7 @@ import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from 
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { OfficialRoomPresets } from './OfficialRoomPresets';
+import { removeBlackBackground } from '../utils/imageUtils';
 import { 
   Building, Shield, ShieldCheck, Users, CheckCircle2, AlertCircle, Key, 
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
@@ -18,56 +19,8 @@ import {
   Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare
 } from 'lucide-react';
 
-const processUploadedImage = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    if (!file.type.startsWith('image/')) {
-      reject(new Error('Please upload an image file.'));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      if (!result) {
-        reject(new Error('Failed to read image file'));
-        return;
-      }
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 1200;
-        const MAX_HEIGHT = 1200;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height = Math.round((height * MAX_WIDTH) / width);
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width = Math.round((width * MAX_HEIGHT) / height);
-            height = MAX_HEIGHT;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          resolve(compressedDataUrl);
-        } else {
-          resolve(result);
-        }
-      };
-      img.onerror = () => resolve(result);
-      img.src = result;
-    };
-    reader.onerror = (err) => reject(err);
-    reader.readAsDataURL(file);
-  });
+const processUploadedImage = async (file: File): Promise<string> => {
+  return await removeBlackBackground(file, { forceBlack: false });
 };
 
 export const AdminPanel: React.FC = () => {
@@ -181,6 +134,29 @@ export const AdminPanel: React.FC = () => {
       });
     } catch (err: any) {
       console.error("Failed to remove logo:", err);
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  };
+
+  const handleCleanBlackBackground = async () => {
+    if (!brandLogo) return;
+    try {
+      setIsUploadingLogo(true);
+      setLogoUploadError(null);
+      const transparentPng = await removeBlackBackground(brandLogo, { forceBlack: true });
+      await updateBrandLogo(transparentPng);
+      showToast({
+        type: 'success',
+        message: '✨ Black background removed! Logo is now completely transparent.'
+      });
+    } catch (err: any) {
+      console.error("Failed removing black background:", err);
+      setLogoUploadError('Failed to remove black background from logo.');
+      showToast({
+        type: 'warning',
+        message: 'Could not remove black background from logo.'
+      });
     } finally {
       setIsUploadingLogo(false);
     }
@@ -843,7 +819,7 @@ export const AdminPanel: React.FC = () => {
                 <img 
                   src={brandLogo} 
                   alt="Islamia Logo" 
-                  className="w-10 h-10 rounded-xl object-contain bg-white border border-slate-700 p-0.5 shadow-md shrink-0" 
+                  className="h-10 w-auto object-contain shrink-0" 
                 />
               )}
               <span>Executive Admin Control Center</span>
@@ -2294,6 +2270,18 @@ export const AdminPanel: React.FC = () => {
                     {brandLogo && (
                       <button
                         type="button"
+                        onClick={handleCleanBlackBackground}
+                        disabled={isUploadingLogo}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold rounded-xl text-xs transition cursor-pointer shadow-xs"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Remove Black Background</span>
+                      </button>
+                    )}
+
+                    {brandLogo && (
+                      <button
+                        type="button"
                         onClick={handleRemoveLogo}
                         disabled={isUploadingLogo}
                         className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-xl text-xs transition cursor-pointer"
@@ -2332,7 +2320,7 @@ export const AdminPanel: React.FC = () => {
                         <img
                           src={brandLogo}
                           alt="Brand Logo Preview"
-                          className="w-9 h-9 rounded-lg object-contain bg-white border border-slate-200 p-0.5 shadow-sm shrink-0"
+                          className="h-9 w-auto object-contain shrink-0"
                         />
                       ) : (
                         <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm shrink-0">
@@ -2360,7 +2348,7 @@ export const AdminPanel: React.FC = () => {
                         <img
                           src={brandLogo}
                           alt="Invoice Logo Preview"
-                          className="w-8 h-8 rounded object-contain bg-white border border-slate-300 p-0.5 shrink-0"
+                          className="h-8 w-auto object-contain shrink-0"
                         />
                       ) : (
                         <div className="w-7 h-7 rounded bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-xs font-serif shrink-0 border border-teal-500/30">

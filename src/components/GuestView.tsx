@@ -642,7 +642,7 @@ export const GuestView: React.FC = () => {
               <img 
                 src={brandLogo} 
                 alt="Islamia Guest House Logo" 
-                className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg object-contain bg-white border border-slate-200 p-0.5 shadow-sm group-hover:border-[#af8a52] transition shrink-0" 
+                className="h-10 w-auto object-contain transition shrink-0" 
               />
             ) : (
               <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition shrink-0">
@@ -2010,7 +2010,7 @@ export const GuestView: React.FC = () => {
                     <img 
                       src={brandLogo} 
                       alt="Islamia Guest House Logo" 
-                      className="w-9 h-9 rounded-lg object-contain bg-white border border-[#d7bd8a]/40 p-0.5 shadow-sm shrink-0" 
+                      className="h-10 w-auto object-contain shrink-0" 
                     />
                   )}
                   <span>Islamia Guest House</span>
@@ -2152,7 +2152,7 @@ export const GuestView: React.FC = () => {
                   <img
                     src={brandLogo}
                     alt="Islamia Guest House Logo"
-                    className="w-8 h-8 rounded-lg object-contain bg-white/95 border border-[#d7bd8a]/40 p-0.5 shadow-sm shrink-0"
+                    className="h-8 w-auto object-contain shrink-0"
                   />
                 ) : (
                   <span className="text-[#af8a52]">◆</span>

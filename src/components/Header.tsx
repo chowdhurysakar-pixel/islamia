@@ -74,7 +74,7 @@ export const Header: React.FC = () => {
                   <img 
                     src={brandLogo} 
                     alt="Islamia Guest House Logo" 
-                    className="w-9 h-9 rounded-lg object-contain bg-white border border-slate-200 p-0.5 shadow-sm shadow-teal-600/10 shrink-0" 
+                    className="h-10 w-auto object-contain shrink-0" 
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm shadow-teal-600/30 shrink-0">
