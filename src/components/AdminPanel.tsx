@@ -717,9 +717,12 @@ export const AdminPanel: React.FC = () => {
             <h1 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-white flex items-center gap-3">
               {brandLogo && (
                 <img 
-                  src={brandLogo} 
+                  src={brandLogo || '/logo.png'} 
                   alt="Islamia Logo" 
-                  className="h-10 w-auto object-contain shrink-0" 
+                  className="h-10 w-auto object-contain shrink-0 bg-transparent" 
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/logo.png';
+                  }}
                 />
               )}
               <span>Executive Admin Control Center</span>
@@ -2125,11 +2128,14 @@ export const AdminPanel: React.FC = () => {
                   <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-sm space-y-2">
                     {/* Google URL Row with Transparent Favicon */}
                     <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                      <div className="w-7 h-7 rounded-full bg-white border border-slate-200 flex items-center justify-center p-0.5 shrink-0 overflow-hidden shadow-2xs">
                         <img 
                           src={brandLogo || '/logo.png'} 
                           alt="Google Search Favicon" 
-                          className="w-full h-full object-contain"
+                          className="w-full h-full object-contain bg-transparent"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/logo.png';
+                          }}
                         />
                       </div>
                       <div className="flex flex-col leading-tight">

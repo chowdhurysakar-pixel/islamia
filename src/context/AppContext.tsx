@@ -386,24 +386,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return localStorage.getItem('master_staff_passcode') || 'ISLAMIA-STAFF-2026';
   });
 
-  // Guest House Permanent Brand Logo (Default to transparent PNG)
+  // Guest House Permanent Brand Logo (Guaranteed 100% Transparent PNG, No Black Background)
   const [brandLogo, setBrandLogo] = useState<string>(() => {
-    try {
-      const stored = localStorage.getItem('hotel_brand_logo');
-      if (stored && stored !== 'https://i.ibb.co/MDK4kDPh/logo.jpg') {
-        return stored;
-      }
-      return '/logo.png';
-    } catch (e) {
-      return '/logo.png';
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('hotel_brand_logo');
+        if (stored) {
+          // If stored is an external URL, JPG, or legacy black background image, immediately purge it
+          const isBad = 
+            stored.includes('.jpg') || 
+            stored.includes('.jpeg') || 
+            stored.includes('i.ibb.co') || 
+            stored.startsWith('http') ||
+            stored === 'https://i.ibb.co/MDK4kDPh/logo.jpg' ||
+            (!stored.startsWith('data:image/png') && stored !== '/logo.png');
+
+          if (isBad) {
+            localStorage.setItem('hotel_brand_logo', '/logo.png');
+            return '/logo.png';
+          }
+          return stored;
+        }
+      } catch (e) {}
     }
+    return '/logo.png';
   });
 
   // Automatically detect and remove any black or solid background from active brand logo
   useEffect(() => {
     if (!brandLogo || typeof window === 'undefined') return;
 
-    if (brandLogo === 'https://i.ibb.co/MDK4kDPh/logo.jpg') {
+    // /logo.png is already 100% transparent PNG with zero black pixels - skip redundant processing
+    if (brandLogo === '/logo.png') return;
+
+    if (
+      brandLogo.includes('.jpg') ||
+      brandLogo.includes('.jpeg') ||
+      brandLogo.includes('i.ibb.co') ||
+      brandLogo.startsWith('http') ||
+      brandLogo === 'https://i.ibb.co/MDK4kDPh/logo.jpg'
+    ) {
       setBrandLogo('/logo.png');
       try {
         localStorage.setItem('hotel_brand_logo', '/logo.png');
@@ -412,7 +434,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     let isMounted = true;
-    removeBlackBackground(brandLogo, { forceBlack: false })
+    removeBlackBackground(brandLogo, { forceBlack: true, blackCutoff: 45 })
       .then((transparentLogo) => {
         if (isMounted && transparentLogo && transparentLogo !== brandLogo) {
           setBrandLogo(transparentLogo);
@@ -421,7 +443,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch (e) {}
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (isMounted) {
+          setBrandLogo('/logo.png');
+          try {
+            localStorage.setItem('hotel_brand_logo', '/logo.png');
+          } catch (e) {}
+        }
+      });
 
     return () => {
       isMounted = false;
@@ -697,16 +726,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         handleFirestoreError(error, OperationType.GET, 'feedbacks');
       });
 
-      // Realtime branding & uploaded logo sync
+      // Realtime branding & uploaded logo sync (Ensures 100% transparent brand logo)
       const unsubBranding = onSnapshot(doc(db, 'settings', 'branding'), (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (typeof data.logo === 'string') {
-            const cleanVal = data.logo === 'https://i.ibb.co/MDK4kDPh/logo.jpg' ? '/logo.png' : data.logo;
+            const isBadLogo = 
+              !data.logo ||
+              data.logo.includes('.jpg') || 
+              data.logo.includes('.jpeg') || 
+              data.logo.includes('i.ibb.co') || 
+              data.logo.startsWith('http') ||
+              data.logo === 'https://i.ibb.co/MDK4kDPh/logo.jpg' ||
+              (!data.logo.startsWith('data:image/png') && data.logo !== '/logo.png');
+
+            const cleanVal = isBadLogo ? '/logo.png' : data.logo;
             setBrandLogo(cleanVal);
             try {
               localStorage.setItem('hotel_brand_logo', cleanVal);
             } catch (e) {}
+
+            // Auto self-heal Firestore if an old black background URL was stored
+            if (isBadLogo && db) {
+              setDoc(doc(db, 'settings', 'branding'), {
+                logo: '/logo.png',
+                updatedAt: new Date().toISOString(),
+                updatedBy: 'system-auto-sanitize'
+              }, { merge: true }).catch(() => {});
+            }
           }
         }
       }, (error) => {

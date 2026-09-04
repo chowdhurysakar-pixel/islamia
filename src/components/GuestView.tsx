@@ -640,9 +640,12 @@ export const GuestView: React.FC = () => {
           >
             {brandLogo ? (
               <img 
-                src={brandLogo} 
+                src={brandLogo || '/logo.png'} 
                 alt="Islamia Guest House Logo" 
-                className="h-10 w-auto object-contain transition shrink-0" 
+                className="h-10 w-auto object-contain transition shrink-0 bg-transparent" 
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/logo.png';
+                }}
               />
             ) : (
               <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#af8a52] text-white flex items-center justify-center font-serif text-sm font-bold shadow-sm group-hover:bg-[#8c6736] transition shrink-0">
@@ -2011,9 +2014,12 @@ export const GuestView: React.FC = () => {
                 <h3 className="text-2xl sm:text-3xl font-serif text-white tracking-tight drop-shadow flex items-center gap-3">
                   {brandLogo && (
                     <img 
-                      src={brandLogo} 
+                      src={brandLogo || '/logo.png'} 
                       alt="Islamia Guest House Logo" 
-                      className="h-10 w-auto object-contain shrink-0" 
+                      className="h-10 w-auto object-contain shrink-0 bg-transparent" 
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/logo.png';
+                      }}
                     />
                   )}
                   <span>Islamia Guest House</span>
@@ -2153,9 +2159,12 @@ export const GuestView: React.FC = () => {
               <div className="font-serif text-xl text-[#af8a52] font-semibold tracking-wide mb-2 flex items-center gap-2.5">
                 {brandLogo ? (
                   <img
-                    src={brandLogo}
+                    src={brandLogo || '/logo.png'}
                     alt="Islamia Guest House Logo"
-                    className="h-8 w-auto object-contain shrink-0"
+                    className="h-8 w-auto object-contain shrink-0 bg-transparent"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/logo.png';
+                    }}
                   />
                 ) : (
                   <span className="text-[#af8a52]">◆</span>

@@ -72,9 +72,12 @@ export const Header: React.FC = () => {
               <div className="flex items-center gap-2.5">
                 {brandLogo ? (
                   <img 
-                    src={brandLogo} 
+                    src={brandLogo || '/logo.png'} 
                     alt="Islamia Guest House Logo" 
-                    className="h-10 w-auto object-contain shrink-0" 
+                    className="h-10 w-auto object-contain shrink-0 bg-transparent" 
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/logo.png';
+                    }}
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm shadow-teal-600/30 shrink-0">
