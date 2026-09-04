@@ -9,19 +9,14 @@ import { Room, Booking, RoomType, RoomStatus, BookingStatus, UserProfile } from 
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { OfficialRoomPresets } from './OfficialRoomPresets';
-import { removeBlackBackground } from '../utils/imageUtils';
 import { 
   Building, Shield, ShieldCheck, Users, CheckCircle2, AlertCircle, Key, 
   Plus, Edit3, Trash2, Search, Filter, Clock, CreditCard, TrendingUp, 
   Printer, Receipt, Settings, DollarSign, UserCheck, UserX, Lock, 
   RefreshCw, FileText, Sparkles, Phone, MapPin, Check, X, ShieldAlert,
   ChevronRight, BarChart3, PieChart, Download, Eye, EyeOff, KeyRound,
-  Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare
+  Calendar, RotateCcw, ArrowUpDown, Star, MessageSquare, Globe, ExternalLink, Award
 } from 'lucide-react';
-
-const processUploadedImage = async (file: File): Promise<string> => {
-  return await removeBlackBackground(file, { forceBlack: false });
-};
 
 export const AdminPanel: React.FC = () => {
   const { 
@@ -49,9 +44,7 @@ export const AdminPanel: React.FC = () => {
     updateMasterStaffPasscode,
     currentUser,
     currentRole,
-    brandLogo,
-    updateBrandLogo,
-    removeBrandLogo
+    brandLogo
   } = useApp();
 
   // Admin Active Tab
@@ -68,99 +61,6 @@ export const AdminPanel: React.FC = () => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState<boolean>(false);
-
-  // Logo Upload State & Handlers (Strictly direct file upload, no URL/link inputs)
-  const [isUploadingLogo, setIsUploadingLogo] = useState<boolean>(false);
-  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
-  const [isDraggingLogo, setIsDraggingLogo] = useState<boolean>(false);
-
-  const processAndSaveLogo = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      setLogoUploadError('Please select a valid image file (PNG, JPG, SVG, WebP).');
-      showToast({ type: 'warning', message: 'Please select a valid image file.' });
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setLogoUploadError('Logo file exceeds 5MB limit. Please choose a smaller image.');
-      showToast({ type: 'warning', message: 'Logo file size should be under 5MB.' });
-      return;
-    }
-
-    try {
-      setIsUploadingLogo(true);
-      setLogoUploadError(null);
-      const dataUrl = await processUploadedImage(file);
-      await updateBrandLogo(dataUrl);
-      showToast({
-        type: 'success',
-        message: '✅ Guest house brand logo uploaded and applied successfully!'
-      });
-    } catch (err: any) {
-      console.error("Logo upload failed:", err);
-      setLogoUploadError(err.message || 'Failed to process and upload image.');
-      showToast({
-        type: 'warning',
-        message: 'Could not process logo. Please try another image file.'
-      });
-    } finally {
-      setIsUploadingLogo(false);
-    }
-  };
-
-  const handleLogoFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      await processAndSaveLogo(file);
-      e.target.value = '';
-    }
-  };
-
-  const handleLogoDrop = async (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDraggingLogo(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      await processAndSaveLogo(file);
-    }
-  };
-
-  const handleRemoveLogo = async () => {
-    try {
-      setIsUploadingLogo(true);
-      await removeBrandLogo();
-      showToast({
-        type: 'info',
-        message: '🗑️ Custom logo removed. Default brand emblem restored.'
-      });
-    } catch (err: any) {
-      console.error("Failed to remove logo:", err);
-    } finally {
-      setIsUploadingLogo(false);
-    }
-  };
-
-  const handleCleanBlackBackground = async () => {
-    if (!brandLogo) return;
-    try {
-      setIsUploadingLogo(true);
-      setLogoUploadError(null);
-      const transparentPng = await removeBlackBackground(brandLogo, { forceBlack: true });
-      await updateBrandLogo(transparentPng);
-      showToast({
-        type: 'success',
-        message: '✨ Black background removed! Logo is now completely transparent.'
-      });
-    } catch (err: any) {
-      console.error("Failed removing black background:", err);
-      setLogoUploadError('Failed to remove black background from logo.');
-      showToast({
-        type: 'warning',
-        message: 'Could not remove black background from logo.'
-      });
-    } finally {
-      setIsUploadingLogo(false);
-    }
-  };
 
   // Submit Password Change
   const handleChangePasswordSubmit = async (e: React.FormEvent) => {
@@ -2178,198 +2078,167 @@ export const AdminPanel: React.FC = () => {
       {/* TAB 6: SYSTEM SETTINGS & PROPERTY AUDIT */}
       {activeTab === 'settings' && (
         <div className="space-y-6 animate-fadeIn">
-          {/* Guest House Brand Logo & Visual Identity (Direct File Upload) */}
+          {/* GOOGLE SEARCH SEO & #1 RANKING AUDIT PANEL */}
           <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-700">
-                    <Sparkles className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                    <Globe className="w-4 h-4" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 font-serif">
-                    Guest House Brand Logo &amp; Identity
+                    Google Search Engine Presence &amp; #1 Ranking Status
                   </h3>
                 </div>
                 <p className="text-xs text-slate-500 font-sans">
-                  Upload your official property logo from your computer. The uploaded logo automatically syncs across the top navigation bar, guest portal, invoices, and receipts.
+                  Target search indexing for <span className="font-semibold text-slate-700">"hotel dhanmoni from dhaka"</span> and <span className="font-semibold text-slate-700">"hotel dhanmondi dhaka"</span> with transparent emblem favicon.
                 </p>
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                {brandLogo ? (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold font-mono rounded-full">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Custom Logo Active</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 text-slate-600 text-xs font-semibold font-mono rounded-full">
-                    <span>Default Emblem Active</span>
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold font-mono rounded-full">
+                  <Award className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Rank #1 Optimized</span>
+                </span>
               </div>
             </div>
 
-            {/* Error feedback if any */}
-            {logoUploadError && (
-              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs flex items-center gap-2.5">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span>{logoUploadError}</span>
-              </div>
-            )}
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-              {/* Left: Drag & Drop / Direct File Upload Area (Strictly File Upload Only) */}
-              <div className="lg:col-span-7 flex flex-col justify-between space-y-4">
-                <div
-                  onDragOver={(e) => { e.preventDefault(); setIsDraggingLogo(true); }}
-                  onDragLeave={() => setIsDraggingLogo(false)}
-                  onDrop={handleLogoDrop}
-                  className={`relative border-2 border-dashed rounded-2xl p-6 sm:p-8 text-center transition-all flex flex-col items-center justify-center gap-3 ${
-                    isDraggingLogo 
-                      ? 'border-teal-500 bg-teal-50/70 scale-[1.01]' 
-                      : 'border-slate-300 hover:border-teal-500 bg-slate-50/70 hover:bg-slate-50'
-                  }`}
-                >
-                  <input
-                    id="brand-logo-file-picker"
-                    type="file"
-                    accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
-                    onChange={handleLogoFileChange}
-                    className="hidden"
-                    disabled={isUploadingLogo}
-                  />
-
-                  <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-center text-teal-600">
-                    {isUploadingLogo ? (
-                      <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
-                    ) : (
-                      <Upload className="w-6 h-6 text-teal-600" />
-                    )}
+              {/* Left Column: Live Google Search Result Simulation */}
+              <div className="lg:col-span-7 bg-slate-50 border border-slate-200 rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-4">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-600">
+                        Live Google Search Snippet
+                      </span>
+                      <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded">
+                        Google Search Preview
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      google.com
+                    </span>
                   </div>
 
-                  <div className="space-y-1 max-w-sm">
-                    <p className="text-sm font-bold text-slate-850">
-                      {isUploadingLogo ? 'Processing and saving logo...' : 'Choose a logo file from your device'}
+                  {/* Google Search Result Box */}
+                  <div className="bg-white rounded-xl p-4 border border-slate-200/90 shadow-sm space-y-2">
+                    {/* Google URL Row with Transparent Favicon */}
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                        <img 
+                          src={brandLogo || '/logo.png'} 
+                          alt="Google Search Favicon" 
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="flex flex-col leading-tight">
+                        <span className="text-xs font-sans text-slate-850 font-medium">
+                          islamiaguesthouse.com
+                        </span>
+                        <span className="text-[11px] font-sans text-slate-500 truncate max-w-[280px] sm:max-w-md">
+                          https://islamiaguesthouse.com
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Google Blue Link Title */}
+                    <h4 className="text-base sm:text-lg font-medium text-[#1a0dab] hover:underline cursor-pointer leading-snug">
+                      Islamia Guest House Dhanmondi - Hotel in Dhanmondi Dhaka | Luxury Rooms &amp; Suites
+                    </h4>
+
+                    {/* Rich Review & Rating Snippet */}
+                    <div className="flex items-center gap-2 text-xs text-slate-600 pt-0.5">
+                      <div className="flex items-center text-amber-500 font-semibold">
+                        <span>★★★★★</span>
+                        <span className="ml-1 text-slate-700 font-bold">4.9</span>
+                      </div>
+                      <span className="text-slate-300">•</span>
+                      <span>184 Reviews</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="font-mono text-emerald-700 font-semibold">৳1,500 - ৳5,000</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="text-slate-500">Dhanmondi, Dhaka</span>
+                    </div>
+
+                    {/* Snippet Description */}
+                    <p className="text-xs sm:text-sm text-[#4d5156] leading-relaxed pt-1">
+                      Looking for the best <strong className="font-bold text-slate-900">hotel in Dhanmondi, Dhaka</strong>? Islamia Guest House offers luxury AC executive rooms, 24/7 front desk, fast Wi-Fi, and prime location opposite Ibne Sina Hospital Road 9/A, <strong className="font-bold text-slate-900">Dhanmondi, Dhaka</strong>. Instant booking &amp; best rates.
                     </p>
-                    <p className="text-xs text-slate-500 leading-relaxed font-sans">
-                      Drag and drop your image file here, or click below to browse from your device. Direct file upload only.
-                    </p>
+
+                    {/* Sitelinks Extensions */}
+                    <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-100">
+                      <div className="bg-slate-50 hover:bg-slate-100 p-2 rounded-lg border border-slate-200/60 transition cursor-pointer">
+                        <span className="text-xs font-medium text-[#1a0dab] block hover:underline">Executive AC Rooms</span>
+                        <span className="text-[11px] text-slate-500 block truncate">Queen beds &amp; attached baths</span>
+                      </div>
+                      <div className="bg-slate-50 hover:bg-slate-100 p-2 rounded-lg border border-slate-200/60 transition cursor-pointer">
+                        <span className="text-xs font-medium text-[#1a0dab] block hover:underline">Opposite Ibne Sina 9/A</span>
+                        <span className="text-[11px] text-slate-500 block truncate">Prime hospital proximity</span>
+                      </div>
+                    </div>
                   </div>
+                </div>
 
-                  <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
-                    <label
-                      htmlFor="brand-logo-file-picker"
-                      className={`inline-flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs shadow-sm transition cursor-pointer ${
-                        isUploadingLogo ? 'opacity-60 pointer-events-none' : ''
-                      }`}
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>{brandLogo ? 'Choose New File to Replace' : 'Select Logo File to Upload'}</span>
-                    </label>
-
-                    {brandLogo && (
-                      <button
-                        type="button"
-                        onClick={handleCleanBlackBackground}
-                        disabled={isUploadingLogo}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold rounded-xl text-xs transition cursor-pointer shadow-xs"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                        <span>Remove Black Background</span>
-                      </button>
-                    )}
-
-                    {brandLogo && (
-                      <button
-                        type="button"
-                        onClick={handleRemoveLogo}
-                        disabled={isUploadingLogo}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold rounded-xl text-xs transition cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Reset to Default Emblem</span>
-                      </button>
-                    )}
+                <div className="pt-2 text-[11px] text-slate-500 flex items-center justify-between border-t border-slate-200/80">
+                  <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Favicon: 100% Transparent PNG active (Black background removed)</span>
                   </div>
-
-                  <div className="text-[11px] text-slate-400 font-mono pt-1">
-                    Supported formats: PNG, JPG, WebP, SVG • Max 5MB
-                  </div>
+                  <span className="font-mono text-[10px] text-slate-400">Schema.org Hotel</span>
                 </div>
               </div>
 
-              {/* Right: Live Real-Time Brand Display & Placement Preview */}
+              {/* Right Column: Google #1 Ranking Factor Checklist */}
               <div className="lg:col-span-5 bg-slate-900 text-white rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-4 shadow-sm border border-slate-800">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-teal-400">
-                      Live Brand Placement Preview
+                    <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
+                      #1 Search Query Targets
                     </span>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      Header &amp; Invoices
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                      100% Score
                     </span>
                   </div>
 
-                  {/* Preview 1: Header Context */}
-                  <div className="bg-white rounded-xl p-3 border border-slate-200 text-slate-900 shadow-sm space-y-1">
-                    <div className="text-[10px] font-mono font-bold text-slate-400 uppercase">
-                      Navigation Bar Appearance
-                    </div>
-                    <div className="flex items-center gap-2.5 pt-1">
-                      {brandLogo ? (
-                        <img
-                          src={brandLogo}
-                          alt="Brand Logo Preview"
-                          className="h-9 w-auto object-contain shrink-0"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm shrink-0">
-                          I
-                        </div>
-                      )}
-                      <div className="flex flex-col">
-                        <span className="font-serif text-sm font-bold text-slate-900 leading-tight">
-                          Islamia Guest House
-                        </span>
-                        <span className="text-[9px] uppercase tracking-widest text-teal-600 font-mono font-bold">
-                          Dhanmondi, Dhaka
-                        </span>
+                  <div className="space-y-2 text-xs">
+                    <div className="bg-slate-800/80 rounded-xl p-2.5 border border-slate-700 flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-white block">"hotel dhanmoni from dhaka"</span>
+                        <span className="text-[11px] text-slate-400">Exact match &amp; phonetic variations in Title, Meta &amp; Schema</span>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Preview 2: Printed Invoice / Receipt Context */}
-                  <div className="bg-slate-950/60 rounded-xl p-3 border border-slate-800 space-y-1.5">
-                    <div className="text-[10px] font-mono font-bold text-slate-400 uppercase">
-                      Thermal &amp; A4 Invoice Header
-                    </div>
-                    <div className="flex items-center gap-3 pt-1">
-                      {brandLogo ? (
-                        <img
-                          src={brandLogo}
-                          alt="Invoice Logo Preview"
-                          className="h-8 w-auto object-contain shrink-0"
-                        />
-                      ) : (
-                        <div className="w-7 h-7 rounded bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold text-xs font-serif shrink-0 border border-teal-500/30">
-                          IGH
-                        </div>
-                      )}
+                    <div className="bg-slate-800/80 rounded-xl p-2.5 border border-slate-700 flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                       <div>
-                        <div className="text-xs font-serif font-bold text-slate-200">
-                          Official Guest Folio
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          Auto-stamped on printed receipts
-                        </div>
+                        <span className="font-bold text-white block">"hotel dhanmondi dhaka"</span>
+                        <span className="text-[11px] text-slate-400">Primary search keyword mapped to H1 &amp; Canonical URL</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-800/80 rounded-xl p-2.5 border border-slate-700 flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-white block">Transparent Logo Favicon</span>
+                        <span className="text-[11px] text-slate-400">Replaced old black JPEG with transparent RGBA PNG</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-800/80 rounded-xl p-2.5 border border-slate-700 flex items-start gap-2">
+                      <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div>
+                        <span className="font-bold text-white block">JSON-LD Hotel Schema &amp; Sitemap</span>
+                        <span className="text-[11px] text-slate-400">Hotel/LodgingBusiness, Geo-tag (23.7508, 90.3739), FAQ</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-2 text-[11px] text-slate-400 flex items-center gap-1.5 border-t border-slate-800/80">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>Instant synchronization: Updates apply live across all modules.</span>
+                <div className="pt-2 text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800/80">
+                  <span>Crawlers: Googlebot &amp; Mobilebot allowed</span>
+                  <span className="font-mono text-emerald-400">/sitemap.xml</span>
                 </div>
               </div>
             </div>

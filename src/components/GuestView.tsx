@@ -771,6 +771,9 @@ export const GuestView: React.FC = () => {
           <p className="font-serif text-xl sm:text-3xl text-white mt-2 font-bold tracking-wider drop-shadow-lg">
             Dhanmondi
           </p>
+          <p className="text-xs sm:text-sm text-amber-200/90 font-mono tracking-widest uppercase mt-2 drop-shadow font-semibold">
+            Premier Hotel &amp; Guest House in Dhanmondi, Dhaka
+          </p>
         </div>
       </section>
 
