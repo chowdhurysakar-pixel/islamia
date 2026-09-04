@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Booking, Room } from '../types';
+import { doBookingsMatchGuestIdentity } from '../utils/guestUtils';
 import { 
   Printer, X, Receipt, Sparkles, AlertCircle, 
   Check, Minimize, Eye, ToggleLeft, ToggleRight, 
@@ -53,19 +54,14 @@ export const PrintableInvoice: React.FC<PrintableInvoiceProps> = ({ booking: ini
     }
   }, [autoPrint, booking.id]);
 
-  // Find other/previous bookings for this guest
+  // Find other/previous bookings for this guest strictly by NID/Passport or Phone (NOT by name)
   const guestAlternateBookings = useMemo(() => {
     if (!bookings || !booking) return [];
-    const phone = booking.guestPhone?.trim();
-    const name = booking.guestName?.trim().toLowerCase();
-    
     return bookings.filter(b => {
       if (b.id === booking.id) return false;
-      const matchPhone = phone && b.guestPhone?.trim() === phone;
-      const matchName = name && b.guestName?.trim().toLowerCase() === name;
-      return matchPhone || matchName;
+      return doBookingsMatchGuestIdentity(booking, b);
     });
-  }, [bookings, booking.id, booking.guestPhone, booking.guestName]);
+  }, [bookings, booking]);
 
   // Configurable states
   const [format, setFormat] = useState<PaperFormat>('thermal-80');

@@ -11,7 +11,9 @@ import { Chambers } from './Chambers';
 import { PrintableInvoice } from './PrintableInvoice';
 import { WhyChooseUs } from './WhyChooseUs';
 import { ExploreDhanmondi } from './ExploreDhanmondi';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw, Trash2, Smartphone, Copy } from 'lucide-react';
+import { computeRepeatGuestBookingIds, checkIsRepeatGuest } from '../utils/guestUtils';
+import { exportBookingsToExcel } from '../utils/excelUtils';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw, Trash2, Smartphone, Copy, FileSpreadsheet } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import { BkashLogo } from './BkashLogo';
 
@@ -314,36 +316,13 @@ export const GuestView: React.FC = () => {
     }
   }, [currentUser, myBookings]);
 
-  // Memoized repeat guest lookup map by contact info (phone/email/name) to count of bookings
-  const guestBookingCounts = useMemo(() => {
-    const countsByPhone: Record<string, number> = {};
-    const countsByEmail: Record<string, number> = {};
-    const countsByName: Record<string, number> = {};
-
-    bookings.forEach(b => {
-      const phone = b.guestPhone?.trim();
-      const email = b.guestEmail?.trim().toLowerCase();
-      const name = b.guestName?.trim().toLowerCase();
-
-      if (phone) countsByPhone[phone] = (countsByPhone[phone] || 0) + 1;
-      if (email) countsByEmail[email] = (countsByEmail[email] || 0) + 1;
-      if (name) countsByName[name] = (countsByName[name] || 0) + 1;
-    });
-
-    return { countsByPhone, countsByEmail, countsByName };
+  // Memoized repeat guest lookup strictly by NID/Passport or Phone number (NOT by name)
+  const repeatGuestBookingIds = useMemo(() => {
+    return computeRepeatGuestBookingIds(bookings);
   }, [bookings]);
 
   const isRepeatGuest = (booking: Booking) => {
-    const phone = booking.guestPhone?.trim();
-    const email = booking.guestEmail?.trim().toLowerCase();
-    const name = booking.guestName?.trim().toLowerCase();
-
-    const phoneCount = phone ? (guestBookingCounts.countsByPhone[phone] || 0) : 0;
-    const emailCount = email ? (guestBookingCounts.countsByEmail[email] || 0) : 0;
-    const nameCount = name ? (guestBookingCounts.countsByName[name] || 0) : 0;
-
-    // A repeat guest has at least 2 distinct bookings in the system under their phone, email, or name
-    return phoneCount > 1 || emailCount > 1 || (nameCount > 1 && !phone && !email);
+    return checkIsRepeatGuest(booking, bookings, repeatGuestBookingIds);
   };
 
   // Compute calculated values for dynamic billing
@@ -1055,6 +1034,26 @@ export const GuestView: React.FC = () => {
                 </button>
               )}
             </div>
+
+            {myBookings.length > 0 && (
+              <button
+                type="button"
+                id="guest-export-excel-btn"
+                onClick={() => {
+                  exportBookingsToExcel(myBookings, `My_Reservations_${myBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Stay'}`);
+                  showToast({
+                    type: 'success',
+                    message: `📥 Downloaded your ${myBookings.length} stay records to Excel (.xlsx)!`
+                  });
+                }}
+                className="px-3.5 py-2 bg-[#0e2b33] hover:bg-[#af8a52] text-[#efe8d8] font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                title="Download your stay details to Excel (.xlsx)"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#efe8d8]" />
+                <span className="hidden sm:inline">Export to Excel</span>
+                <span className="sm:hidden">Excel</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1121,7 +1120,10 @@ export const GuestView: React.FC = () => {
                       <div className="text-xs text-slate-500 flex items-center flex-wrap gap-1.5">
                         <span>Reserved for: <span className="font-semibold text-[#0e2b33]">{booking.guestName}</span></span>
                         {isRepeatGuest(booking) && (
-                          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-[#af8a52]/10 text-[#af8a52] border border-[#af8a52]/30 rounded text-[9px] font-bold uppercase tracking-wide">
+                          <span 
+                            title="Repeat guest matched by Phone or NID/Passport"
+                            className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-[#af8a52]/10 text-[#af8a52] border border-[#af8a52]/30 rounded text-[9px] font-bold uppercase tracking-wide"
+                          >
                             <Sparkles className="w-2.5 h-2.5 text-[#af8a52]" />
                             Repeat Guest
                           </span>

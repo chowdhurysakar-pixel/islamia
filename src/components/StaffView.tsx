@@ -9,6 +9,8 @@ import { Room, Booking, ServiceRequest, RoomType, RoomStatus, BookingStatus, Ser
 import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { OfficialRoomPresets } from './OfficialRoomPresets';
+import { computeRepeatGuestBookingIds, checkIsRepeatGuest } from '../utils/guestUtils';
+import { exportBookingsToExcel } from '../utils/excelUtils';
 import { 
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
@@ -598,36 +600,13 @@ export const StaffView: React.FC = () => {
     });
   }, [serviceRequests, serviceStatusFilter]);
 
-  // Memoized repeat guest lookup map by contact info (phone/email/name) to count of bookings
-  const guestBookingCounts = useMemo(() => {
-    const countsByPhone: Record<string, number> = {};
-    const countsByEmail: Record<string, number> = {};
-    const countsByName: Record<string, number> = {};
-
-    bookings.forEach(b => {
-      const phone = b.guestPhone?.trim();
-      const email = b.guestEmail?.trim().toLowerCase();
-      const name = b.guestName?.trim().toLowerCase();
-
-      if (phone) countsByPhone[phone] = (countsByPhone[phone] || 0) + 1;
-      if (email) countsByEmail[email] = (countsByEmail[email] || 0) + 1;
-      if (name) countsByName[name] = (countsByName[name] || 0) + 1;
-    });
-
-    return { countsByPhone, countsByEmail, countsByName };
+  // Memoized repeat guest lookup strictly by NID/Passport or Phone number (NOT by name)
+  const repeatGuestBookingIds = useMemo(() => {
+    return computeRepeatGuestBookingIds(bookings);
   }, [bookings]);
 
   const isRepeatGuest = (booking: Booking) => {
-    const phone = booking.guestPhone?.trim();
-    const email = booking.guestEmail?.trim().toLowerCase();
-    const name = booking.guestName?.trim().toLowerCase();
-
-    const phoneCount = phone ? (guestBookingCounts.countsByPhone[phone] || 0) : 0;
-    const emailCount = email ? (guestBookingCounts.countsByEmail[email] || 0) : 0;
-    const nameCount = name ? (guestBookingCounts.countsByName[name] || 0) : 0;
-
-    // A repeat guest has at least 2 distinct bookings in the system under their phone, email, or name
-    return phoneCount > 1 || emailCount > 1 || (nameCount > 1 && !phone && !email);
+    return checkIsRepeatGuest(booking, bookings, repeatGuestBookingIds);
   };
 
   // Compute Total Bill breakups for Dhaka Taxes
@@ -644,8 +623,8 @@ export const StaffView: React.FC = () => {
     };
   };
 
-  // Export guest logs to CSV format for offline record keeping
-  const exportGuestLogsToCSV = (dataToExport: Booking[], filenamePrefix = 'HR_Historical_Guest_Archives') => {
+  // Export guest logs to Excel (.xlsx) format for offline record keeping
+  const exportGuestLogsToExcel = (dataToExport: Booking[], filenamePrefix = 'HR_Historical_Guest_Archives') => {
     if (!dataToExport || dataToExport.length === 0) {
       showToast({
         type: 'warning',
@@ -654,76 +633,25 @@ export const StaffView: React.FC = () => {
       return;
     }
 
-    const headers = [
-      'Booking ID',
-      'Guest Name',
-      'Phone Number',
-      'Email Address',
-      'NID Number',
-      'Room Number',
-      'Room Type',
-      'Check In Date',
-      'Check Out Date',
-      'Booking Status',
-      'District (Zila)',
-      'Sub-District (Upazila)',
-      'Reference Name',
-      'Additional Guests',
-      'Kids',
-      'Total Amount (BDT)',
-      'Created Date',
-      'Notes & Incidents'
-    ];
-
-    const escapeCSV = (val: string | number | undefined | null) => {
-      if (val === undefined || val === null) return '""';
-      const str = String(val).replace(/"/g, '""');
-      return `"${str}"`;
-    };
-
-    const csvRows = dataToExport.map(b => {
-      const extraGuestsStr = b.additionalGuests?.map(g => `${g.name}${g.phone ? ' (' + g.phone + ')' : ''}`).join('; ') || 'None';
-      const kidsStr = b.kids?.map(k => `${k.name}${k.age ? ' (' + k.age + 'y)' : ''}`).join('; ') || 'None';
-
-      return [
-        escapeCSV(b.id),
-        escapeCSV(b.guestName),
-        escapeCSV(b.guestPhone),
-        escapeCSV(b.guestEmail || ''),
-        escapeCSV(b.nidNumber || ''),
-        escapeCSV(b.roomNumber || b.roomId),
-        escapeCSV(b.roomType || ''),
-        escapeCSV(b.checkIn),
-        escapeCSV(b.checkOut),
-        escapeCSV(b.status),
-        escapeCSV(b.zila || ''),
-        escapeCSV(b.upazila || ''),
-        escapeCSV(b.referenceName || ''),
-        escapeCSV(extraGuestsStr),
-        escapeCSV(kidsStr),
-        escapeCSV(b.totalAmount || 0),
-        escapeCSV(b.createdAt ? new Date(b.createdAt).toLocaleString() : ''),
-        escapeCSV(b.notes || '')
-      ].join(',');
-    });
-
-    const csvData = '\uFEFF' + [headers.join(','), ...csvRows].join('\n');
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const dateStr = new Date().toISOString().split('T')[0];
-    link.href = url;
-    link.setAttribute('download', `${filenamePrefix}_${dateStr}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    showToast({
-      type: 'success',
-      message: `📥 Exported ${dataToExport.length} guest logs to CSV file successfully!`
-    });
+    try {
+      const success = exportBookingsToExcel(dataToExport, filenamePrefix);
+      if (success) {
+        showToast({
+          type: 'success',
+          message: `📥 Exported ${dataToExport.length} guest logs to Excel (.xlsx) successfully!`
+        });
+      }
+    } catch (err) {
+      console.error('Error generating Excel file:', err);
+      showToast({
+        type: 'error',
+        message: '❌ Failed to export Excel spreadsheet. Please try again.'
+      });
+    }
   };
+
+  // Backwards compatible alias
+  const exportGuestLogsToCSV = exportGuestLogsToExcel;
 
   return (
     <div className="space-y-8">
@@ -1482,7 +1410,7 @@ export const StaffView: React.FC = () => {
               {guestHistoryBookings.length > 0 ? (
                 <div className="space-y-5">
                   
-                  {/* Stats summary of guest history with CSV Export */}
+                  {/* Stats summary of guest history with Excel Export */}
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/50 border border-slate-800 p-4 rounded-2xl">
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
                       <div className="space-y-0.5">
@@ -1511,13 +1439,13 @@ export const StaffView: React.FC = () => {
 
                     <button
                       type="button"
-                      id="export-single-guest-history-csv-btn"
-                      onClick={() => exportGuestLogsToCSV(guestHistoryBookings, `Guest_History_${guestHistoryBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Logs'}`)}
-                      className="px-3.5 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
-                      title="Download guest stay timeline to CSV"
+                      id="export-single-guest-history-excel-btn"
+                      onClick={() => exportGuestLogsToExcel(guestHistoryBookings, `Guest_History_${guestHistoryBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Logs'}`)}
+                      className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
+                      title="Download guest stay timeline to Excel (.xlsx)"
                     >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Export Timeline to CSV</span>
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />
+                      <span>Export Timeline to Excel</span>
                     </button>
                   </div>
 
@@ -1653,17 +1581,17 @@ export const StaffView: React.FC = () => {
                 </p>
               </div>
 
-              {/* Controls & Export to CSV button */}
+              {/* Controls & Export to Excel button */}
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
-                  id="hr-export-csv-btn"
-                  onClick={() => exportGuestLogsToCSV(filteredBookings, opMode === 'hr' ? 'HR_Historical_Guest_Archives' : 'FrontDesk_Reception_Logs')}
+                  id="hr-export-excel-btn"
+                  onClick={() => exportGuestLogsToExcel(filteredBookings, opMode === 'hr' ? 'HR_Historical_Guest_Archives' : 'FrontDesk_Reception_Logs')}
                   className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
-                  title="Export guest logs to CSV file for offline record keeping"
+                  title="Export guest logs to Excel (.xlsx) file for offline record keeping"
                 >
-                  <Download className="w-3.5 h-3.5 text-emerald-100" />
-                  <span>Export to CSV</span>
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-100" />
+                  <span>Export to Excel</span>
                 </button>
 
                 {/* Date Picker Filter for Day-by-Day Guest History */}
@@ -1816,7 +1744,10 @@ export const StaffView: React.FC = () => {
                             <User className="w-3.5 h-3.5 text-slate-400" />
                             <span>{booking.guestName}</span>
                             {isRepeatGuest(booking) && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[8px] font-extrabold uppercase tracking-wide shrink-0 font-sans">
+                              <span 
+                                title="Repeat guest matched by Phone or NID/Passport"
+                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-[8px] font-extrabold uppercase tracking-wide shrink-0 font-sans"
+                              >
                                 <Sparkles className="w-2.5 h-2.5 text-amber-500 fill-amber-400" />
                                 Repeat Guest
                               </span>
