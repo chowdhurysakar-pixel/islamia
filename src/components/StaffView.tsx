@@ -98,10 +98,7 @@ export const StaffView: React.FC = () => {
   const [bookingSearch, setBookingSearch] = useState<string>('');
   const [bookingStatusFilter, setBookingStatusFilter] = useState<BookingStatus | 'all'>('all');
   const [serviceStatusFilter, setServiceStatusFilter] = useState<ServiceRequestStatus | 'all'>('all');
-  const [hrSelectedDate, setHrSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
-  });
-  const [receptionQuickTab, setReceptionQuickTab] = useState<'all' | 'arrivals' | 'departures' | 'in-house'>('all');
+  const [hrSelectedDate, setHrSelectedDate] = useState<string>('');
 
   // HR Searchable Guest History States
   const [guestHistoryPhoneSearch, setGuestHistoryPhoneSearch] = useState<string>('');
@@ -499,7 +496,6 @@ export const StaffView: React.FC = () => {
 
   // Filter Active / Historical bookings for Receptionist & HR Master Guest Ledger
   const filteredBookings = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
     return allCombinedBookings.filter(booking => {
       if (opMode === 'receptionist' && booking.status === 'checked-out' && bookingStatusFilter !== 'all' && bookingStatusFilter !== 'checked-out' && !hrSelectedDate) {
         return false;
@@ -519,69 +515,32 @@ export const StaffView: React.FC = () => {
         (booking.zila && booking.zila.toLowerCase().includes(searchLower)) ||
         (booking.zilaDistrict && booking.zilaDistrict.toLowerCase().includes(searchLower));
 
-      const cin = booking.checkIn || booking.checkInDate || '';
-      const cout = booking.checkOut || booking.checkOutDate || cin;
-
       let matchDate = true;
       if (hrSelectedDate) {
+        const cin = booking.checkIn || booking.checkInDate || '';
+        const cout = booking.checkOut || booking.checkOutDate || cin;
+
         const inRange = Boolean(cin && cout && cin <= hrSelectedDate && cout >= hrSelectedDate);
         const isCin = cin === hrSelectedDate;
         const isCout = cout === hrSelectedDate;
         const isCheckedOutAt = Boolean(booking.checkedOutAt && booking.checkedOutAt.startsWith(hrSelectedDate));
         const isCreatedAt = Boolean(booking.createdAt && booking.createdAt.startsWith(hrSelectedDate));
-        const isCurrentlyInHouse = Boolean(hrSelectedDate === todayStr && booking.status === 'checked-in');
 
-        matchDate = inRange || isCin || isCout || isCheckedOutAt || isCreatedAt || isCurrentlyInHouse;
+        matchDate = inRange || isCin || isCout || isCheckedOutAt || isCreatedAt;
       }
 
-      // Quick tabs for Front Desk receptionists: All, Arrivals, Departures, In-House
-      let matchQuickTab = true;
-      if (receptionQuickTab === 'arrivals') {
-        const isArrival = hrSelectedDate 
-          ? (cin === hrSelectedDate || ((booking.status === 'confirmed' || booking.status === 'pending') && (!cin || cin <= hrSelectedDate)))
-          : (booking.status === 'confirmed' || booking.status === 'pending');
-        matchQuickTab = isArrival;
-      } else if (receptionQuickTab === 'departures') {
-        const isDeparture = hrSelectedDate 
-          ? (cout === hrSelectedDate || (booking.checkedOutAt && booking.checkedOutAt.startsWith(hrSelectedDate)) || (booking.status === 'checked-out' && (!cout || cout <= hrSelectedDate)))
-          : (booking.status === 'checked-out');
-        matchQuickTab = isDeparture;
-      } else if (receptionQuickTab === 'in-house') {
-        matchQuickTab = booking.status === 'checked-in';
-      }
-
-      return matchStatus && matchSearch && matchDate && matchQuickTab;
+      return matchStatus && matchSearch && matchDate;
     });
-  }, [allCombinedBookings, bookingSearch, bookingStatusFilter, opMode, hrSelectedDate, receptionQuickTab]);
+  }, [allCombinedBookings, bookingSearch, bookingStatusFilter, opMode, hrSelectedDate]);
 
-  // Daily Summary Metrics for HR & Staff Ledger (matches Admin Panel daily metrics)
+  // Daily Summary Metrics for HR & Staff Ledger
   const hrDailyMetrics = useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const activeDate = hrSelectedDate || todayStr;
-
-    // Filter reservations active or checked out on activeDate (or all combined if hrSelectedDate is empty)
-    const baseBookings = hrSelectedDate ? allCombinedBookings.filter(b => {
-      if (b.status === 'cancelled') return false;
-      const cin = b.checkIn || b.checkInDate || '';
-      const cout = b.checkOut || b.checkOutDate || cin;
-
-      const inRange = Boolean(cin && cout && cin <= activeDate && cout >= activeDate);
-      const isCin = cin === activeDate;
-      const isCout = cout === activeDate;
-      const isCheckedOutAt = Boolean(b.checkedOutAt && b.checkedOutAt.startsWith(activeDate));
-      const isCreatedAt = Boolean(b.createdAt && b.createdAt.startsWith(activeDate));
-      const isCurrentlyInHouse = Boolean(activeDate === todayStr && b.status === 'checked-in');
-
-      return inRange || isCin || isCout || isCheckedOutAt || isCreatedAt || isCurrentlyInHouse;
-    }) : filteredBookings;
-
     let totalGuests = 0;
     let totalRevenue = 0;
     let checkInsCount = 0;
     let checkOutsCount = 0;
 
-    baseBookings.forEach(b => {
-      if (b.status === 'cancelled') return;
+    filteredBookings.forEach(b => {
       const guests = 
         (b.adultsCount || b.adults || 0) + 
         (b.kidsCount || b.children || 0) + 
@@ -605,43 +564,8 @@ export const StaffView: React.FC = () => {
       }
     });
 
-    // Chamber Occupancy calculation matching Admin Panel
-    const occupiedRoomIds = new Set<string>();
-    allCombinedBookings.forEach(b => {
-      if (b.status === 'checked-in' || b.status === 'confirmed' || b.status === 'occupied') {
-        const cin = b.checkIn || b.checkInDate || '';
-        const cout = b.checkOut || b.checkOutDate || cin;
-        if (cin && cout && cin <= activeDate && cout >= activeDate) {
-          if (b.roomId) occupiedRoomIds.add(b.roomId);
-          if (b.roomNumber) {
-            const matched = rooms.find(r => r.number === b.roomNumber);
-            if (matched) occupiedRoomIds.add(matched.id);
-          }
-        }
-      }
-    });
-
-    if (activeDate === todayStr) {
-      rooms.forEach(r => {
-        if (r.status === 'occupied') occupiedRoomIds.add(r.id);
-      });
-      allCombinedBookings.forEach(b => {
-        if (b.status === 'checked-in') {
-          if (b.roomId) occupiedRoomIds.add(b.roomId);
-          if (b.roomNumber) {
-            const matched = rooms.find(r => r.number === b.roomNumber);
-            if (matched) occupiedRoomIds.add(matched.id);
-          }
-        }
-      });
-    }
-
-    const occupiedChambersCount = Math.min(occupiedRoomIds.size, rooms.length);
-    const totalChambers = rooms.length;
-    const occupancyPercentage = totalChambers > 0 ? Math.round((occupiedChambersCount / totalChambers) * 100) : 0;
-
-    return { totalGuests, totalRevenue, checkInsCount, checkOutsCount, occupiedChambersCount, totalChambers, occupancyPercentage };
-  }, [allCombinedBookings, filteredBookings, hrSelectedDate, rooms]);
+    return { totalGuests, totalRevenue, checkInsCount, checkOutsCount };
+  }, [filteredBookings, hrSelectedDate]);
 
   // HR Archival Only Customer Database List
   const hrHistoricalBookings = useMemo(() => {
@@ -1719,21 +1643,10 @@ export const StaffView: React.FC = () => {
             {/* Header stays log & switch tabs */}
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-serif text-lg font-bold text-slate-800">
-                    {opMode === 'hr' ? 'HR Historical Guest Archives & Registries' : 'Active Reception Logs'}
-                  </h2>
-                  {hrSelectedDate ? (
-                    <span className="px-2.5 py-0.5 bg-teal-50 text-teal-700 border border-teal-200/80 rounded-full text-[11px] font-mono font-bold">
-                      {hrSelectedDate === new Date().toISOString().split('T')[0] ? 'Today’s Live Logs' : hrSelectedDate}
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[11px] font-mono">
-                      All Stays History
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <h2 className="font-serif text-lg font-bold text-slate-800">
+                  {opMode === 'hr' ? 'HR Historical Guest Archives & Registries' : 'Active Reception Logs'}
+                </h2>
+                <p className="text-xs text-slate-400">
                   {opMode === 'hr' 
                     ? 'Audit book records, analyze National ID card entries, and trace billing histories.' 
                     : 'Manage current day check-ins, guest departures, and print invoices.'}
@@ -1754,43 +1667,29 @@ export const StaffView: React.FC = () => {
                 </button>
 
                 {/* Date Picker Filter for Day-by-Day Guest History */}
-                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5 focus-within:border-teal-500">
+                <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-2 focus-within:border-teal-500">
                   <Calendar className="w-3.5 h-3.5 text-teal-600 shrink-0" />
                   <input
                     type="date"
                     id="hr-ledger-date-picker"
                     value={hrSelectedDate}
                     onChange={(e) => setHrSelectedDate(e.target.value)}
-                    className="bg-transparent text-xs text-slate-800 font-mono font-bold focus:outline-none cursor-pointer"
+                    className="bg-transparent text-xs text-slate-700 font-medium focus:outline-none cursor-pointer"
                     title="Filter guest history by specific date"
                   />
                 </div>
 
-                {/* Today Button matching Admin Panel */}
-                {hrSelectedDate !== new Date().toISOString().split('T')[0] && (
-                  <button
-                    type="button"
-                    id="staff-ledger-today-btn"
-                    onClick={() => setHrSelectedDate(new Date().toISOString().split('T')[0])}
-                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
-                    title="Reset date filter to today's date"
-                  >
-                    <RotateCcw className="w-3 h-3 text-slate-600" />
-                    <span>Today</span>
-                  </button>
-                )}
-
-                {/* All Dates Button */}
+                {/* Reset Date Button */}
                 {hrSelectedDate && (
                   <button
                     type="button"
-                    id="staff-ledger-all-history-btn"
+                    id="hr-ledger-date-reset-btn"
                     onClick={() => setHrSelectedDate('')}
-                    className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
-                    title="View all history records across all dates"
+                    className="px-2.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                    title="Clear date filter to view all history"
                   >
-                    <History className="w-3 h-3 text-slate-500" />
-                    <span>All Dates</span>
+                    <RotateCcw className="w-3 h-3 text-rose-600" />
+                    <span>Reset Date</span>
                   </button>
                 )}
 
@@ -1799,13 +1698,12 @@ export const StaffView: React.FC = () => {
                     id="staff-booking-status-filter"
                     value={bookingStatusFilter}
                     onChange={(e) => setBookingStatusFilter(e.target.value as BookingStatus | 'all')}
-                    className="bg-slate-50 text-xs border border-slate-200/80 rounded-xl px-3 py-2 text-slate-700 font-semibold focus:outline-none"
+                    className="bg-slate-50 text-xs border border-slate-200/80 rounded-xl px-3 py-2 text-slate-600 focus:outline-none"
                   >
-                    <option value="all">All Statuses</option>
-                    <option value="checked-in">Checked-In</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="checked-out">Checked-Out</option>
+                    <option value="all">All Stays</option>
                     <option value="pending">Pending</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="checked-in">Checked In</option>
                     <option value="cancelled">Cancelled</option>
                   </select>
                 )}
@@ -1820,21 +1718,21 @@ export const StaffView: React.FC = () => {
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-teal-200 flex items-center gap-2">
-                    <span>Daily Guest Report</span>
+                    <span>Day-by-Day Summary</span>
                     {hrSelectedDate ? (
                       <span className="px-2.5 py-0.5 bg-teal-500/25 text-teal-300 rounded-full text-[10px] font-mono border border-teal-500/40 font-bold">
-                        📅 {hrSelectedDate}{hrSelectedDate === new Date().toISOString().split('T')[0] ? ' (Today)' : ''}
+                        📅 {hrSelectedDate}
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded-full text-[10px]">
-                        All Records
+                        All History
                       </span>
                     )}
                   </h4>
                   <p className="text-[11px] text-slate-300 mt-0.5">
                     {hrSelectedDate 
-                      ? `Guest details, earned revenue, and check-in/out summary for ${hrSelectedDate}` 
-                      : 'Select a date from the date picker above to filter guest history and summary.'}
+                      ? `Guest count, earned revenue, and check-in/out counts for ${hrSelectedDate}` 
+                      : 'Select a date from the date picker above to view daily guest history and summary metrics.'}
                   </p>
                 </div>
               </div>
@@ -1868,91 +1766,8 @@ export const StaffView: React.FC = () => {
                     </p>
                   </div>
                 </div>
-
-                {/* Metric 4: Room Occupancy matching Admin Panel */}
-                <div className="bg-white/10 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-white/10 flex items-center gap-2.5">
-                  <Building className="w-4 h-4 text-teal-400 shrink-0" />
-                  <div>
-                    <p className="text-[9px] uppercase tracking-wider text-slate-300 font-semibold">Room Occupancy</p>
-                    <p className="text-xs font-bold font-mono text-teal-200">
-                      {hrDailyMetrics.occupancyPercentage}% ({hrDailyMetrics.occupiedChambersCount}/{hrDailyMetrics.totalChambers})
-                    </p>
-                  </div>
-                </div>
               </div>
             </div>
-
-            {/* Quick Filter Tabs for Front Desk (Arrivals, Departures, In-House, All) */}
-            {opMode !== 'hr' && (
-              <div className="flex items-center gap-2 flex-wrap border-b border-slate-100 pb-3">
-                <button
-                  type="button"
-                  id="reception-tab-all"
-                  onClick={() => setReceptionQuickTab('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                    receptionQuickTab === 'all'
-                      ? 'bg-slate-900 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                  }`}
-                >
-                  <span>All Daily Activity</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                    receptionQuickTab === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                  }`}>
-                    {filteredBookings.length}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  id="reception-tab-arrivals"
-                  onClick={() => setReceptionQuickTab('arrivals')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                    receptionQuickTab === 'arrivals'
-                      ? 'bg-emerald-700 text-white shadow-xs'
-                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/50'
-                  }`}
-                >
-                  <span>📥 Arrivals / Check-Ins</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                    receptionQuickTab === 'arrivals' ? 'bg-white/20 text-white' : 'bg-emerald-200/70 text-emerald-900'
-                  }`}>
-                    {hrDailyMetrics.checkInsCount}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  id="reception-tab-departures"
-                  onClick={() => setReceptionQuickTab('departures')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                    receptionQuickTab === 'departures'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/50'
-                  }`}
-                >
-                  <span>📤 Departures / Check-Outs</span>
-                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                    receptionQuickTab === 'departures' ? 'bg-white/20 text-white' : 'bg-amber-200/70 text-amber-900'
-                  }`}>
-                    {hrDailyMetrics.checkOutsCount}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  id="reception-tab-in-house"
-                  onClick={() => setReceptionQuickTab('in-house')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer flex items-center gap-1.5 ${
-                    receptionQuickTab === 'in-house'
-                      ? 'bg-teal-700 text-white shadow-xs'
-                      : 'bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200/50'
-                  }`}
-                >
-                  <span>🏨 In-House (Checked-In)</span>
-                </button>
-              </div>
-            )}
 
             {/* Live Search Search Bar */}
             <div className="relative">

@@ -238,12 +238,9 @@ const MainLayout: React.FC = () => {
             <div className="flex items-center gap-2.5">
               {brandLogo && (
                 <img 
-                  src={brandLogo || '/logo.png'} 
+                  src={brandLogo} 
                   alt="Islamia Guest House Logo" 
-                  className="h-6 w-auto object-contain shrink-0 bg-transparent" 
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/logo.png';
-                  }}
+                  className="h-6 w-auto object-contain shrink-0" 
                 />
               )}
               <p className="text-xs text-slate-500 font-medium">
