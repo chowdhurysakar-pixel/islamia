@@ -36,6 +36,8 @@ export interface Booking {
   roomId: string;
   roomNumber?: string;
   roomType?: string;
+  roomIds?: string[];
+  roomNumbers?: string[];
   userId?: string | null;
   guestName: string;
   guestEmail: string;
@@ -45,6 +47,7 @@ export interface Booking {
   zila?: string;
   additionalGuests?: { name: string; phone: string; }[];
   referenceName?: string;
+  referenceFee?: number;
   kids?: { name: string; age: string; }[];
   expectedPersonCount?: number;
   checkIn: string; // YYYY-MM-DD

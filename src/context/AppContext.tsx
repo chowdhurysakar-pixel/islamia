@@ -18,6 +18,7 @@ import {
   deleteDoc, 
   onSnapshot, 
   getDoc,
+  getDocs,
   getDocFromServer,
   Timestamp,
   query,
@@ -90,6 +91,7 @@ interface AppContextType {
   // Room Actions
   addRoom: (room: Omit<Room, 'id'>) => Promise<void>;
   updateRoomStatus: (roomId: string, status: RoomStatus) => Promise<void>;
+  batchUpdateRoomStatus: (roomIds: string[], status: RoomStatus) => Promise<void>;
   editRoomDetails: (roomId: string, updates: Partial<Room>) => Promise<void>;
   deleteRoom: (roomId: string) => Promise<void>;
   // Booking Actions
@@ -99,6 +101,9 @@ interface AppContextType {
   checkOutGuest: (bookingId: string, details?: { finalBillAmount?: number; paymentStatus?: 'pending' | 'paid' | 'unpaid' | 'partial'; paymentMethod?: 'cash' | 'card' | 'bKash' | 'other'; notes?: string }) => Promise<void>;
   addBookingNotes: (bookingId: string, notes: string) => Promise<void>;
   deleteBooking: (bookingId: string) => Promise<void>;
+  clearAllBookings: () => Promise<void>;
+  updateBooking: (bookingId: string, updates: Partial<Booking>) => Promise<void>;
+  batchUpdateBookings: (updatedBookings: Booking[]) => Promise<void>;
   updateBookingPayment: (bookingId: string, paymentStatus: string, paidAmount: number, paymentMethod?: string) => Promise<void>;
   // Service Request Actions
   createServiceRequest: (request: Omit<ServiceRequest, 'id' | 'createdAt'>) => Promise<void>;
@@ -752,20 +757,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (storedBookings) {
         try {
           const parsedB = JSON.parse(storedBookings);
-          const normalizedB = Array.isArray(parsedB) ? parsedB.map((b: Booking) => {
-            if (b.guestPhone && b.guestPhone.includes('555')) {
-              return { ...b, guestPhone: '01832-841818', guestName: b.guestName === 'Robert Sterling' ? 'Md. Rafiqul Islam' : b.guestName };
-            }
-            return b;
-          }) : INITIAL_BOOKINGS;
+          const normalizedB = Array.isArray(parsedB) ? parsedB : [];
           setBookings(normalizedB);
           localStorage.setItem('hotel_bookings', JSON.stringify(normalizedB));
         } catch (e) {
-          setBookings(INITIAL_BOOKINGS);
+          setBookings([]);
+          localStorage.setItem('hotel_bookings', JSON.stringify([]));
         }
       } else {
-        localStorage.setItem('hotel_bookings', JSON.stringify(INITIAL_BOOKINGS));
-        setBookings(INITIAL_BOOKINGS);
+        localStorage.setItem('hotel_bookings', JSON.stringify([]));
+        setBookings([]);
       }
 
       if (storedServices) {
@@ -898,27 +899,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // 1. All portals (Staff & Guest View) subscribe to all bookings in real time for instant updates
     unsubBookings = onSnapshot(collection(db, 'bookings'), (snapshot) => {
-      if (!snapshot.empty) {
-        hasSeededBookingsRef.current = true;
-        const bookingsList: Booking[] = [];
-        snapshot.forEach((docSnap) => {
-          bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
-        });
-        setBookings(bookingsList);
-      } else {
-        if (!hasSeededBookingsRef.current) {
-          hasSeededBookingsRef.current = true;
-          INITIAL_BOOKINGS.forEach(async (b) => {
-            try {
-              await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b));
-            } catch (e) {
-              console.warn("Failed to seed initial booking:", e);
-            }
-          });
-        } else {
-          setBookings([]);
-        }
-      }
+      const bookingsList: Booking[] = [];
+      snapshot.forEach((docSnap) => {
+        bookingsList.push({ id: docSnap.id, ...docSnap.data() } as Booking);
+      });
+      setBookings(bookingsList);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'bookings');
     });
@@ -2054,6 +2039,28 @@ Islamia Guest House Dhanmondi System`;
     }
   };
 
+  const batchUpdateRoomStatus = async (roomIds: string[], status: RoomStatus) => {
+    if (!roomIds || roomIds.length === 0) return;
+    // Optimistically update local state & localStorage immediately
+    const updatedRooms = rooms.map(r => roomIds.includes(r.id) ? { ...r, status } : r);
+    setRooms(updatedRooms);
+    try {
+      localStorage.setItem('hotel_rooms', JSON.stringify(updatedRooms));
+    } catch (e) {
+      console.error("Failed saving updated room statuses to localStorage:", e);
+    }
+
+    if (isFirebaseActive && db) {
+      try {
+        for (const rId of roomIds) {
+          await updateDoc(doc(db, 'rooms', rId), sanitizeFirestoreData({ status })).catch(() => {});
+        }
+      } catch (error) {
+        console.warn("Notice batch updating rooms in Firestore:", error);
+      }
+    }
+  };
+
   const editRoomDetails = async (roomId: string, updates: Partial<Room>) => {
     // Optimistically update local state & localStorage immediately
     const updatedRooms = rooms.map(r => r.id === roomId ? { ...r, ...updates } : r);
@@ -2249,8 +2256,9 @@ Islamia Guest House, Dhanmondi`;
 
     // Optimistically update local state immediately so UI updates instantly
     setBookings(prev => [newBooking, ...prev.filter(b => b.id !== bookingId)]);
+    const targetRoomIds = (bookingData.roomIds && bookingData.roomIds.length > 0) ? bookingData.roomIds : [bookingData.roomId];
     if ((bookingData.checkIn && bookingData.checkOut && bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
-      setRooms(prev => prev.map(r => r.id === bookingData.roomId ? { ...r, status: 'occupied' } : r));
+      setRooms(prev => prev.map(r => targetRoomIds.includes(r.id) ? { ...r, status: 'occupied' } : r));
     }
 
     if (isFirebaseActive && db) {
@@ -2258,7 +2266,9 @@ Islamia Guest House, Dhanmondi`;
       try {
         await setDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData(newBooking));
         if ((bookingData.checkIn && bookingData.checkOut && bookingData.checkIn <= todayStr && bookingData.checkOut >= todayStr) || bookingData.status === 'checked-in') {
-          await updateDoc(doc(db, 'rooms', bookingData.roomId), sanitizeFirestoreData({ status: 'occupied' }));
+          for (const rId of targetRoomIds) {
+            await updateDoc(doc(db, 'rooms', rId), sanitizeFirestoreData({ status: 'occupied' })).catch(() => {});
+          }
         }
       } catch (error) {
         console.warn("Firestore save delay/warning in createBooking:", error);
@@ -2293,18 +2303,22 @@ Islamia Guest House, Dhanmondi`;
       ...(details?.notes ? { notes: details.notes } : {})
     };
 
+    const checkoutRoomIds = (targetBooking?.roomIds && targetBooking.roomIds.length > 0) 
+      ? targetBooking.roomIds 
+      : (targetBooking ? [targetBooking.roomId] : []);
+
     // 1. Optimistic local state update
     setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...checkoutPayload } : b));
-    if (targetBooking) {
-      setRooms(prev => prev.map(r => r.id === targetBooking.roomId ? { ...r, status: 'cleaning' } : r));
+    if (checkoutRoomIds.length > 0) {
+      setRooms(prev => prev.map(r => checkoutRoomIds.includes(r.id) ? { ...r, status: 'cleaning' } : r));
     }
 
     // 2. Lifetime Storage in Firestore DB (both in main bookings and archived_bookings)
     if (isFirebaseActive && db) {
       try {
         await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData(checkoutPayload));
-        if (targetBooking) {
-          await updateDoc(doc(db, 'rooms', targetBooking.roomId), sanitizeFirestoreData({ status: 'cleaning' }));
+        for (const rId of checkoutRoomIds) {
+          await updateDoc(doc(db, 'rooms', rId), sanitizeFirestoreData({ status: 'cleaning' })).catch(() => {});
         }
 
         // Always preserve a lifetime record in archived_bookings collection
@@ -2392,11 +2406,76 @@ Islamia Guest House, Dhanmondi`;
     setBookings(prev => prev.filter(b => b.id !== bookingId));
     setArchivedBookings(prev => prev.filter(b => b.id !== bookingId));
 
+    try {
+      localStorage.setItem('hotel_bookings', JSON.stringify(bookings.filter(b => b.id !== bookingId)));
+    } catch (e) {}
+
     if (isFirebaseActive && db) {
       try {
         await deleteDoc(doc(db, 'bookings', bookingId));
+        await deleteDoc(doc(db, 'archived_bookings', bookingId)).catch(() => {});
       } catch (e) {
         console.warn("Firestore delete booking error:", e);
+      }
+    }
+  };
+
+  const clearAllBookings = async () => {
+    setBookings([]);
+    setArchivedBookings([]);
+    const resetRooms = rooms.map(r => ({ ...r, status: 'available' as RoomStatus }));
+    setRooms(resetRooms);
+
+    try {
+      localStorage.setItem('hotel_bookings', JSON.stringify([]));
+      localStorage.setItem('hotel_rooms', JSON.stringify(resetRooms));
+    } catch (e) {}
+
+    if (isFirebaseActive && db) {
+      try {
+        const snap = await getDocs(collection(db, 'bookings'));
+        for (const d of snap.docs) {
+          await deleteDoc(doc(db, 'bookings', d.id)).catch(() => {});
+        }
+        const archSnap = await getDocs(collection(db, 'archived_bookings'));
+        for (const d of archSnap.docs) {
+          await deleteDoc(doc(db, 'archived_bookings', d.id)).catch(() => {});
+        }
+        for (const r of rooms) {
+          await updateDoc(doc(db, 'rooms', r.id), { status: 'available' }).catch(() => {});
+        }
+      } catch (e) {
+        console.warn("Firestore clearAllBookings error:", e);
+      }
+    }
+  };
+
+  const updateBooking = async (bookingId: string, updates: Partial<Booking>) => {
+    setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...updates } : b));
+    setArchivedBookings(prev => prev.map(b => b.id === bookingId ? { ...b, ...updates } : b));
+
+    if (isFirebaseActive && db) {
+      try {
+        await updateDoc(doc(db, 'bookings', bookingId), sanitizeFirestoreData(updates));
+      } catch (e) {
+        console.warn("Firestore updateBooking error (using local fallback):", e);
+      }
+    }
+  };
+
+  const batchUpdateBookings = async (updatedBookingsList: Booking[]) => {
+    setBookings(updatedBookingsList);
+    try {
+      localStorage.setItem('hotel_bookings', JSON.stringify(updatedBookingsList));
+    } catch (e) {}
+
+    if (isFirebaseActive && db) {
+      for (const b of updatedBookingsList) {
+        try {
+          await setDoc(doc(db, 'bookings', b.id), sanitizeFirestoreData(b), { merge: true });
+        } catch (e) {
+          console.warn("Firestore batch booking update warning:", e);
+        }
       }
     }
   };
@@ -2594,6 +2673,7 @@ Islamia Guest House, Dhanmondi`;
       sendPasswordResetLink,
       addRoom,
       updateRoomStatus,
+      batchUpdateRoomStatus,
       editRoomDetails,
       deleteRoom,
       createBooking,
@@ -2602,6 +2682,9 @@ Islamia Guest House, Dhanmondi`;
       checkOutGuest,
       addBookingNotes,
       deleteBooking,
+      clearAllBookings,
+      updateBooking,
+      batchUpdateBookings,
       updateBookingPayment,
       createServiceRequest,
       updateServiceRequestStatus,

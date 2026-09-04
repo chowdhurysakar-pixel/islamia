@@ -335,13 +335,15 @@ export const RoomCard: React.FC<RoomCardProps> = ({ room, onBookClick, onStatusC
       </div>
 
       {/* Edit Room Details Modal for HR/Admin */}
-      <EditRoomModal
-        room={room}
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSave={editRoomDetails}
-        showToast={showToast}
-      />
+      {isEditModalOpen && (
+        <EditRoomModal
+          room={room}
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={editRoomDetails}
+          showToast={showToast}
+        />
+      )}
     </div>
   );
 };

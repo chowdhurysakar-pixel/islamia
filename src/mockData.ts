@@ -172,58 +172,6 @@ export const INITIAL_ROOMS: Room[] = OFFICIAL_ROOM_TEMPLATES.map((tmpl, idx) => 
   id: tmpl.number || String(idx + 101)
 }));
 
-export const INITIAL_BOOKINGS: Booking[] = [
-  {
-    id: 'B001',
-    roomId: '101',
-    userId: 'mock-user-1',
-    guestName: 'Md. Rafiqul Islam',
-    guestEmail: 'rafiqul.islam@example.com',
-    guestPhone: '01832-841818',
-    checkIn: '2026-08-01',
-    checkOut: '2026-08-07',
-    totalAmount: 15000,
-    status: 'checked-in',
-    notes: 'Medical visit to Ibne Sina Hospital.',
-    createdAt: '2026-07-15T14:32:00Z'
-  },
-  {
-    id: 'B002',
-    roomId: '102',
-    userId: 'mock-user-2',
-    guestName: 'Farhana Chowdhury',
-    guestEmail: 'farhana.chowdhury@example.com',
-    guestPhone: '01712-345678',
-    checkIn: '2026-08-10',
-    checkOut: '2026-08-14',
-    totalAmount: 10000,
-    status: 'checked-out',
-    notes: 'Family visit in Dhanmondi.',
-    createdAt: '2026-07-20T10:15:00Z'
-  },
-  {
-    id: 'B003',
-    roomId: '302',
-    userId: 'mock-user-3',
-    guestName: 'Tanvir Ahmed',
-    guestEmail: 'tanvir.ahmed@example.com',
-    guestPhone: '01909-806960',
-    checkIn: '2026-08-15',
-    checkOut: '2026-08-18',
-    totalAmount: 8400,
-    status: 'confirmed',
-    notes: 'Executive corporate guest.',
-    createdAt: '2026-07-22T12:00:00Z'
-  }
-];
+export const INITIAL_BOOKINGS: Booking[] = [];
 
-export const INITIAL_SERVICES: ServiceRequest[] = [
-  {
-    id: 'SR001',
-    roomId: '101',
-    type: 'room-service',
-    description: 'Request for clean drinking water bottle and extra towel set.',
-    status: 'pending',
-    createdAt: '2026-08-03T00:10:00Z'
-  }
-];
+export const INITIAL_SERVICES: ServiceRequest[] = [];

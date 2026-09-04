@@ -18,7 +18,12 @@ import {
   ChevronRight, BarChart3, PieChart, Download, FileSpreadsheet, Eye, EyeOff, KeyRound,
   Calendar, RotateCcw, ArrowUpDown, Upload, Loader2, Star, MessageSquare
 } from 'lucide-react';
-import { exportBookingsToExcel, exportReviewsToExcel, exportStaffToExcel } from '../utils/excelUtils';
+import { 
+  exportBookingsToExcel, exportReviewsToExcel, exportStaffToExcel,
+  buildBookingsExcelData, buildReviewsExcelData, buildStaffExcelData,
+  ExcelSpreadsheetData 
+} from '../utils/excelUtils';
+import { ExcelViewerModal } from './ExcelViewerModal';
 
 const processUploadedImage = async (file: File): Promise<string> => {
   return await removeBlackBackground(file, { forceBlack: false });
@@ -37,6 +42,7 @@ export const AdminPanel: React.FC = () => {
     deleteRoom,
     updateBookingStatus,
     deleteBooking,
+    clearAllBookings,
     deleteFeedback,
     opMode,
     setOpMode,
@@ -57,6 +63,9 @@ export const AdminPanel: React.FC = () => {
 
   // Admin Active Tab
   const [activeTab, setActiveTab] = useState<'analytics' | 'staff' | 'chambers' | 'reservations' | 'reviews' | 'settings'>('analytics');
+
+  // Interactive In-Browser Excel Spreadsheet Viewer State
+  const [activeExcelPreview, setActiveExcelPreview] = useState<ExcelSpreadsheetData | null>(null);
 
   // Change Admin Password State & Toggles
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
@@ -548,6 +557,24 @@ export const AdminPanel: React.FC = () => {
         showToast({
           type: 'error',
           message: err?.message || 'Failed to delete reservation.'
+        });
+      }
+    }
+  };
+
+  // Clear all reservations handler
+  const handleClearAllBookings = async () => {
+    if (window.confirm('⚠️ Are you sure you want to delete ALL reservation records for a clean fresh start? This will permanently remove all booking records and reset all rooms to Available.')) {
+      try {
+        await clearAllBookings();
+        showToast({
+          type: 'success',
+          message: '✨ All previous booking records cleared successfully. Ready for a new start!'
+        });
+      } catch (err: any) {
+        showToast({
+          type: 'error',
+          message: err?.message || 'Failed to clear booking records.'
         });
       }
     }
@@ -1376,14 +1403,33 @@ export const AdminPanel: React.FC = () => {
 
                   <button
                     type="button"
+                    id="admin-view-staff-excel-btn"
+                    onClick={() => {
+                      if (!filteredStaff || filteredStaff.length === 0) {
+                        showToast({ type: 'warning', message: '⚠️ No staff records available to view in Excel.' });
+                        return;
+                      }
+                      const data = buildStaffExcelData(filteredStaff, 'Hotel Staff Personnel Roster', 'Hotel_Staff_Personnel_Roster');
+                      setActiveExcelPreview(data);
+                    }}
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                    title="Visit and preview staff personnel roster in Excel without downloading"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-emerald-100" />
+                    <span className="hidden sm:inline">Visit Excel</span>
+                    <span className="sm:hidden">Visit</span>
+                  </button>
+
+                  <button
+                    type="button"
                     id="admin-export-staff-excel-btn"
                     onClick={exportStaffLogsToExcel}
-                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                    className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 border border-slate-700"
                     title="Export personnel records to Excel (.xlsx)"
                   >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-100" />
-                    <span className="hidden sm:inline">Export to Excel</span>
-                    <span className="sm:hidden">Excel</span>
+                    <Download className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="hidden sm:inline">Download .xlsx</span>
+                    <span className="sm:hidden">.xlsx</span>
                   </button>
                 </div>
               </div>
@@ -1713,14 +1759,49 @@ export const AdminPanel: React.FC = () => {
               <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
                 <button
                   type="button"
-                  id="admin-export-excel-btn"
-                  onClick={() => exportGuestLogsToExcel(filteredBookings, 'Master_Guest_Reservation_Ledger')}
+                  id="admin-view-excel-btn"
+                  onClick={() => {
+                    if (!filteredBookings || filteredBookings.length === 0) {
+                      showToast({ type: 'warning', message: '⚠️ No reservation records available to view in Excel.' });
+                      return;
+                    }
+                    const data = buildBookingsExcelData(
+                      filteredBookings, 
+                      'Islamia Guest House — Master Reservation & Billing Ledger', 
+                      'Islamia_Guest_House_Master_Export'
+                    );
+                    setActiveExcelPreview(data);
+                  }}
                   className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                  title="Visit and preview Excel spreadsheet directly in browser without downloading"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-100" />
+                  <span>Visit Excel Sheet</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="admin-export-excel-btn"
+                  onClick={() => exportBookingsToExcel(filteredBookings, 'Islamia_Guest_House_Master_Export')}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 border border-slate-700"
                   title="Export master reservation ledger to Excel (.xlsx) for offline record keeping"
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-100" />
-                  <span>Export to Excel</span>
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Download .xlsx</span>
                 </button>
+
+                {bookings.length > 0 && (
+                  <button
+                    type="button"
+                    id="admin-clear-all-bookings-btn"
+                    onClick={handleClearAllBookings}
+                    className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs transition flex items-center gap-1.5 border border-rose-200 shadow-xs cursor-pointer shrink-0"
+                    title="Delete all previous booking records and reset all rooms for a clean start"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Clear All Records</span>
+                  </button>
+                )}
 
                 <select
                   value={reservationStatusFilter}
@@ -2070,16 +2151,35 @@ export const AdminPanel: React.FC = () => {
                 </select>
               </div>
 
+              {/* Visit Reviews in Excel Button */}
+              <button
+                type="button"
+                id="admin-view-reviews-excel-btn"
+                onClick={() => {
+                  if (!filteredReviews || filteredReviews.length === 0) {
+                    showToast({ type: 'warning', message: '⚠️ No reviews available to view in Excel.' });
+                    return;
+                  }
+                  const data = buildReviewsExcelData(filteredReviews, 'Verified Guest Reviews & Ratings', 'Hotel_Guest_Reviews');
+                  setActiveExcelPreview(data);
+                }}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                title="Visit and preview guest reviews in Excel without downloading"
+              >
+                <Eye className="w-3.5 h-3.5 text-emerald-100" />
+                <span>Visit Excel</span>
+              </button>
+
               {/* Export Reviews to Excel Button */}
               <button
                 type="button"
                 id="admin-export-reviews-excel-btn"
                 onClick={exportReviewsLogsToExcel}
-                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 border border-slate-700"
                 title="Export guest reviews to Excel (.xlsx) file"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-100" />
-                <span>Export Reviews to Excel</span>
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Download .xlsx</span>
               </button>
             </div>
           </div>
@@ -2768,6 +2868,14 @@ export const AdminPanel: React.FC = () => {
           booking={selectedInvoiceBooking}
           rooms={rooms}
           onClose={() => setSelectedInvoiceBooking(null)}
+        />
+      )}
+
+      {/* Interactive In-Browser Excel Spreadsheet Modal (No Download Required) */}
+      {activeExcelPreview && (
+        <ExcelViewerModal 
+          data={activeExcelPreview} 
+          onClose={() => setActiveExcelPreview(null)} 
         />
       )}
     </div>

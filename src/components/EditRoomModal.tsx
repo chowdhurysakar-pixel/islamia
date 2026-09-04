@@ -116,10 +116,9 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
   onSave,
   showToast
 }) => {
-  if (!isOpen || !room) return null;
-
   // Helper for human-friendly category title fallback
-  const getInitialTitle = (r: Room) => {
+  const getInitialTitle = (r?: Room | null) => {
+    if (!r) return '';
     if (r.title) return r.title;
     switch (r.number) {
       case '101': return 'Double Deluxe';
@@ -133,25 +132,26 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
     }
   };
 
-  const [title, setTitle] = useState<string>(getInitialTitle(room));
-  const [number, setNumber] = useState<string>(room.number || '');
-  const [price, setPrice] = useState<number>(room.price || 0);
-  const [type, setType] = useState<RoomType>(room.type || 'double');
-  const [status, setStatus] = useState<RoomStatus>(room.status || 'available');
-  const [capacity, setCapacity] = useState<number>(room.capacity || 2);
-  const [capacityText, setCapacityText] = useState<string>(room.capacityText || `${room.capacity || 2} Adults`);
-  const [bedSize, setBedSize] = useState<string>(room.bedSize || '');
-  const [windows, setWindows] = useState<string>(room.windows || '');
-  const [toilet, setToilet] = useState<string>(room.toilet || '');
-  const [extra, setExtra] = useState<string>(room.extra || '');
-  const [startingPriceBanner, setStartingPriceBanner] = useState<string>(room.startingPriceBanner || '');
-  const [description, setDescription] = useState<string>(room.description || '');
-  const [amenities, setAmenities] = useState<string[]>(room.amenities || []);
+  const [title, setTitle] = useState<string>(() => getInitialTitle(room));
+  const [number, setNumber] = useState<string>(room?.number || '');
+  const [price, setPrice] = useState<number>(room?.price || 0);
+  const [type, setType] = useState<RoomType>(room?.type || 'double');
+  const [status, setStatus] = useState<RoomStatus>(room?.status || 'available');
+  const [capacity, setCapacity] = useState<number>(room?.capacity || 2);
+  const [capacityText, setCapacityText] = useState<string>(room?.capacityText || `${room?.capacity || 2} Adults`);
+  const [bedSize, setBedSize] = useState<string>(room?.bedSize || '');
+  const [windows, setWindows] = useState<string>(room?.windows || '');
+  const [toilet, setToilet] = useState<string>(room?.toilet || '');
+  const [extra, setExtra] = useState<string>(room?.extra || '');
+  const [startingPriceBanner, setStartingPriceBanner] = useState<string>(room?.startingPriceBanner || '');
+  const [description, setDescription] = useState<string>(room?.description || '');
+  const [amenities, setAmenities] = useState<string[]>(room?.amenities || []);
   const [customAmenity, setCustomAmenity] = useState<string>('');
   
-  const [images, setImages] = useState<string[]>(
-    room.images && room.images.length > 0 ? room.images : (room.image ? [room.image] : [])
-  );
+  const [images, setImages] = useState<string[]>(() => {
+    if (!room) return [];
+    return room.images && room.images.length > 0 ? room.images : (room.image ? [room.image] : []);
+  });
   const [imageUrlInput, setImageUrlInput] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState<boolean>(false);
@@ -306,6 +306,8 @@ export const EditRoomModal: React.FC<EditRoomModalProps> = ({
       setIsSaving(false);
     }
   };
+
+  if (!isOpen || !room) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">

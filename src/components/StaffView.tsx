@@ -10,13 +10,14 @@ import { RoomCard } from './RoomCard';
 import { PrintableInvoice } from './PrintableInvoice';
 import { OfficialRoomPresets } from './OfficialRoomPresets';
 import { computeRepeatGuestBookingIds, checkIsRepeatGuest } from '../utils/guestUtils';
-import { exportBookingsToExcel } from '../utils/excelUtils';
+import { exportBookingsToExcel, buildBookingsExcelData, ExcelSpreadsheetData } from '../utils/excelUtils';
+import { ExcelViewerModal } from './ExcelViewerModal';
 import { 
   Building, CheckSquare, Clock, AlertCircle, Sparkles, Filter, 
   Search, ShieldAlert, BadgeInfo, Play, CheckCircle2, TicketPlus, 
   Plus, ChevronRight, Receipt, Printer, UserCheck, MapPin, 
   CreditCard, History, User, Check, X, ShieldCheck, Settings, Lock, Trash2, Download, FileSpreadsheet, Loader2, Upload,
-  Calendar, RotateCcw, DollarSign, Users, ArrowUpDown, Smartphone
+  Calendar, RotateCcw, DollarSign, Users, ArrowUpDown, Smartphone, Eye
 } from 'lucide-react';
 
 const processUploadedImage = (file: File): Promise<string> => {
@@ -79,6 +80,7 @@ export const StaffView: React.FC = () => {
     serviceRequests, 
     addRoom, 
     updateRoomStatus, 
+    batchUpdateRoomStatus,
     editRoomDetails,
     deleteRoom,
     createBooking,
@@ -102,6 +104,9 @@ export const StaffView: React.FC = () => {
   const [serviceStatusFilter, setServiceStatusFilter] = useState<ServiceRequestStatus | 'all'>('all');
   const [hrSelectedDate, setHrSelectedDate] = useState<string>('');
 
+  // Interactive In-Browser Excel Spreadsheet Viewer State
+  const [activeExcelPreview, setActiveExcelPreview] = useState<ExcelSpreadsheetData | null>(null);
+
   // HR Searchable Guest History States
   const [guestHistoryPhoneSearch, setGuestHistoryPhoneSearch] = useState<string>('');
   const [selectedHistoryGuestPhone, setSelectedHistoryGuestPhone] = useState<string>('');
@@ -115,8 +120,9 @@ export const StaffView: React.FC = () => {
   const [newRoomDescription, setNewRoomDescription] = useState<string>('');
   const [newRoomImage, setNewRoomImage] = useState<string>('');
 
-  // Front Desk Custom Room Billing Desk States
-  const [posSelectedRoomId, setPosSelectedRoomId] = useState<string>('');
+  // Front Desk Custom Room Billing Desk States (Multi-Room Selection Support)
+  const [posSelectedRoomIds, setPosSelectedRoomIds] = useState<string[]>([]);
+  const posSelectedRoomId = posSelectedRoomIds[0] || '';
   const [posCustomerName, setPosCustomerName] = useState<string>('');
   const [posCustomerPhone, setPosCustomerPhone] = useState<string>('');
   const [posCustomerNid, setPosCustomerNid] = useState<string>('');
@@ -251,11 +257,20 @@ export const StaffView: React.FC = () => {
     return { total, occupied, available, cleaning, maintenance, rate, pendingBookings, pendingServices };
   }, [rooms, bookings, serviceRequests]);
 
-  // Handle auto-room price filling upon front desk selector
-  const selectedRoomDetails = useMemo(() => {
-    if (!posSelectedRoomId) return null;
-    return rooms.find(r => r.id === posSelectedRoomId);
-  }, [posSelectedRoomId, rooms]);
+  // Handle auto-room price filling upon front desk selector for multiple rooms
+  const selectedRoomsDetails = useMemo(() => {
+    return rooms.filter(r => posSelectedRoomIds.includes(r.id));
+  }, [posSelectedRoomIds, rooms]);
+
+  const selectedRoomDetails = selectedRoomsDetails[0] || null;
+
+  const totalNightlyRate = useMemo(() => {
+    return selectedRoomsDetails.reduce((sum, r) => sum + r.price, 0);
+  }, [selectedRoomsDetails]);
+
+  const totalCapacity = useMemo(() => {
+    return selectedRoomsDetails.reduce((sum, r) => sum + (r.capacity || 2), 0);
+  }, [selectedRoomsDetails]);
 
   // Helper stays calculator
   const calcNights = (inD: string, outD: string) => {
@@ -268,10 +283,10 @@ export const StaffView: React.FC = () => {
   };
 
   const calculatedBasePrice = useMemo(() => {
-    if (!selectedRoomDetails) return 0;
+    if (selectedRoomsDetails.length === 0) return 0;
     const nights = calcNights(posCheckIn, posCheckOut);
-    return selectedRoomDetails.price * nights;
-  }, [selectedRoomDetails, posCheckIn, posCheckOut]);
+    return totalNightlyRate * nights;
+  }, [selectedRoomsDetails, totalNightlyRate, posCheckIn, posCheckOut]);
 
   // Room submission
   const handleAddRoomSubmit = async (e: React.FormEvent) => {
@@ -329,22 +344,51 @@ export const StaffView: React.FC = () => {
     setIsAddingRoom(false);
   };
 
-  // Click room visual grid handler to bind instantly to Front Desk Booking Form
+  // Click room visual grid handler to toggle selection for Front Desk Booking Form or batch manage
   const triggerDeskFromRoom = (room: Room) => {
     if (room.status !== 'available') {
-      setSelectedRoomToManage(room);
+      // If no rooms are currently selected, open the dedicated manage modal
+      if (posSelectedRoomIds.length === 0) {
+        setSelectedRoomToManage(room);
+        return;
+      }
+      // If staff has already started multi-selecting rooms, allow toggling this room for batch status updates
+    }
+
+    setPosSelectedRoomIds(prev => {
+      if (prev.includes(room.id)) {
+        return prev.filter(id => id !== room.id);
+      } else {
+        return [...prev, room.id];
+      }
+    });
+    setPosCustomBill(''); // reset to use dynamic pricing
+  };
+
+  const handleSelectAllAvailableRooms = () => {
+    const availIds = rooms.filter(r => r.status === 'available').map(r => r.id);
+    setPosSelectedRoomIds(availIds);
+    setPosCustomBill('');
+    showToast({ type: 'info', message: `Selected all ${availIds.length} available rooms.` });
+  };
+
+  const handleClearSelectedRooms = () => {
+    setPosSelectedRoomIds([]);
+    setPosCustomBill('');
+  };
+
+  const handleBatchSetStatus = async (status: RoomStatus) => {
+    if (posSelectedRoomIds.length === 0) {
+      showToast({ type: 'warning', message: '⚠️ No rooms selected to update.' });
       return;
     }
-    setPosSelectedRoomId(room.id);
-    setPosCustomBill(''); // reset to use standard pricing
-    setReceptionistGuests([]);
-    setPosReferenceName('');
-    setReceptionistKids([]);
-    // Scroll smoothly to Guest Desk form
-    const formElement = document.getElementById('pos-guest-desk');
-    if (formElement) {
-      formElement.scrollIntoView({ behavior: 'smooth' });
-    }
+    const count = posSelectedRoomIds.length;
+    await batchUpdateRoomStatus(posSelectedRoomIds, status);
+    showToast({ 
+      type: 'success', 
+      message: `Updated status of ${count} room${count > 1 ? 's' : ''} to ${status.toUpperCase()}!` 
+    });
+    handleClearSelectedRooms();
   };
 
   // Submit fast front desk booking
@@ -371,37 +415,44 @@ export const StaffView: React.FC = () => {
       return;
     }
 
-    // 4. Room Selection
-    let selectedRoomIdToUse = posSelectedRoomId;
-    if (!selectedRoomIdToUse) {
+    // 4. Room Selection (supports multiple rooms)
+    let roomIdsToUse = [...posSelectedRoomIds];
+    if (roomIdsToUse.length === 0) {
       const avail = rooms.find(r => r.status === 'available');
       if (avail) {
-        selectedRoomIdToUse = avail.id;
+        roomIdsToUse = [avail.id];
       } else if (rooms[0]) {
-        selectedRoomIdToUse = rooms[0].id;
+        roomIdsToUse = [rooms[0].id];
       } else {
         showToast({ type: 'error', message: "⚠️ No rooms available in the system." });
         return;
       }
     }
 
-    const targetRoom = rooms.find(r => r.id === selectedRoomIdToUse);
-    if (!targetRoom) {
-      showToast({ type: 'error', message: "⚠️ Selected room could not be found. Please pick a room." });
+    const selectedRooms = rooms.filter(r => roomIdsToUse.includes(r.id));
+    if (selectedRooms.length === 0) {
+      showToast({ type: 'error', message: "⚠️ Selected room(s) could not be found. Please pick valid rooms." });
       return;
     }
 
+    const primaryRoom = selectedRooms[0];
+    const combinedRoomNumbers = selectedRooms.map(r => r.number).join(', ');
+    const combinedRoomTypes = selectedRooms.map(r => r.type.toUpperCase()).join(', ');
     const nights = calcNights(posCheckIn, posCheckOut);
     const validNights = nights > 0 ? nights : 1;
-    const finalBill = posCustomBill ? Number(posCustomBill) : (calculatedBasePrice || (targetRoom.price * validNights));
+    const combinedNightly = selectedRooms.reduce((acc, r) => acc + r.price, 0);
+    const autoPrice = combinedNightly * validNights;
+    const finalBill = posCustomBill ? Number(posCustomBill) : (calculatedBasePrice || autoPrice);
 
     try {
       const gList = receptionistGuests.filter(g => g.name.trim() !== '');
       const kList = receptionistKids.filter(k => k.name.trim() !== '');
       const generatedRef = await createBooking({
-        roomId: selectedRoomIdToUse,
-        roomNumber: targetRoom.number,
-        roomType: targetRoom.type,
+        roomId: primaryRoom.id,
+        roomNumber: combinedRoomNumbers,
+        roomType: selectedRooms.length > 1 ? `Multi-Room (${combinedRoomTypes})` : primaryRoom.type,
+        roomIds: roomIdsToUse,
+        roomNumbers: selectedRooms.map(r => r.number),
         guestName: posCustomerName.trim(),
         guestEmail: `${posCustomerName.trim().toLowerCase().replace(/\s+/g, '')}@islamiaguesthouse.com`,
         guestPhone: posCustomerPhone.trim(),
@@ -412,7 +463,7 @@ export const StaffView: React.FC = () => {
         checkOut: posCheckOut,
         totalAmount: finalBill,
         status: 'checked-in',
-        notes: `Checked in directly via front-desk guest registration desk at Dhanmondi.`,
+        notes: `Checked in directly via front-desk guest registration desk for room(s): ${combinedRoomNumbers}.`,
         additionalGuests: gList,
         referenceName: posReferenceName.trim() || '',
         kids: kList
@@ -420,9 +471,11 @@ export const StaffView: React.FC = () => {
 
       const finalBookingItem: Booking = {
         id: generatedRef || `B${Date.now().toString().slice(-4)}`,
-        roomId: selectedRoomIdToUse,
-        roomNumber: targetRoom.number,
-        roomType: targetRoom.type,
+        roomId: primaryRoom.id,
+        roomNumber: combinedRoomNumbers,
+        roomType: selectedRooms.length > 1 ? `Multi-Room (${combinedRoomTypes})` : primaryRoom.type,
+        roomIds: roomIdsToUse,
+        roomNumbers: selectedRooms.map(r => r.number),
         guestName: posCustomerName.trim(),
         guestEmail: `${posCustomerName.trim().toLowerCase().replace(/\s+/g, '')}@islamiaguesthouse.com`,
         guestPhone: posCustomerPhone.trim(),
@@ -433,7 +486,7 @@ export const StaffView: React.FC = () => {
         checkOut: posCheckOut,
         totalAmount: finalBill,
         status: 'checked-in',
-        notes: 'Checked in directly via front-desk guest registration desk.',
+        notes: `Checked in directly via front-desk guest registration desk for room(s): ${combinedRoomNumbers}.`,
         additionalGuests: gList,
         referenceName: posReferenceName.trim() || '',
         kids: kList,
@@ -445,7 +498,7 @@ export const StaffView: React.FC = () => {
 
       showToast({
         type: 'success',
-        message: `🎟️ Checkout booking created & invoice generated for ${posCustomerName.trim()} in Room ${targetRoom.number}!`
+        message: `🎟️ Checkout booking created & invoice generated for ${posCustomerName.trim()} across ${selectedRooms.length} room${selectedRooms.length > 1 ? 's' : ''} (${combinedRoomNumbers})!`
       });
 
       // Clear form fields
@@ -454,7 +507,7 @@ export const StaffView: React.FC = () => {
       setPosCustomerNid('');
       setPosCustomerUpazila('');
       setPosCustomerZila('');
-      setPosSelectedRoomId('');
+      setPosSelectedRoomIds([]);
       setPosCustomBill('');
       setReceptionistGuests([]);
       setPosReferenceName('');
@@ -826,70 +879,84 @@ export const StaffView: React.FC = () => {
 
           {/* Visual Interactive Map List */}
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-            {rooms.map(room => (
-              <div
-                key={room.id}
-                id={`room-btn-${room.id}`}
-                onClick={() => triggerDeskFromRoom(room)}
-                className={`text-left p-3.5 rounded-2xl border transition-all duration-200 relative overflow-hidden flex flex-col justify-between min-h-[100px] active:scale-95 group cursor-pointer ${
-                  posSelectedRoomId === room.id
-                    ? 'ring-2 ring-teal-600 bg-teal-50/40 border-teal-600'
-                    : room.status === 'available'
-                    ? 'bg-emerald-50/30 border-emerald-100 hover:bg-emerald-50 hover:border-emerald-200'
-                    : room.status === 'occupied'
-                    ? 'bg-rose-50/20 border-rose-150 opacity-90'
-                    : 'bg-slate-50 border-slate-200'
-                }`}
-              >
-                <div className="flex justify-between items-start w-full">
-                  <span className="font-serif text-base font-bold text-slate-800">
-                    Room {room.number}
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      id={`room-manage-trigger-${room.id}`}
-                      type="button"
-                      title="Manage room status/duty"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedRoomToManage(room);
-                      }}
-                      className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-all active:scale-90"
-                    >
-                      <Settings className="w-3.5 h-3.5" />
-                    </button>
-                    <span className={`w-2 h-2 rounded-full ${
-                      room.status === 'available' ? 'bg-emerald-500 animate-pulse' :
-                      room.status === 'occupied' ? 'bg-rose-500' :
-                      room.status === 'cleaning' ? 'bg-amber-400' : 'bg-slate-400'
-                    }`} />
+            {rooms.map(room => {
+              const isSelected = posSelectedRoomIds.includes(room.id);
+              return (
+                <div
+                  key={room.id}
+                  id={`room-btn-${room.id}`}
+                  onClick={() => triggerDeskFromRoom(room)}
+                  className={`text-left p-3.5 rounded-2xl border transition-all duration-200 relative overflow-hidden flex flex-col justify-between min-h-[100px] active:scale-95 group cursor-pointer ${
+                    isSelected
+                      ? 'ring-2 ring-teal-600 bg-teal-50/50 border-teal-600 shadow-sm'
+                      : room.status === 'available'
+                      ? 'bg-emerald-50/30 border-emerald-100 hover:bg-emerald-50 hover:border-emerald-200'
+                      : room.status === 'occupied'
+                      ? 'bg-rose-50/20 border-rose-150 opacity-90'
+                      : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <div className="flex justify-between items-start w-full">
+                    <span className="font-serif text-base font-bold text-slate-800 flex items-center gap-1.5">
+                      Room {room.number}
+                      {isSelected && (
+                        <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[#0d7a70] text-white shadow-xs ml-1">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        id={`room-manage-trigger-${room.id}`}
+                        type="button"
+                        title="Manage room status/duty"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRoomToManage(room);
+                        }}
+                        className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 transition-all active:scale-90"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                      </button>
+                      <span className={`w-2 h-2 rounded-full ${
+                        room.status === 'available' ? 'bg-emerald-500 animate-pulse' :
+                        room.status === 'occupied' ? 'bg-rose-500' :
+                        room.status === 'cleaning' ? 'bg-amber-400' : 'bg-slate-400'
+                      }`} />
+                    </div>
                   </div>
-                </div>
 
-                <div className="mt-4">
-                  <span className="text-[9px] uppercase tracking-wider font-mono font-bold text-slate-400 block">
-                    {room.type}
-                  </span>
-                  <div className="flex justify-between items-baseline mt-1">
-                    <span className="text-xs font-mono font-bold text-teal-700">
-                      ৳{room.price} / night
+                  <div className="mt-4">
+                    <span className="text-[9px] uppercase tracking-wider font-mono font-bold text-slate-400 block">
+                      {room.type}
                     </span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      Cap: {room.capacity}
-                    </span>
+                    <div className="flex justify-between items-baseline mt-1">
+                      <span className="text-xs font-mono font-bold text-teal-700">
+                        ৳{room.price} / night
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        Cap: {room.capacity}
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                {/* Instant Bind Visual Label */}
-                {room.status === 'available' && (
-                  <div className="absolute inset-0 bg-emerald-600/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <span className="text-xs font-bold tracking-wider uppercase font-mono">
-                      Book Instantly
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
+                  {/* Instant Action Visual Overlay on Hover */}
+                  {isSelected ? (
+                    <div className="absolute inset-0 bg-teal-800/85 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <span className="text-xs font-bold tracking-wider uppercase font-mono flex items-center gap-1">
+                        <X className="w-3.5 h-3.5" /> Deselect
+                      </span>
+                    </div>
+                  ) : room.status === 'available' ? (
+                    <div className="absolute inset-0 bg-emerald-600/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <span className="text-xs font-bold tracking-wider uppercase font-mono flex items-center gap-1">
+                        <Plus className="w-3.5 h-3.5" /> Select Room
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -904,42 +971,99 @@ export const StaffView: React.FC = () => {
           </div>
 
           <form noValidate onSubmit={handleDeskBookingSubmit} className="space-y-3.5">
-            {/* Room Selection Dropdown */}
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase">Select Room *</label>
+            {/* Room Selection Dropdown & Selected Tags */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-slate-500 uppercase">
+                  Select Room(s) * {selectedRoomsDetails.length > 0 && `(${selectedRoomsDetails.length} picked)`}
+                </label>
+                {selectedRoomsDetails.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearSelectedRooms}
+                    className="text-[10px] text-rose-500 hover:text-rose-700 font-bold"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+
+              {/* Selected Room Badges */}
+              {selectedRoomsDetails.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-2 bg-white rounded-xl border border-teal-200 max-h-32 overflow-y-auto">
+                  {selectedRoomsDetails.map(r => (
+                    <span
+                      key={r.id}
+                      className="inline-flex items-center gap-1.5 bg-teal-50 text-teal-900 border border-teal-200/80 px-2 py-1 rounded-lg text-xs"
+                    >
+                      <span className="font-serif font-bold">Room {r.number}</span>
+                      <span className="text-[10px] text-teal-700 font-mono font-semibold">৳{r.price}</span>
+                      <button
+                        type="button"
+                        onClick={() => triggerDeskFromRoom(r)}
+                        className="p-0.5 hover:bg-teal-200 rounded text-slate-400 hover:text-rose-600 transition"
+                        title="Remove room"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Dropdown to add or toggle rooms */}
               <select
                 id="pos-room-select-dropdown"
-                value={posSelectedRoomId}
-                onChange={(e) => setPosSelectedRoomId(e.target.value)}
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const r = rooms.find(rm => rm.id === e.target.value);
+                    if (r) triggerDeskFromRoom(r);
+                  }
+                }}
                 className="w-full text-xs border border-slate-200 rounded-xl p-2.5 bg-white font-serif font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
               >
-                <option value="">-- Click a Room Left or Choose Here --</option>
-                {rooms.map(r => (
-                  <option key={r.id} value={r.id}>
-                    Room {r.number} ({r.type.toUpperCase()}) - ৳{r.price}/night [{r.status.toUpperCase()}]
-                  </option>
-                ))}
+                <option value="">
+                  {selectedRoomsDetails.length > 0 
+                    ? "+ Click Room card on left or pick here to add more..." 
+                    : "-- Click Rooms on Left Grid or Pick Here --"}
+                </option>
+                {rooms.map(r => {
+                  const isAlreadySelected = posSelectedRoomIds.includes(r.id);
+                  return (
+                    <option key={r.id} value={r.id}>
+                      {isAlreadySelected ? '✓ (Selected) ' : '+ '}Room {r.number} ({r.type.toUpperCase()}) - ৳{r.price}/night [{r.status.toUpperCase()}]
+                    </option>
+                  );
+                })}
               </select>
             </div>
 
-            {/* Selected Room Info */}
+            {/* Selected Room Info Card */}
             <div className="bg-white p-3 rounded-xl border border-slate-200 flex justify-between items-center text-xs">
               <div>
                 <span className="text-[9px] uppercase tracking-wider font-mono text-slate-400 block font-bold">
                   Billed Room Selection
                 </span>
                 <span className="font-serif text-sm font-bold text-slate-800">
-                  {selectedRoomDetails ? `Room ${selectedRoomDetails.number}` : 'No Room Selected'}
+                  {selectedRoomsDetails.length > 0 
+                    ? `${selectedRoomsDetails.length} Room${selectedRoomsDetails.length > 1 ? 's' : ''}: ${selectedRoomsDetails.map(r => r.number).join(', ')}` 
+                    : 'No Room Selected'}
                 </span>
+                {selectedRoomsDetails.length > 0 && (
+                  <span className="text-[10px] text-slate-500 font-mono block">
+                    Combined Capacity: {totalCapacity} Guests
+                  </span>
+                )}
               </div>
               <div>
-                {selectedRoomDetails ? (
+                {selectedRoomsDetails.length > 0 ? (
                   <span className="bg-teal-50 text-teal-700 font-mono font-semibold px-2 py-1 rounded text-[10px] border border-teal-100 uppercase">
-                    ৳{selectedRoomDetails.price}/Night
+                    ৳{totalNightlyRate}/Night Total
                   </span>
                 ) : (
                   <span className="text-rose-500 font-mono text-[10px] uppercase font-bold animate-pulse">
-                    Click a room left
+                    Click rooms on left
                   </span>
                 )}
               </div>
@@ -1179,22 +1303,22 @@ export const StaffView: React.FC = () => {
             <div className="space-y-1">
               <div className="flex justify-between items-baseline">
                 <label className="text-[10px] font-bold text-slate-500 uppercase">Dynamic Total Bill (৳)</label>
-                {selectedRoomDetails && (
+                {selectedRoomsDetails.length > 0 && (
                   <span className="text-[9px] font-semibold text-slate-400 font-mono">
-                    ({calcNights(posCheckIn, posCheckOut)} night stay)
+                    ({calcNights(posCheckIn, posCheckOut)} night{calcNights(posCheckIn, posCheckOut) > 1 ? 's' : ''} across {selectedRoomsDetails.length} room{selectedRoomsDetails.length > 1 ? 's' : ''})
                   </span>
                 )}
               </div>
               <input
                 id="pos-bill-input"
                 type="number"
-                placeholder={selectedRoomDetails ? `Auto BDT Subtotal: ৳${calculatedBasePrice}` : "Select Room..."}
+                placeholder={selectedRoomsDetails.length > 0 ? `Auto BDT Subtotal: ৳${calculatedBasePrice} (${selectedRoomsDetails.length} room${selectedRoomsDetails.length > 1 ? 's' : ''})` : "Select Room(s)..."}
                 value={posCustomBill}
                 onChange={(e) => setPosCustomBill(e.target.value)}
                 className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white text-teal-800 font-mono font-bold font-semibold focus:outline-none"
               />
               <span className="text-[8px] text-slate-400 leading-normal block mt-1">
-                Leave field blank to auto-price based on {calcNights(posCheckIn, posCheckOut)} nights, or enter any bespoke amount to override bill manually.
+                Leave field blank to auto-price based on {calcNights(posCheckIn, posCheckOut)} night(s) across {selectedRoomsDetails.length || 1} room(s), or enter any bespoke amount to override bill manually.
               </span>
             </div>
 
@@ -1204,7 +1328,7 @@ export const StaffView: React.FC = () => {
               className="w-full py-2.5 rounded-xl text-xs font-bold font-mono tracking-wider transition uppercase flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white shadow-sm shadow-teal-600/30 active:scale-95 cursor-pointer"
             >
               <TicketPlus className="w-4 h-4" />
-              <span>Checkout Booking</span>
+              <span>Checkout Booking ({selectedRoomsDetails.length || 1} Room{selectedRoomsDetails.length > 1 ? 's' : ''})</span>
             </button>
           </form>
         </div>
@@ -1437,16 +1561,36 @@ export const StaffView: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      id="export-single-guest-history-excel-btn"
-                      onClick={() => exportGuestLogsToExcel(guestHistoryBookings, `Guest_History_${guestHistoryBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Logs'}`)}
-                      className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
-                      title="Download guest stay timeline to Excel (.xlsx)"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-slate-950" />
-                      <span>Export Timeline to Excel</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        id="view-single-guest-history-excel-btn"
+                        onClick={() => {
+                          const sheetData = buildBookingsExcelData(
+                            guestHistoryBookings,
+                            `Guest Stay Timeline: ${guestHistoryBookings[0]?.guestName || 'Verified Guest'}`,
+                            `Guest_History_${guestHistoryBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Logs'}`
+                          );
+                          setActiveExcelPreview(sheetData);
+                        }}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
+                        title="Visit and view guest stay timeline in Excel without downloading"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-emerald-100" />
+                        <span>Visit Excel</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        id="export-single-guest-history-excel-btn"
+                        onClick={() => exportGuestLogsToExcel(guestHistoryBookings, `Guest_History_${guestHistoryBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Logs'}`)}
+                        className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shrink-0 shadow-sm cursor-pointer"
+                        title="Download guest stay timeline to Excel (.xlsx)"
+                      >
+                        <Download className="w-3.5 h-3.5 text-slate-950" />
+                        <span>Download</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Chronological Vertical Timeline */}
@@ -1585,13 +1729,38 @@ export const StaffView: React.FC = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
+                  id="hr-view-excel-btn"
+                  onClick={() => {
+                    if (!filteredBookings || filteredBookings.length === 0) {
+                      showToast({
+                        type: 'warning',
+                        message: '⚠️ No guest records available to preview in Excel.'
+                      });
+                      return;
+                    }
+                    const sheetData = buildBookingsExcelData(
+                      filteredBookings,
+                      'Islamia Guest House — Master Reservation & Billing Ledger',
+                      'Islamia_Guest_House_Master_Export'
+                    );
+                    setActiveExcelPreview(sheetData);
+                  }}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                  title="Visit and preview Excel spreadsheet directly in browser without downloading"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-100" />
+                  <span>Visit Excel Sheet</span>
+                </button>
+
+                <button
+                  type="button"
                   id="hr-export-excel-btn"
                   onClick={() => exportGuestLogsToExcel(filteredBookings, opMode === 'hr' ? 'HR_Historical_Guest_Archives' : 'FrontDesk_Reception_Logs')}
-                  className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 border border-slate-700"
                   title="Export guest logs to Excel (.xlsx) file for offline record keeping"
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-100" />
-                  <span>Export to Excel</span>
+                  <Download className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Download .xlsx</span>
                 </button>
 
                 {/* Date Picker Filter for Day-by-Day Guest History */}
@@ -2477,6 +2646,14 @@ export const StaffView: React.FC = () => {
 
           </div>
         </div>
+      )}
+
+      {/* Interactive In-Browser Excel Spreadsheet Modal (No Download Required) */}
+      {activeExcelPreview && (
+        <ExcelViewerModal 
+          data={activeExcelPreview} 
+          onClose={() => setActiveExcelPreview(null)} 
+        />
       )}
 
     </div>

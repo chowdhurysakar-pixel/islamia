@@ -12,8 +12,9 @@ import { PrintableInvoice } from './PrintableInvoice';
 import { WhyChooseUs } from './WhyChooseUs';
 import { ExploreDhanmondi } from './ExploreDhanmondi';
 import { computeRepeatGuestBookingIds, checkIsRepeatGuest } from '../utils/guestUtils';
-import { exportBookingsToExcel } from '../utils/excelUtils';
-import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw, Trash2, Smartphone, Copy, FileSpreadsheet } from 'lucide-react';
+import { exportBookingsToExcel, buildBookingsExcelData, ExcelSpreadsheetData } from '../utils/excelUtils';
+import { ExcelViewerModal } from './ExcelViewerModal';
+import { Calendar, Search, Filter, Sliders, CheckCircle2, Ticket, Sparkles, MessageSquarePlus, X, BellDot, HeartHandshake, Receipt, Printer, MapPin, Phone, Info, Star, MessageSquare, Check, Mic, MicOff, ExternalLink, ChevronDown, ChevronUp, Minus, Plus, User, Menu, Send, AlertCircle, Mail, LogOut, RotateCcw, Trash2, Smartphone, Copy, FileSpreadsheet, Eye, Download } from 'lucide-react';
 import dhanmondiMapImg from '../assets/images/dhanmondi_map_location_1785059048345.jpg';
 import { BkashLogo } from './BkashLogo';
 
@@ -113,6 +114,9 @@ export const GuestView: React.FC = () => {
   // Rating & Review Feedback Form State
   const [userRating, setUserRating] = useState<number>(5);
   const [userComment, setUserComment] = useState<string>('');
+
+  // Interactive In-Browser Excel Spreadsheet Viewer State
+  const [activeExcelPreview, setActiveExcelPreview] = useState<ExcelSpreadsheetData | null>(null);
   const [guestReviewerName, setGuestReviewerName] = useState<string>('');
   const [guestReviewerContact, setGuestReviewerContact] = useState<string>('');
   const [submittingFeedback, setSubmittingFeedback] = useState<boolean>(false);
@@ -1036,23 +1040,43 @@ export const GuestView: React.FC = () => {
             </div>
 
             {myBookings.length > 0 && (
-              <button
-                type="button"
-                id="guest-export-excel-btn"
-                onClick={() => {
-                  exportBookingsToExcel(myBookings, `My_Reservations_${myBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Stay'}`);
-                  showToast({
-                    type: 'success',
-                    message: `📥 Downloaded your ${myBookings.length} stay records to Excel (.xlsx)!`
-                  });
-                }}
-                className="px-3.5 py-2 bg-[#0e2b33] hover:bg-[#af8a52] text-[#efe8d8] font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
-                title="Download your stay details to Excel (.xlsx)"
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#efe8d8]" />
-                <span className="hidden sm:inline">Export to Excel</span>
-                <span className="sm:hidden">Excel</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  id="guest-view-excel-btn"
+                  onClick={() => {
+                    const data = buildBookingsExcelData(
+                      myBookings,
+                      `My Stay Records - ${myBookings[0]?.guestName || 'Guest'}`,
+                      `My_Reservations_${myBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Stay'}`
+                    );
+                    setActiveExcelPreview(data);
+                  }}
+                  className="px-3 py-2 bg-[#0e2b33] hover:bg-[#1a4a57] text-[#efe8d8] font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0 border border-[#efe8d8]/20"
+                  title="Visit and preview your stay records in Excel without downloading"
+                >
+                  <Eye className="w-3.5 h-3.5 text-[#efe8d8]" />
+                  <span className="hidden sm:inline">Visit Excel</span>
+                  <span className="sm:hidden">Excel</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="guest-export-excel-btn"
+                  onClick={() => {
+                    exportBookingsToExcel(myBookings, `My_Reservations_${myBookings[0]?.guestName?.replace(/\s+/g, '_') || 'Stay'}`);
+                    showToast({
+                      type: 'success',
+                      message: `📥 Downloaded your ${myBookings.length} stay records to Excel (.xlsx)!`
+                    });
+                  }}
+                  className="px-3 py-2 bg-[#af8a52] hover:bg-[#97743f] text-white font-bold rounded-xl text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer shrink-0"
+                  title="Download your stay details to Excel (.xlsx)"
+                >
+                  <Download className="w-3.5 h-3.5 text-white" />
+                  <span className="hidden sm:inline">Download</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -2200,6 +2224,14 @@ export const GuestView: React.FC = () => {
           rooms={rooms}
           onClose={() => setShowBillModal(false)}
           autoPrint={autoPrintInvoice}
+        />
+      )}
+
+      {/* Interactive In-Browser Excel Spreadsheet Modal (No Download Required) */}
+      {activeExcelPreview && (
+        <ExcelViewerModal 
+          data={activeExcelPreview} 
+          onClose={() => setActiveExcelPreview(null)} 
         />
       )}
 
